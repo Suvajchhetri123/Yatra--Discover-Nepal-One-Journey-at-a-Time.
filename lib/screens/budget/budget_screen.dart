@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+
+import '../../models/package_model.dart';
+
 import '../destination/destination_screen.dart';
+
+import '../season_analysis/season_analysis_screen.dart';
 
 class BudgetScreen extends StatefulWidget {
   final List<int> ages;
@@ -7,6 +12,7 @@ class BudgetScreen extends StatefulWidget {
   final int groupSize;
   final DateTime departureDate;
   final DateTime returnDate;
+  final TourPackage? package;
 
   const BudgetScreen({
     super.key,
@@ -15,6 +21,7 @@ class BudgetScreen extends StatefulWidget {
     required this.groupSize,
     required this.departureDate,
     required this.returnDate,
+    this.package,
   });
 
   @override
@@ -179,20 +186,43 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   onPressed: !isValidBudget
                       ? null
                       : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => DestinationScreen(
-                                currency: selectedCurrency,
-                                budget: enteredBudget,
-                                ages: widget.ages,
-                                travelType: widget.travelType,
-                                groupSize: widget.groupSize,
-                                departureDate: widget.departureDate,
-                                returnDate: widget.returnDate,
+                          if (widget.package != null) {
+                            // Package booking:
+                            // Skip DestinationScreen because the
+                            // destination is already known.
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SeasonAnalysisScreen(
+                                  destination: widget.package!.region,
+                                  departureDate: widget.departureDate,
+                                  returnDate: widget.returnDate,
+                                  currency: selectedCurrency,
+                                  budget: enteredBudget,
+                                  ages: widget.ages,
+                                  travelType: widget.travelType,
+                                  groupSize: widget.groupSize,
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          } else {
+                            // Custom trip:
+                            // Continue to DestinationScreen.
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DestinationScreen(
+                                  currency: selectedCurrency,
+                                  budget: enteredBudget,
+                                  ages: widget.ages,
+                                  travelType: widget.travelType,
+                                  groupSize: widget.groupSize,
+                                  departureDate: widget.departureDate,
+                                  returnDate: widget.returnDate,
+                                ),
+                              ),
+                            );
+                          }
                         },
                   child: const Text(
                     'Continue',

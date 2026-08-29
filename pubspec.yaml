@@ -1,5 +1,5 @@
 name: yatra
-description: "A new Flutter project."
+description: "Yatra - A Nepal travel planning and recommendation application."
 
 publish_to: "none"
 
@@ -25,3 +25,4 @@ flutter:
 
   assets:
     - assets/images/places/
+    - assets/images/yatra_logo.jpeg

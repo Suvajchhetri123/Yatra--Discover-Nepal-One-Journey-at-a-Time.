@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../models/travel_route_model.dart';
 import '../recommendation/recommendation_screen.dart';
 
@@ -35,145 +36,651 @@ class BoardingScreen extends StatefulWidget {
 }
 
 class _BoardingScreenState extends State<BoardingScreen> {
-  List<String> get locations {
-    switch (widget.destination) {
-      case 'Mustang':
-        return const ['Kathmandu', 'Pokhara', 'Jomsom', 'Mustang'];
-      case 'Everest':
-        return const ['Kathmandu', 'Everest'];
-      case 'Annapurna':
-        return const ['Kathmandu', 'Pokhara', 'Annapurna'];
-      case 'Chitwan':
-        return const ['Kathmandu', 'Chitwan'];
-      case 'Pokhara':
-        return const ['Kathmandu', 'Pokhara'];
-      case 'Kathmandu':
-      default:
-        return const ['Kathmandu'];
-    }
-  }
+  String? selectedBoardingPoint;
+  String? selectedNextPoint;
+  String? selectedTransportation;
 
-  final List<String> transportationOptions = const [
-    'Bus',
-    'Flight',
-    'Jeep',
-    'Private Vehicle',
-    'Motorbike',
-    'Hybrid',
-  ];
+  TripDirection selectedTripDirection = TripDirection.oneWay;
 
-  String? boardingPoint;
-  String? endingPoint;
+  // ============================================================
+  // OUTGOING ROUTE
+  // ============================================================
 
   final List<RouteSegment> segments = [];
 
-  String? selectedFrom;
-  String? selectedTo;
-  String? selectedTransportation;
+  // ============================================================
+  // RETURN ROUTE
+  // ============================================================
 
-  @override
-  void initState() {
-    super.initState();
-    endingPoint = widget.destination;
+  final List<RouteSegment> returnSegments = [];
+  String? selectedReturnTransportation;
+
+  // ============================================================
+  // ALL LOCATIONS
+  // ============================================================
+
+  final List<String> locations = [
+    'Kathmandu',
+    'Pokhara',
+    'Chitwan',
+    'Tansen',
+    'Rasuwa',
+    'Jomsom',
+    'Marpha',
+    'Kagbeni',
+    'Muktinath',
+    'Mustang',
+    'Lukla',
+    'Namche Bazaar',
+    'Ghandruk',
+    'Poon Hill',
+    'Annapurna',
+    'Everest',
+  ];
+
+  // ============================================================
+  // DESTINATION-SPECIFIC ROUTES
+  // ============================================================
+
+  final Map<String, Map<String, List<String>>> destinationRoutes = {
+    'Mustang': {
+      'Kathmandu': [
+        'Pokhara',
+        'Jomsom',
+        'Kagbeni',
+        'Mustang',
+      ],
+      'Pokhara': [
+        'Jomsom',
+        'Kagbeni',
+        'Mustang',
+      ],
+      'Jomsom': [
+        'Marpha',
+        'Kagbeni',
+        'Mustang',
+      ],
+      'Marpha': [
+        'Kagbeni',
+        'Mustang',
+      ],
+      'Kagbeni': [
+        'Muktinath',
+        'Mustang',
+      ],
+    },
+
+    'Annapurna': {
+      'Kathmandu': [
+        'Pokhara',
+      ],
+      'Pokhara': [
+        'Ghandruk',
+        'Poon Hill',
+        'Annapurna',
+      ],
+      'Ghandruk': [
+        'Poon Hill',
+        'Annapurna',
+      ],
+      'Poon Hill': [
+        'Annapurna',
+      ],
+    },
+
+    'Everest': {
+      'Kathmandu': [
+        'Lukla',
+      ],
+      'Lukla': [
+        'Namche Bazaar',
+      ],
+      'Namche Bazaar': [
+        'Everest',
+      ],
+    },
+
+    'Pokhara': {
+      'Kathmandu': [
+        'Pokhara',
+      ],
+      'Chitwan': [
+        'Pokhara',
+      ],
+      'Tansen': [
+        'Pokhara',
+      ],
+      'Pokhara': [],
+    },
+
+    'Chitwan': {
+      'Kathmandu': [
+        'Chitwan',
+      ],
+      'Pokhara': [
+        'Chitwan',
+      ],
+      'Tansen': [
+        'Chitwan',
+      ],
+      'Chitwan': [],
+    },
+
+    'Kathmandu': {
+      'Pokhara': [
+        'Kathmandu',
+      ],
+      'Chitwan': [
+        'Kathmandu',
+      ],
+      'Tansen': [
+        'Kathmandu',
+      ],
+      'Rasuwa': [
+        'Kathmandu',
+      ],
+      'Lukla': [
+        'Kathmandu',
+      ],
+      'Kathmandu': [],
+    },
+
+    'Tansen': {
+      'Kathmandu': [
+        'Tansen',
+      ],
+      'Pokhara': [
+        'Tansen',
+      ],
+      'Chitwan': [
+        'Tansen',
+      ],
+      'Tansen': [],
+    },
+
+    'Rasuwa': {
+      'Kathmandu': [
+        'Rasuwa',
+      ],
+      'Rasuwa': [],
+    },
+  };
+
+  // ============================================================
+  // TRANSPORTATION
+  // ============================================================
+
+  final List<Map<String, dynamic>> transportationOptions = [
+    {
+      'name': 'Bus',
+      'icon': Icons.directions_bus,
+      'description': 'Budget-friendly and widely available',
+    },
+    {
+      'name': 'Private Vehicle',
+      'icon': Icons.directions_car,
+      'description': 'Comfortable and flexible',
+    },
+    {
+      'name': 'Jeep',
+      'icon': Icons.directions_car_filled,
+      'description': 'Suitable for mountain roads',
+    },
+    {
+      'name': 'Motorbike',
+      'icon': Icons.two_wheeler,
+      'description': 'Flexible and scenic',
+    },
+    {
+      'name': 'Flight',
+      'icon': Icons.flight,
+      'description': 'Fastest travel option',
+    },
+  ];
+
+  // ============================================================
+  // NORMALIZE
+  // ============================================================
+
+  String _normalize(String value) {
+    return value.trim().toLowerCase();
   }
 
-  void _addSegment() {
-    if (selectedFrom == null ||
-        selectedTo == null ||
-        selectedTransportation == null) {
-      _showMessage(
-        'Please select starting point, destination and transportation.',
+  // ============================================================
+  // CURRENT OUTGOING LOCATION
+  // ============================================================
+
+  String? get currentLocation {
+    if (segments.isEmpty) {
+      return selectedBoardingPoint;
+    }
+
+    return segments.last.to;
+  }
+
+  // ============================================================
+  // CURRENT RETURN LOCATION
+  // ============================================================
+
+  String? get currentReturnLocation {
+    if (returnSegments.isEmpty) {
+      return widget.destination;
+    }
+
+    return returnSegments.last.to;
+  }
+
+  // ============================================================
+  // ACTIVE ROUTE MAP
+  // ============================================================
+
+  Map<String, List<String>> get activeRouteMap {
+    final destinationKey = widget.destination.trim();
+
+    if (destinationRoutes.containsKey(destinationKey)) {
+      return destinationRoutes[destinationKey]!;
+    }
+
+    for (final entry in destinationRoutes.entries) {
+      if (_normalize(entry.key) == _normalize(widget.destination)) {
+        return entry.value;
+      }
+    }
+
+    return {};
+  }
+
+  // ============================================================
+  // CAN REACH DESTINATION
+  // ============================================================
+
+  bool _canReachDestination(
+    String start,
+    String destination,
+  ) {
+    final routeMap = activeRouteMap;
+    final visited = <String>{};
+    final queue = <String>[start];
+
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+
+      if (_normalize(current) == _normalize(destination)) {
+        return true;
+      }
+
+      final normalizedCurrent = _normalize(current);
+
+      if (visited.contains(normalizedCurrent)) {
+        continue;
+      }
+
+      visited.add(normalizedCurrent);
+
+      final next = routeMap[current] ?? [];
+
+      for (final location in next) {
+        if (!visited.contains(_normalize(location))) {
+          queue.add(location);
+        }
+      }
+    }
+
+    return false;
+  }
+
+  // ============================================================
+  // BOARDING POINTS
+  // ============================================================
+
+  List<String> get boardingPoints {
+    final result = <String>[];
+
+    for (final location in locations) {
+      if (_normalize(location) == _normalize(widget.destination)) {
+        continue;
+      }
+
+      if (_canReachDestination(
+        location,
+        widget.destination,
+      )) {
+        result.add(location);
+      }
+    }
+
+    result.sort();
+
+    return result;
+  }
+
+  // ============================================================
+  // NEXT OUTGOING LOCATIONS
+  // ============================================================
+
+  List<String> get nextLocations {
+    final current = currentLocation;
+
+    if (current == null) {
+      return [];
+    }
+
+    final routeMap = activeRouteMap;
+
+    final possible = <String>[
+      ...(routeMap[current] ?? []),
+    ];
+
+    // Destination fallback
+    if (_normalize(current) != _normalize(widget.destination) &&
+        _canReachDestination(
+          current,
+          widget.destination,
+        ) &&
+        !possible.any(
+          (location) =>
+              _normalize(location) ==
+              _normalize(widget.destination),
+        )) {
+      final directDestination = locations.firstWhere(
+        (location) =>
+            _normalize(location) ==
+            _normalize(widget.destination),
+        orElse: () => widget.destination,
       );
-      return;
+
+      if (possible.isEmpty) {
+        possible.add(directDestination);
+      }
     }
 
-    if (selectedFrom == selectedTo) {
-      _showMessage('Starting point and destination cannot be the same.');
-      return;
-    }
-
-    if (boardingPoint == null) {
-      _showMessage('Please select your boarding point first.');
-      return;
-    }
-
-    final expectedStartingPoint = segments.isEmpty
-        ? boardingPoint
-        : segments.last.to;
-
-    if (selectedFrom != expectedStartingPoint) {
-      _showMessage('This route must continue from $expectedStartingPoint.');
-      return;
-    }
-
-    final segment = RouteSegment(
-      from: selectedFrom!,
-      to: selectedTo!,
-      transportation: selectedTransportation!,
+    // Remove current location.
+    possible.removeWhere(
+      (location) =>
+          _normalize(location) ==
+          _normalize(current),
     );
 
-    setState(() {
-      segments.add(segment);
+    // Remove locations already used.
+    possible.removeWhere(
+      (location) => segments.any(
+        (segment) =>
+            _normalize(segment.from) ==
+                _normalize(location) ||
+            _normalize(segment.to) ==
+                _normalize(location),
+      ),
+    );
 
-      selectedFrom = selectedTo;
-      selectedTo = null;
+    // Safety filter.
+    possible.removeWhere(
+      (location) => !_canReachDestination(
+        location,
+        widget.destination,
+      ),
+    );
+
+    return possible;
+  }
+
+  // ============================================================
+  // OUTGOING ROUTE COMPLETE
+  // ============================================================
+
+  bool get routeComplete {
+    return currentLocation != null &&
+        _normalize(currentLocation!) ==
+            _normalize(widget.destination) &&
+        segments.isNotEmpty;
+  }
+
+  // ============================================================
+  // RETURN ROUTE COMPLETE
+  // ============================================================
+
+  bool get returnRouteComplete {
+    if (selectedTripDirection == TripDirection.oneWay) {
+      return true;
+    }
+
+    if (!routeComplete) {
+      return false;
+    }
+
+    if (selectedBoardingPoint == null) {
+      return false;
+    }
+
+    if (returnSegments.isEmpty) {
+      return false;
+    }
+
+    return _normalize(returnSegments.last.to) ==
+        _normalize(selectedBoardingPoint!);
+  }
+
+  // ============================================================
+  // RETURN ROUTE LOCATIONS
+  // ============================================================
+
+  List<String> get returnLocations {
+    if (!routeComplete || selectedBoardingPoint == null) {
+      return [];
+    }
+
+    final outgoingPoints = <String>[
+      segments.first.from,
+      ...segments.map(
+        (segment) => segment.to,
+      ),
+    ];
+
+    return outgoingPoints.reversed.toList();
+  }
+
+  // ============================================================
+  // NEXT RETURN LOCATION
+  // ============================================================
+
+  String? get nextReturnLocation {
+    final points = returnLocations;
+
+    if (points.isEmpty) {
+      return null;
+    }
+
+    final current = currentReturnLocation;
+
+    final currentIndex = points.indexWhere(
+      (point) =>
+          _normalize(point) ==
+          _normalize(current ?? ''),
+    );
+
+    if (currentIndex == -1 ||
+        currentIndex >= points.length - 1) {
+      return null;
+    }
+
+    return points[currentIndex + 1];
+  }
+
+  // ============================================================
+  // SELECT BOARDING POINT
+  // ============================================================
+
+  void _selectBoardingPoint(String? value) {
+    setState(() {
+      selectedBoardingPoint = value;
+      selectedNextPoint = null;
+      selectedTransportation = null;
+      selectedTripDirection = TripDirection.oneWay;
+
+      segments.clear();
+      returnSegments.clear();
+
+      selectedReturnTransportation = null;
+    });
+  }
+
+  // ============================================================
+  // SELECT NEXT LOCATION
+  // ============================================================
+
+  void _selectNextPoint(String? value) {
+    setState(() {
+      selectedNextPoint = value;
       selectedTransportation = null;
     });
   }
 
-  void _removeSegment(int index) {
-    setState(() {
-      segments.removeAt(index);
+  // ============================================================
+  // SELECT OUTGOING TRANSPORT
+  // ============================================================
 
-      if (segments.isEmpty) {
-        selectedFrom = boardingPoint;
-      } else {
-        selectedFrom = segments.last.to;
+  void _selectTransportation(String? value) {
+    setState(() {
+      selectedTransportation = value;
+    });
+  }
+
+  // ============================================================
+  // ADD OUTGOING LEG
+  // ============================================================
+
+  void _addRouteLeg() {
+    if (currentLocation == null ||
+        selectedNextPoint == null ||
+        selectedTransportation == null) {
+      return;
+    }
+
+    setState(() {
+      segments.add(
+        RouteSegment(
+          from: currentLocation!,
+          to: selectedNextPoint!,
+          transportation: selectedTransportation!,
+        ),
+      );
+
+      selectedNextPoint = null;
+      selectedTransportation = null;
+
+      // Outgoing route changed, so return route
+      // must be rebuilt.
+      returnSegments.clear();
+      selectedReturnTransportation = null;
+    });
+  }
+
+  // ============================================================
+  // ADD RETURN LEG
+  // ============================================================
+
+  void _addReturnLeg() {
+    final from = currentReturnLocation;
+    final to = nextReturnLocation;
+
+    if (from == null ||
+        to == null ||
+        selectedReturnTransportation == null) {
+      return;
+    }
+
+    setState(() {
+      returnSegments.add(
+        RouteSegment(
+          from: from,
+          to: to,
+          transportation: selectedReturnTransportation!,
+        ),
+      );
+
+      selectedReturnTransportation = null;
+    });
+  }
+
+  // ============================================================
+  // REMOVE OUTGOING LEG
+  // ============================================================
+
+  void _removeLastLeg() {
+    if (segments.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      segments.removeLast();
+
+      selectedNextPoint = null;
+      selectedTransportation = null;
+
+      returnSegments.clear();
+      selectedReturnTransportation = null;
+    });
+  }
+
+  // ============================================================
+  // REMOVE RETURN LEG
+  // ============================================================
+
+  void _removeLastReturnLeg() {
+    if (returnSegments.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      returnSegments.removeLast();
+      selectedReturnTransportation = null;
+    });
+  }
+
+  // ============================================================
+  // SELECT TRIP DIRECTION
+  // ============================================================
+
+  void _selectTripDirection(
+    TripDirection direction,
+  ) {
+    setState(() {
+      selectedTripDirection = direction;
+
+      if (direction == TripDirection.oneWay) {
+        returnSegments.clear();
+        selectedReturnTransportation = null;
       }
     });
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
+  // ============================================================
+  // CONTINUE
+  // ============================================================
 
   void _continue() {
-    if (boardingPoint == null) {
-      _showMessage('Please select your boarding point.');
+    if (!routeComplete) {
       return;
     }
 
-    if (endingPoint == null) {
-      _showMessage('Please select your ending point.');
+    if (selectedTripDirection == TripDirection.roundTrip &&
+        !returnRouteComplete) {
       return;
     }
 
-    if (boardingPoint == endingPoint) {
-      _showMessage('Boarding and ending points cannot be the same.');
-      return;
-    }
-
-    if (segments.isEmpty) {
-      _showMessage('Please add at least one transportation route.');
-      return;
-    }
-
-    if (segments.first.from != boardingPoint) {
-      _showMessage('The first route must start at your boarding point.');
-      return;
-    }
-
-    if (segments.last.to != endingPoint) {
-      _showMessage('The final route must end at your ending point.');
-      return;
-    }
+    /*
+     * IMPORTANT:
+     * Your current TravelRoute model does not have a
+     * returnSegments named parameter.
+     *
+     * Therefore we only pass the parameters that your
+     * current model supports.
+     */
 
     final route = TravelRoute(
-      boardingPoint: boardingPoint!,
-      destination: endingPoint!,
-      segments: List.unmodifiable(segments),
+      boardingPoint: segments.first.from,
+      destination: widget.destination,
+      segments: List<RouteSegment>.from(segments),
+      tripDirection: selectedTripDirection,
     );
 
     Navigator.push(
@@ -197,185 +704,202 @@ class _BoardingScreenState extends State<BoardingScreen> {
     );
   }
 
-  Widget _dropdown({
-    required String label,
+  // ============================================================
+  // OUTGOING ROUTE PREVIEW
+  // ============================================================
+
+  String _outgoingRoutePreview() {
+    if (selectedBoardingPoint == null) {
+      return '';
+    }
+
+    if (segments.isEmpty) {
+      return '${selectedBoardingPoint!} → ... → '
+          '${widget.destination}';
+    }
+
+    final points = <String>[
+      segments.first.from,
+      ...segments.map(
+        (segment) => segment.to,
+      ),
+    ];
+
+    return points.join(' → ');
+  }
+
+  // ============================================================
+  // RETURN ROUTE PREVIEW
+  // ============================================================
+
+  String _returnRoutePreview() {
+    if (!routeComplete) {
+      return '';
+    }
+
+    if (returnSegments.isEmpty) {
+      return '${widget.destination} → ... → '
+          '${selectedBoardingPoint!}';
+    }
+
+    final points = <String>[
+      returnSegments.first.from,
+      ...returnSegments.map(
+        (segment) => segment.to,
+      ),
+    ];
+
+    return points.join(' → ');
+  }
+
+  // ============================================================
+  // TRANSPORT DROPDOWN
+  // ============================================================
+
+  Widget _transportDropdown({
     required String? value,
-    required List<String> items,
+    required String hintText,
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
       initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        hintText: hintText,
+        prefixIcon: const Icon(
+          Icons.directions_car_outlined,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
       ),
-      items: items.map((item) {
-        return DropdownMenuItem<String>(value: item, child: Text(item));
-      }).toList(),
+      items: transportationOptions
+          .map(
+            (option) => DropdownMenuItem<String>(
+              value: option['name'] as String,
+              child: Row(
+                children: [
+                  Icon(
+                    option['icon'] as IconData,
+                    size: 21,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      option['name'] as String,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
       onChanged: onChanged,
     );
   }
 
-  String _routeText() {
-    if (segments.isEmpty) {
-      return boardingPoint ?? 'No route selected';
-    }
-
-    final points = <String>[
-      segments.first.from,
-      ...segments.map((segment) => segment.to),
-    ];
-
-    return points.join(' → ');
-  }
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Travel Route'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Travel Route'),
+        centerTitle: true,
+      ),
+
+      // ========================================================
+      // IMPORTANT:
+      // SingleChildScrollView fixes the bottom overflow.
+      // ========================================================
+
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ==================================================
+              // HEADER
+              // ==================================================
+
               const Text(
                 'Plan Your Route',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'Choose where your journey starts and how you want to travel.',
-                style: TextStyle(fontSize: 15, height: 1.5),
-              ),
-
-              const SizedBox(height: 25),
-
-              _dropdown(
-                label: 'Boarding / Starting Point',
-                value: boardingPoint,
-                items: locations,
-                onChanged: (value) {
-                  setState(() {
-                    boardingPoint = value;
-
-                    if (segments.isEmpty) {
-                      selectedFrom = value;
-                    }
-                  });
-                },
-              ),
-
-              const SizedBox(height: 18),
-
-              _dropdown(
-                label: 'Ending Point',
-                value: endingPoint,
-                items: locations,
-                onChanged: (value) {
-                  setState(() {
-                    endingPoint = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 30),
-
-              const Text(
-                'Transportation Route',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'You can combine different transportation methods.',
-                style: TextStyle(fontSize: 14),
-              ),
-
-              const SizedBox(height: 18),
-
-              _dropdown(
-                label: 'From',
-                value: selectedFrom,
-                items: locations,
-                onChanged: (value) {
-                  setState(() {
-                    selectedFrom = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 15),
-
-              _dropdown(
-                label: 'To',
-                value: selectedTo,
-                items: locations,
-                onChanged: (value) {
-                  setState(() {
-                    selectedTo = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 15),
-
-              _dropdown(
-                label: 'Transportation',
-                value: selectedTransportation,
-                items: transportationOptions,
-                onChanged: (value) {
-                  setState(() {
-                    selectedTransportation = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 15),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _addSegment,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Route'),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 8),
 
-              if (segments.isNotEmpty) ...[
+              Text(
+                'Build your route to '
+                '${widget.destination} using relevant locations.',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade700,
+                  height: 1.4,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ==================================================
+              // BOARDING POINT
+              // ==================================================
+
+              const Text(
+                'Boarding Point',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              DropdownButtonFormField<String>(
+                initialValue: selectedBoardingPoint,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  hintText: 'Choose where you want to start',
+                  prefixIcon: const Icon(
+                    Icons.location_on_outlined,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                items: boardingPoints
+                    .map(
+                      (place) => DropdownMenuItem<String>(
+                        value: place,
+                        child: Text(place),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _selectBoardingPoint,
+              ),
+
+              const SizedBox(height: 20),
+
+              // ==================================================
+              // OUTGOING ROUTE
+              // ==================================================
+
+              if (selectedBoardingPoint != null) ...[
                 const Text(
                   'Your Route',
-                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-
-                const SizedBox(height: 15),
-
-                ...segments.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final segment = entry.value;
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: const Icon(Icons.directions),
-                      title: Text(
-                        '${segment.from} → ${segment.to}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(segment.transportation),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _removeSegment(index),
-                      ),
-                    ),
-                  );
-                }),
 
                 const SizedBox(height: 10),
 
@@ -383,44 +907,436 @@ class _BoardingScreenState extends State<BoardingScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.blueGrey.shade200),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.grey.shade300,
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Complete Route',
+                  child: Text(
+                    _outgoingRoutePreview(),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+              ],
+
+              // ==================================================
+              // OUTGOING LOCATION
+              // ==================================================
+
+              if (selectedBoardingPoint != null &&
+                  !routeComplete) ...[
+                Text(
+                  'From ${currentLocation!}',
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                DropdownButtonFormField<String>(
+                  initialValue: selectedNextPoint,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    hintText: 'Choose next location',
+                    prefixIcon: const Icon(
+                      Icons.place_outlined,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  items: nextLocations
+                      .map(
+                        (place) => DropdownMenuItem<String>(
+                          value: place,
+                          child: Text(place),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _selectNextPoint,
+                ),
+
+                const SizedBox(height: 16),
+
+                if (selectedNextPoint != null) ...[
+                  const Text(
+                    'Transportation',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _transportDropdown(
+                    value: selectedTransportation,
+                    hintText: 'Choose transportation',
+                    onChanged: _selectTransportation,
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          selectedTransportation == null
+                              ? null
+                              : _addRouteLeg,
+                      icon: const Icon(Icons.add),
+                      label: const Text(
+                        'Add Route Leg',
                         style: TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          fontSize: 17,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _routeText(),
-                        style: const TextStyle(fontSize: 15, height: 1.5),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+                ],
+              ],
+
+              // ==================================================
+              // REMOVE OUTGOING LEG
+              // ==================================================
+
+              if (segments.isNotEmpty && !routeComplete)
+                SizedBox(
+                  width: double.infinity,
+                  height: 45,
+                  child: TextButton.icon(
+                    onPressed: _removeLastLeg,
+                    icon: const Icon(Icons.undo),
+                    label: const Text(
+                      'Remove Last Leg',
+                    ),
+                  ),
+                ),
+
+              // ==================================================
+              // TRIP DIRECTION
+              // ==================================================
+
+              if (routeComplete) ...[
+                const SizedBox(height: 20),
+
+                const Text(
+                  'Trip Direction',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.arrow_forward,
+                              size: 19,
+                            ),
+                            SizedBox(width: 7),
+                            Text('One Way'),
+                          ],
+                        ),
+                        selected:
+                            selectedTripDirection ==
+                                TripDirection.oneWay,
+                        onSelected: (_) {
+                          _selectTripDirection(
+                            TripDirection.oneWay,
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.sync_alt,
+                              size: 19,
+                            ),
+                            SizedBox(width: 7),
+                            Text('Round Trip'),
+                          ],
+                        ),
+                        selected:
+                            selectedTripDirection ==
+                                TripDirection.roundTrip,
+                        onSelected: (_) {
+                          _selectTripDirection(
+                            TripDirection.roundTrip,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.shade100,
+                  ),
+                  child: Text(
+                    selectedTripDirection ==
+                            TripDirection.roundTrip
+                        ? 'The return journey is planned '
+                            'separately, so you can choose '
+                            'different transportation for the '
+                            'return trip.'
+                        : 'The itinerary will end at '
+                            '${widget.destination}.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+
+              // ==================================================
+              // RETURN JOURNEY
+              // ==================================================
+
+              if (routeComplete &&
+                  selectedTripDirection ==
+                      TripDirection.roundTrip) ...[
+                const SizedBox(height: 20),
+
+                const Text(
+                  'Return Journey',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: Colors.grey.shade100,
+                  ),
+                  child: Text(
+                    _returnRoutePreview(),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                if (!returnRouteComplete) ...[
+                  Text(
+                    'From ${currentReturnLocation!}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Returning to '
+                    '${nextReturnLocation ?? selectedBoardingPoint}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _transportDropdown(
+                    value: selectedReturnTransportation,
+                    hintText:
+                        'Choose return transportation',
+                    onChanged: (value) {
+                      setState(() {
+                        selectedReturnTransportation =
+                            value;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          selectedReturnTransportation ==
+                                  null
+                              ? null
+                              : _addReturnLeg,
+                      icon: const Icon(Icons.add),
+                      label: const Text(
+                        'Add Return Leg',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  if (returnSegments.isNotEmpty)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 45,
+                      child: TextButton.icon(
+                        onPressed:
+                            _removeLastReturnLeg,
+                        icon: const Icon(Icons.undo),
+                        label: const Text(
+                          'Remove Last Return Leg',
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+
+              // ==================================================
+              // COMPLETION MESSAGE
+              // ==================================================
+
+              if (routeComplete &&
+                  selectedTripDirection ==
+                      TripDirection.oneWay) ...[
+                const SizedBox(height: 20),
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.green.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        color: Colors.green.shade700,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'You have reached '
+                          '${widget.destination}.',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ],
 
-              const SizedBox(height: 30),
+              if (selectedTripDirection ==
+                      TripDirection.roundTrip &&
+                  returnRouteComplete) ...[
+                const SizedBox(height: 20),
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.green.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        color: Colors.green.shade700,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Round trip route completed.',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // ==================================================
+              // CONTINUE BUTTON
+              // ==================================================
+
+              const SizedBox(height: 24),
 
               SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: 55,
                 child: ElevatedButton(
-                  onPressed: _continue,
+                  onPressed:
+                      routeComplete &&
+                              returnRouteComplete
+                          ? _continue
+                          : null,
                   child: const Text(
                     'Continue',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              // Extra bottom space for comfortable scrolling.
+              const SizedBox(height: 24),
             ],
           ),
         ),

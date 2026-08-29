@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/season_service.dart';
-import '../boarding/boarding_screen.dart';
+import '../transportation/transportation_screen.dart';
 
 class SeasonAnalysisScreen extends StatelessWidget {
   final String destination;
@@ -37,7 +37,10 @@ class SeasonAnalysisScreen extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Trip Overview'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Trip Overview'),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -46,12 +49,17 @@ class SeasonAnalysisScreen extends StatelessWidget {
             children: [
               const Text(
                 'Your Trip',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-
               const SizedBox(height: 25),
 
-              _InfoItem(title: 'Destination', value: destination),
+              _InfoItem(
+                title: 'Destination',
+                value: destination,
+              ),
 
               const SizedBox(height: 15),
 
@@ -62,11 +70,28 @@ class SeasonAnalysisScreen extends StatelessWidget {
                     '${formatDate(returnDate)}',
               ),
 
+              const SizedBox(height: 15),
+
+              _InfoItem(
+                title: 'Travel Type',
+                value: travelType,
+              ),
+
+              const SizedBox(height: 15),
+
+              _InfoItem(
+                title: 'Travellers',
+                value: '$groupSize',
+              ),
+
               const SizedBox(height: 25),
 
               const Text(
                 'Season Advisory',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               const SizedBox(height: 15),
@@ -76,7 +101,9 @@ class SeasonAnalysisScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: Colors.grey.shade300,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +130,10 @@ class SeasonAnalysisScreen extends StatelessWidget {
 
                     Text(
                       result.message,
-                      style: const TextStyle(fontSize: 15, height: 1.5),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
                     ),
                   ],
                 ),
@@ -119,25 +149,28 @@ class SeasonAnalysisScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => BoardingScreen(
+                        builder: (context) => TransportationScreen(
                           destination: destination,
                           departureDate: departureDate,
                           returnDate: returnDate,
                           season: result.season,
                           suitability: result.suitability,
+                          seasonMessage: result.message,
                           currency: currency,
                           budget: budget,
                           ages: ages,
                           travelType: travelType,
                           groupSize: groupSize,
-                          seasonMessage: result.message,
                         ),
                       ),
                     );
                   },
                   child: const Text(
-                    'Continue to Boarding',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    'Continue to Transportation',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -153,7 +186,10 @@ class _InfoItem extends StatelessWidget {
   final String title;
   final String value;
 
-  const _InfoItem({required this.title, required this.value});
+  const _InfoItem({
+    required this.title,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -162,14 +198,18 @@ class _InfoItem extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
         ),
-
         const SizedBox(height: 4),
-
         Text(
           value,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );

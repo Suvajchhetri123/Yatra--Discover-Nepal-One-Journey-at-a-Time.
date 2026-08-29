@@ -26,7 +26,7 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 20),
 
               const Text(
-                'Discover Nepal, One Journey at a Time',
+                'Discover Nepal, One Journey at a Time.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 20,

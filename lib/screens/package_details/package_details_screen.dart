@@ -4,7 +4,7 @@ import '../../data/places_data.dart';
 import '../../models/package_model.dart';
 import '../home/home_screen.dart' show PackageCoverImage, difficultyColor;
 import '../place_details/place_details_screen.dart';
-import '../plan_trip/plan_trip_screen.dart';
+import '../travel_dates/travel_dates_screen.dart';
 
 class PackageDetailsScreen extends StatelessWidget {
   final TourPackage package;
@@ -179,7 +179,9 @@ class PackageDetailsScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const PlanTripScreen(),
+                    builder: (context) => TravelDatesScreen(
+				package:package,
+			),
                   ),
                 );
               },

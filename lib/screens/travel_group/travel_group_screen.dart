@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import '../../models/package_model.dart';
 import '../age/age_screen.dart';
 
 class TravelGroupScreen extends StatefulWidget {
   final DateTime departureDate;
   final DateTime returnDate;
+  final TourPackage? package;
 
   const TravelGroupScreen({
     super.key,
     required this.departureDate,
     required this.returnDate,
+    this.package,
   });
 
   @override
@@ -48,6 +51,7 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
           childCount: childCount,
           departureDate: widget.departureDate,
           returnDate: widget.returnDate,
+	  package: widget.package,
         ),
       ),
     );

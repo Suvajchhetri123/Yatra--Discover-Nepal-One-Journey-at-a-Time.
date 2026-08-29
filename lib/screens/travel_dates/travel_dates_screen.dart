@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../models/package_model.dart';
 import '../travel_group/travel_group_screen.dart';
 
 class TravelDatesScreen extends StatefulWidget {
-  const TravelDatesScreen({super.key});
+	final TourPackage? package;
+  const TravelDatesScreen({
+	super.key,
+this.package,
+	});
 
   @override
   State<TravelDatesScreen> createState() => _TravelDatesScreenState();
@@ -166,6 +171,7 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
                               builder: (context) => TravelGroupScreen(
                                 departureDate: departureDate!,
                                 returnDate: returnDate!,
+				package: widget.package,
                               ),
                             ),
                           );

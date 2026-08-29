@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../models/package_model.dart';
 import '../budget/budget_screen.dart';
 
 class AgeScreen extends StatefulWidget {
@@ -7,6 +9,7 @@ class AgeScreen extends StatefulWidget {
   final int childCount;
   final DateTime departureDate;
   final DateTime returnDate;
+  final TourPackage? package;
 
   const AgeScreen({
     super.key,
@@ -15,6 +18,7 @@ class AgeScreen extends StatefulWidget {
     required this.childCount,
     required this.departureDate,
     required this.returnDate,
+    this.package,
   });
 
   @override
@@ -55,9 +59,12 @@ class _AgeScreenState extends State<AgeScreen> {
     final age = int.tryParse(value.trim());
 
     if (age == null) return false;
-    return index < widget.adultCount
-        ? age >= 18 && age <= 120
-        : age >= 1 && age < 18;
+
+    if (index < widget.adultCount) {
+      return age >= 18 && age <= 120;
+    }
+
+    return age >= 1 && age < 18;
   }
 
   bool get _allAgesValid {
@@ -82,6 +89,7 @@ class _AgeScreenState extends State<AgeScreen> {
           groupSize: widget.adultCount + widget.childCount,
           departureDate: widget.departureDate,
           returnDate: widget.returnDate,
+          package: widget.package,
         ),
       ),
     );
@@ -92,7 +100,10 @@ class _AgeScreenState extends State<AgeScreen> {
     final isSolo = widget.travelType == 'Solo';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Traveller Ages'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Traveller Ages'),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -100,7 +111,9 @@ class _AgeScreenState extends State<AgeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isSolo ? 'How old are you?' : 'How old are the travellers?',
+                isSolo
+                    ? 'How old are you?'
+                    : 'How old are the travellers?',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -112,11 +125,14 @@ class _AgeScreenState extends State<AgeScreen> {
               Text(
                 isSolo
                     ? 'Your age helps Yatra suggest a suitable '
-                          'travel pace and experience.'
+                        'travel pace and experience.'
                     : 'The ages of all travellers help Yatra '
-                          'calculate a suitable travel pace and duration '
-                          'for the whole group.',
-                style: const TextStyle(fontSize: 16, height: 1.4),
+                        'calculate a suitable travel pace and duration '
+                        'for the whole group.',
+                style: const TextStyle(
+                  fontSize: 16,
+                  height: 1.4,
+                ),
               ),
 
               const SizedBox(height: 25),
@@ -127,7 +143,8 @@ class _AgeScreenState extends State<AgeScreen> {
                   itemBuilder: (context, index) {
                     final controller = ageControllers[index];
 
-                    final enteredAge = int.tryParse(controller.text.trim());
+                    final enteredAge =
+                        int.tryParse(controller.text.trim());
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 20),
@@ -138,8 +155,8 @@ class _AgeScreenState extends State<AgeScreen> {
                             isSolo
                                 ? 'Your Age'
                                 : index < widget.adultCount
-                                ? 'Adult ${index + 1}'
-                                : 'Child ${index - widget.adultCount + 1}',
+                                    ? 'Adult ${index + 1}'
+                                    : 'Child ${index - widget.adultCount + 1}',
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
@@ -156,7 +173,7 @@ class _AgeScreenState extends State<AgeScreen> {
                               hintText: index < widget.adultCount
                                   ? 'Enter adult age'
                                   : 'Enter child age',
-                              border: OutlineInputBorder(),
+                              border: const OutlineInputBorder(),
                               suffixText: 'years',
                             ),
                             onChanged: (_) {
@@ -167,8 +184,7 @@ class _AgeScreenState extends State<AgeScreen> {
                           if (enteredAge != null &&
                               _isValidAge(controller.text, index))
                             Text(
-                              'Age group: '
-                              '${getAgeCategory(enteredAge)}',
+                              'Age group: ${getAgeCategory(enteredAge)}',
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
@@ -188,7 +204,10 @@ class _AgeScreenState extends State<AgeScreen> {
                   onPressed: _allAgesValid ? _continue : null,
                   child: const Text(
                     'Continue',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

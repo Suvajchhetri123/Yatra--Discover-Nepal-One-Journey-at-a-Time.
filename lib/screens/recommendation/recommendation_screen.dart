@@ -85,6 +85,82 @@ class RecommendationScreen extends StatelessWidget {
               const SizedBox(height: 25),
 
               // ==================================================
+              // OVERALL TRIP SUITABILITY
+              // ==================================================
+              const Text(
+                'Overall Trip Suitability',
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 15),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.deepPurple.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.analytics_outlined, size: 32),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            recommendation.overallSuitability,
+                            style: const TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${recommendation.overallScore}/100',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    ...recommendation.suitabilityFactors.map((factor) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.check_circle_outline, size: 19),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                factor,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.4,
+                               ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // ==================================================
+              // BUDGET
+              // ==================================================
+              // ==================================================
               // BUDGET
               // ==================================================
               _StatusCard(
@@ -321,9 +397,7 @@ class RecommendationScreen extends StatelessWidget {
               const SizedBox(height: 15),
 
               if (recommendation.dayPlans.isEmpty)
-                const Text(
-                  'No detailed attraction plan is currently available.',
-                ),
+                const Text('No route plan is currently available.'),
 
               ...recommendation.dayPlans.map((dayPlan) {
                 return Card(
@@ -432,10 +506,15 @@ class RecommendationScreen extends StatelessWidget {
               // SUGGESTED PLACES
               // ==================================================
               const Text(
-                'Suggested Places',
+                'Places You Can Visit',
                 style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
               ),
 
+              const SizedBox(height: 15),
+              const Text(
+                'Here are some places you can visit during your trip.',
+                style: TextStyle(fontSize: 15, height: 1.4),
+              ),
               const SizedBox(height: 15),
 
               if (recommendation.suggestedPlaces.isEmpty)

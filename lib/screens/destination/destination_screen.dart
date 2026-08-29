@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../season_analysis/season_analysis_screen.dart';
 
 class DestinationScreen extends StatefulWidget {
@@ -52,29 +53,30 @@ class _DestinationScreenState extends State<DestinationScreen> {
             children: [
               const Text(
                 'Where would you like to go?',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-
               const SizedBox(height: 10),
-
               const Text(
                 'Choose a destination for your journey.',
                 style: TextStyle(fontSize: 16),
               ),
-
               const SizedBox(height: 25),
-
               const Text(
                 'Popular Destinations',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-
               const SizedBox(height: 16),
-
               Expanded(
                 child: GridView.builder(
                   itemCount: destinations.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 14,
@@ -82,8 +84,8 @@ class _DestinationScreenState extends State<DestinationScreen> {
                   ),
                   itemBuilder: (context, index) {
                     final destination = destinations[index];
-
-                    final isSelected = selectedDestination == destination;
+                    final isSelected =
+                        selectedDestination == destination;
 
                     return GestureDetector(
                       onTap: () {
@@ -121,9 +123,7 @@ class _DestinationScreenState extends State<DestinationScreen> {
                   },
                 ),
               ),
-
               const SizedBox(height: 16),
-
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -134,7 +134,8 @@ class _DestinationScreenState extends State<DestinationScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => SeasonAnalysisScreen(
+                              builder: (context) =>
+                                  SeasonAnalysisScreen(
                                 destination: selectedDestination!,
                                 departureDate: widget.departureDate,
                                 returnDate: widget.returnDate,
@@ -149,7 +150,10 @@ class _DestinationScreenState extends State<DestinationScreen> {
                         },
                   child: const Text(
                     'Continue',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
