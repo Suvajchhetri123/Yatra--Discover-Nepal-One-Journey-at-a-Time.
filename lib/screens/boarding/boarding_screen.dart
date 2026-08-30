@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/travel_route_model.dart';
+import '../../data/transportation_data.dart';
 import '../recommendation/recommendation_screen.dart';
 
 class BoardingScreen extends StatefulWidget {
@@ -38,7 +39,15 @@ class BoardingScreen extends StatefulWidget {
 class _BoardingScreenState extends State<BoardingScreen> {
   String? selectedBoardingPoint;
   String? selectedNextPoint;
+
+  // Transportation for the currently pending outgoing leg, i.e.
+  // the leg `currentLocation -> selectedNextPoint`. Choosing a new
+  // next point resets this so a fresh selection is required per leg.
   String? selectedTransportation;
+
+  // Transportation for the currently pending return leg, i.e. the
+  // leg `currentReturnLocation -> nextReturnLocation`.
+  String? selectedReturnTransportation;
 
   TripDirection selectedTripDirection = TripDirection.oneWay;
 
@@ -53,7 +62,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // ============================================================
 
   final List<RouteSegment> returnSegments = [];
-  String? selectedReturnTransportation;
 
   // ============================================================
   // ALL LOCATIONS
@@ -150,7 +158,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
       'Tansen': [
         'Pokhara',
       ],
-      'Pokhara': [],
     },
 
     'Chitwan': {
@@ -163,7 +170,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
       'Tansen': [
         'Chitwan',
       ],
-      'Chitwan': [],
     },
 
     'Kathmandu': {
@@ -182,7 +188,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
       'Lukla': [
         'Kathmandu',
       ],
-      'Kathmandu': [],
     },
 
     'Tansen': {
@@ -195,7 +200,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
       'Chitwan': [
         'Tansen',
       ],
-      'Tansen': [],
     },
 
     'Rasuwa': {
@@ -205,38 +209,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
       'Rasuwa': [],
     },
   };
-
-  // ============================================================
-  // TRANSPORTATION
-  // ============================================================
-
-  final List<Map<String, dynamic>> transportationOptions = [
-    {
-      'name': 'Bus',
-      'icon': Icons.directions_bus,
-      'description': 'Budget-friendly and widely available',
-    },
-    {
-      'name': 'Private Vehicle',
-      'icon': Icons.directions_car,
-      'description': 'Comfortable and flexible',
-    },
-    {
-      'name': 'Jeep',
-      'icon': Icons.directions_car_filled,
-      'description': 'Suitable for mountain roads',
-    },
-    {
-      'name': 'Motorbike',
-      'icon': Icons.two_wheeler,
-      'description': 'Flexible and scenic',
-    },
-    {
-      'name': 'Flight',
-      'icon': Icons.flight,
-      'description': 'Fastest travel option',
-    },
-  ];
 
   // ============================================================
   // NORMALIZE
@@ -513,13 +485,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
     setState(() {
       selectedBoardingPoint = value;
       selectedNextPoint = null;
-      selectedTransportation = null;
       selectedTripDirection = TripDirection.oneWay;
 
       segments.clear();
       returnSegments.clear();
-
-      selectedReturnTransportation = null;
     });
   }
 
@@ -530,17 +499,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
   void _selectNextPoint(String? value) {
     setState(() {
       selectedNextPoint = value;
+
+      // A new destination for this leg starts with an unset
+      // transportation for that leg.
       selectedTransportation = null;
-    });
-  }
-
-  // ============================================================
-  // SELECT OUTGOING TRANSPORT
-  // ============================================================
-
-  void _selectTransportation(String? value) {
-    setState(() {
-      selectedTransportation = value;
     });
   }
 
@@ -570,7 +532,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
       // Outgoing route changed, so return route
       // must be rebuilt.
       returnSegments.clear();
-      selectedReturnTransportation = null;
     });
   }
 
@@ -582,8 +543,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
     final from = currentReturnLocation;
     final to = nextReturnLocation;
 
-    if (from == null ||
-        to == null ||
+    if (from == null || to == null ||
         selectedReturnTransportation == null) {
       return;
     }
@@ -617,7 +577,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedTransportation = null;
 
       returnSegments.clear();
-      selectedReturnTransportation = null;
     });
   }
 
@@ -648,7 +607,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
       if (direction == TripDirection.oneWay) {
         returnSegments.clear();
-        selectedReturnTransportation = null;
       }
     });
   }
@@ -668,12 +626,11 @@ class _BoardingScreenState extends State<BoardingScreen> {
     }
 
     /*
-     * IMPORTANT:
-     * Your current TravelRoute model does not have a
-     * returnSegments named parameter.
+     * The TravelRoute model now supports explicit return segments.
      *
-     * Therefore we only pass the parameters that your
-     * current model supports.
+     * When this is a round trip the user's exact return legs and
+     * their chosen transportation are preserved. For a one-way trip
+     * we pass no return segments, so TravelRoute leaves them empty.
      */
 
     final route = TravelRoute(
@@ -681,6 +638,9 @@ class _BoardingScreenState extends State<BoardingScreen> {
       destination: widget.destination,
       segments: List<RouteSegment>.from(segments),
       tripDirection: selectedTripDirection,
+      returnSegments: selectedTripDirection == TripDirection.roundTrip
+          ? List<RouteSegment>.from(returnSegments)
+          : null,
     );
 
     Navigator.push(
@@ -753,50 +713,46 @@ class _BoardingScreenState extends State<BoardingScreen> {
   }
 
   // ============================================================
-  // TRANSPORT DROPDOWN
+  // TRANSPORTATION OPTIONS
   // ============================================================
 
-  Widget _transportDropdown({
-    required String? value,
-    required String hintText,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        hintText: hintText,
-        prefixIcon: const Icon(
-          Icons.directions_car_outlined,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-      ),
-      items: transportationOptions
-          .map(
-            (option) => DropdownMenuItem<String>(
-              value: option['name'] as String,
-              child: Row(
+  /// Builds the dropdown items for the transportation selector. Options
+  /// that only partially cover the A -> B leg (requiresTransfer) show a
+  /// short note under their name so a transfer journey is never presented
+  /// as a direct one.
+  List<DropdownMenuItem<String>> _transportItems(
+    List<RouteTransport> transports,
+  ) {
+    return transports.map((rt) {
+      final option = rt.option;
+      return DropdownMenuItem<String>(
+        value: option.name,
+        child: Row(
+          children: [
+            Icon(option.icon,
+                size: 20, color: Colors.grey.shade700),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    option['icon'] as IconData,
-                    size: 21,
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      option['name'] as String,
-                      overflow: TextOverflow.ellipsis,
+                  Text(option.name),
+                  if (rt.requiresTransfer && rt.transferNote != null)
+                    Text(
+                      rt.transferNote!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
-          )
-          .toList(),
-      onChanged: onChanged,
-    );
+          ],
+        ),
+      );
+    }).toList();
   }
 
   // ============================================================
@@ -967,6 +923,12 @@ class _BoardingScreenState extends State<BoardingScreen> {
                 const SizedBox(height: 16),
 
                 if (selectedNextPoint != null) ...[
+                  // ==========================================
+                  // TRANSPORTATION FOR THE CURRENT OUTGOING LEG
+                  // Only shown once the leg's destination (the
+                  // next point) has been chosen.
+                  // ==========================================
+
                   const Text(
                     'Transportation',
                     style: TextStyle(
@@ -975,34 +937,62 @@ class _BoardingScreenState extends State<BoardingScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
 
-                  _transportDropdown(
-                    value: selectedTransportation,
-                    hintText: 'Choose transportation',
-                    onChanged: _selectTransportation,
+                  Text(
+                    'Transportation: '
+                    '${currentLocation!} → $selectedNextPoint',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
                   ),
 
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          selectedTransportation == null
-                              ? null
-                              : _addRouteLeg,
-                      icon: const Icon(Icons.add),
-                      label: const Text(
-                        'Add Route Leg',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedTransportation,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      hintText: 'Choose transportation',
+                      prefixIcon: const Icon(
+                        Icons.directions_bus_outlined,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    items: _transportItems(
+                      transportOptionsForRoute(
+                        currentLocation!,
+                        selectedNextPoint!,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedTransportation = value;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  if (selectedTransportation != null)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: _addRouteLeg,
+                        icon: const Icon(Icons.add),
+                        label: const Text(
+                          'Add Route Leg',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
                   const SizedBox(height: 10),
                 ],
@@ -1187,39 +1177,73 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
                   const SizedBox(height: 10),
 
-                  _transportDropdown(
-                    value: selectedReturnTransportation,
-                    hintText:
-                        'Choose return transportation',
-                    onChanged: (value) {
-                      setState(() {
-                        selectedReturnTransportation =
-                            value;
-                      });
-                    },
-                  ),
+                  if (nextReturnLocation != null) ...[
+                    const Text(
+                      'Transportation',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
 
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 6),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          selectedReturnTransportation ==
-                                  null
-                              ? null
-                              : _addReturnLeg,
-                      icon: const Icon(Icons.add),
-                      label: const Text(
-                        'Add Return Leg',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    Text(
+                      'Transportation: '
+                      '${currentReturnLocation!} → '
+                      '$nextReturnLocation',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedReturnTransportation,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        hintText: 'Choose transportation',
+                        prefixIcon: const Icon(
+                          Icons.directions_bus_outlined,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      items: _transportItems(
+                        transportOptionsForRoute(
+                          currentReturnLocation!,
+                          nextReturnLocation!,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedReturnTransportation = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+                  ],
+
+                  if (selectedReturnTransportation != null)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: _addReturnLeg,
+                        icon: const Icon(Icons.add),
+                        label: const Text(
+                          'Add Return Leg',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
                   if (returnSegments.isNotEmpty)
                     SizedBox(

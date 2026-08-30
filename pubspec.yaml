@@ -19,6 +19,7 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -26,3 +27,9 @@ flutter:
   assets:
     - assets/images/places/
     - assets/images/yatra_logo.jpeg
+
+flutter_launcher_icons:
+  andriod: true
+  ios: true
+  image_path: "assets/images/yatra_app_icon.png"
+  min_sdk_andriod: 21

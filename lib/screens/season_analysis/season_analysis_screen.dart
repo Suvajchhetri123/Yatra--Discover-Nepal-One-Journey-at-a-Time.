@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/season_service.dart';
-import '../transportation/transportation_screen.dart';
+import '../boarding/boarding_screen.dart';
 
 class SeasonAnalysisScreen extends StatelessWidget {
   final String destination;
@@ -149,7 +149,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => TransportationScreen(
+                        builder: (context) => BoardingScreen(
                           destination: destination,
                           departureDate: departureDate,
                           returnDate: returnDate,
@@ -166,7 +166,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
                     );
                   },
                   child: const Text(
-                    'Continue to Transportation',
+                    'Continue to Boarding',
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,

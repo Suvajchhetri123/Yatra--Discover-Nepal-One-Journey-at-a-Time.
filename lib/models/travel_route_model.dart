@@ -16,6 +16,14 @@ class TravelRoute {
   final String boardingPoint;
   final String destination;
   final List<RouteSegment> segments;
+
+  /// Optional return-trip segments as chosen by the user.
+  ///
+  /// When null, return legs are derived by reversing the outgoing
+  /// segments (and reusing their transportation). When provided,
+  /// these exact segments (points, legs and transportation) are used.
+  final List<RouteSegment>? _explicitReturnSegments;
+
   final TripDirection tripDirection;
 
   const TravelRoute({
@@ -23,7 +31,8 @@ class TravelRoute {
     required this.destination,
     required this.segments,
     this.tripDirection = TripDirection.oneWay,
-  });
+    List<RouteSegment>? returnSegments,
+  }) : _explicitReturnSegments = returnSegments;
 
   bool get isOneWay {
     return tripDirection == TripDirection.oneWay;
@@ -70,6 +79,12 @@ class TravelRoute {
   List<RouteSegment> get returnSegments {
     if (!isRoundTrip || segments.isEmpty) {
       return [];
+    }
+
+    // Use the user's explicitly selected return legs when available.
+    final explicit = _explicitReturnSegments;
+    if (explicit != null && explicit.isNotEmpty) {
+      return List<RouteSegment>.from(explicit);
     }
 
     final reversed = segments.reversed.toList();
