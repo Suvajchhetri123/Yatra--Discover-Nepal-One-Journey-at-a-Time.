@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+
 import '../../models/package_model.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/yatra_components.dart';
 import '../age/age_screen.dart';
 
+/// Travel Group — wizard step 2 of 4.
+///
+/// Redesigned on the central Yatra design system. All travel-type selection,
+/// group-size counters and their limits are unchanged.
 class TravelGroupScreen extends StatefulWidget {
   final DateTime departureDate;
   final DateTime returnDate;
@@ -51,7 +58,7 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
           childCount: childCount,
           departureDate: widget.departureDate,
           returnDate: widget.returnDate,
-	  package: widget.package,
+          package: widget.package,
         ),
       ),
     );
@@ -59,166 +66,118 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Travel Group'), centerTitle: true),
+      appBar: AppBar(title: const Text('Travel Group')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'How are you travelling?',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'Tell us who you are travelling with.',
-                style: TextStyle(fontSize: 16),
-              ),
-
-              const SizedBox(height: 30),
-
-              _TravelTypeCard(
-                title: 'Solo',
-                subtitle: 'I am travelling alone',
-                icon: Icons.person,
-                selected: selectedTravelType == 'Solo',
-                onTap: () => selectTravelType('Solo'),
-              ),
-
-              const SizedBox(height: 16),
-
-              _TravelTypeCard(
-                title: 'Group',
-                subtitle: 'I am travelling with others',
-                icon: Icons.groups,
-                selected: selectedTravelType == 'Group',
-                onTap: () => selectTravelType('Group'),
-              ),
-
-              if (selectedTravelType == 'Group') ...[
-                const SizedBox(height: 30),
-
-                const Text(
-                  'Who is travelling?',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 12),
-
-                _TravellerCounter(
-                  label: 'Adults',
-                  subtitle: '18 years and above',
-                  value: adultCount,
-                  onRemove: adultCount > 1
-                      ? () => setState(() => adultCount--)
-                      : null,
-                  onAdd: groupSize < 20
-                      ? () => setState(() => adultCount++)
-                      : null,
-                ),
-
-                const SizedBox(height: 12),
-
-                _TravellerCounter(
-                  label: 'Children',
-                  subtitle: 'Under 18 years',
-                  value: childCount,
-                  onRemove: childCount > 0
-                      ? () => setState(() => childCount--)
-                      : null,
-                  onAdd: groupSize < 20
-                      ? () => setState(() => childCount++)
-                      : null,
-                ),
-              ],
-
-              const Spacer(),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: selectedTravelType == null
-                      ? null
-                      : continueToAgeScreen,
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TravelTypeCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _TravelTypeCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? Colors.deepPurple : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Row(
+        child: Column(
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: selected ? Colors.deepPurple : Colors.grey,
-            ),
-
-            const SizedBox(width: 15),
-
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.screen),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const YatraWizardHeader(
+                      step: 2,
+                      totalSteps: 4,
+                      title: 'How are you travelling?',
+                      subtitle: 'Tell us who you are travelling with.',
                     ),
-                  ),
+                    const SizedBox(height: AppSpacing.xxl),
 
-                  const SizedBox(height: 4),
+                    YatraSelectionCard(
+                      selected: selectedTravelType == 'Solo',
+                      leadingIcon: Icons.person,
+                      onTap: () => selectTravelType('Solo'),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Solo', style: AppType.bodyEmphasis),
+                          SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'I am travelling alone',
+                            style: AppType.body,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  Text(subtitle, style: const TextStyle(fontSize: 14)),
-                ],
+                    YatraSelectionCard(
+                      selected: selectedTravelType == 'Group',
+                      leadingIcon: Icons.groups,
+                      onTap: () => selectTravelType('Group'),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Group', style: AppType.bodyEmphasis),
+                          SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'I am travelling with others',
+                            style: AppType.body,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    if (selectedTravelType == 'Group') ...[
+                      const SizedBox(height: AppSpacing.xxl),
+                      Text('Who is travelling?', style: textTheme.titleMedium),
+                      const SizedBox(height: AppSpacing.md),
+                      _TravellerCounter(
+                        label: 'Adults',
+                        subtitle: '18 years and above',
+                        value: adultCount,
+                        onRemove: adultCount > 1
+                            ? () => setState(() => adultCount--)
+                            : null,
+                        onAdd: groupSize < 20
+                            ? () => setState(() => adultCount++)
+                            : null,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _TravellerCounter(
+                        label: 'Children',
+                        subtitle: 'Under 18 years',
+                        value: childCount,
+                        onRemove: childCount > 0
+                            ? () => setState(() => childCount--)
+                            : null,
+                        onAdd: groupSize < 20
+                            ? () => setState(() => childCount++)
+                            : null,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-
-            if (selected)
-              const Icon(Icons.check_circle, color: Colors.deepPurple),
+            Container(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screen,
+                AppSpacing.md,
+                AppSpacing.screen,
+                AppSpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outlineVariant
+                        .withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+              child: YatraPrimaryButton(
+                label: 'Continue',
+                onPressed:
+                    selectedTravelType == null ? null : continueToAgeScreen,
+              ),
+            ),
           ],
         ),
       ),
@@ -243,27 +202,81 @@ class _TravellerCounter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(subtitle, style: const TextStyle(fontSize: 13)),
-            ],
+    return YatraCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: AppType.bodyEmphasis),
+                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+          _CounterButton(
+            icon: Icons.remove,
+            onPressed: onRemove,
+            enabled: onRemove != null,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$value',
+              textAlign: TextAlign.center,
+              style: AppType.label.copyWith(fontSize: 20),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          _CounterButton(
+            icon: Icons.add,
+            onPressed: onAdd,
+            enabled: onAdd != null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CounterButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool enabled;
+
+  const _CounterButton({
+    required this.icon,
+    required this.onPressed,
+    required this.enabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: enabled
+          ? scheme.primary.withValues(alpha: 0.1)
+          : Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(
+            icon,
+            size: 22,
+            color: enabled ? scheme.primary : scheme.outlineVariant,
           ),
         ),
-        IconButton(
-          onPressed: onRemove,
-          icon: const Icon(Icons.remove_circle_outline),
-        ),
-        Text('$value', style: const TextStyle(fontSize: 20)),
-        IconButton(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add_circle_outline),
-        ),
-      ],
+      ),
     );
   }
 }

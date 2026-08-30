@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
 import '../../services/recommendation_service.dart';
 import '../../data/places_data.dart';
+import '../../widgets/yatra_components.dart';
 import '../place_details/place_details_screen.dart';
+import '../../models/place_model.dart';
 import '../../models/travel_route_model.dart';
 
 class RecommendationScreen extends StatelessWidget {
@@ -35,6 +38,20 @@ class RecommendationScreen extends StatelessWidget {
     required this.route,
   });
 
+  static const _days = [
+    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+  ];
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String _formatDate(DateTime date) {
+    final weekday = _days[date.weekday - 1];
+    final month = _months[date.month - 1];
+    return '$weekday, $month ${date.day}, ${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final duration = returnDate.difference(departureDate).inDays + 1;
@@ -56,95 +73,142 @@ class RecommendationScreen extends StatelessWidget {
         ? '${ages.isNotEmpty ? ages.first : 18} years'
         : ages.join(', ');
 
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Your Recommendation'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Your Journey')),
+
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(AppSpacing.screen),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ==================================================
+              // HEADER
+              // ==================================================
+
               Text(
-                recommendation.title,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                'Your Recommended Journey',
+                style: textTheme.headlineMedium,
+              ),
+
+              const SizedBox(height: AppSpacing.sm),
+
+              Text(
+                'This itinerary has been personalized from your trip '
+                'preferences — destination, dates, budget and travel style.',
+                style: textTheme.bodyLarge,
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // ==================================================
+              // TRIP SUMMARY
+              // ==================================================
+
+              YatraSectionTitle(
+                title: 'Trip Summary',
+                subtitle: recommendation.title,
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              YatraCard(
+                child: Column(
+                  children: [
+                    YatraInfoRow(label: 'Destination', value: destination),
+                    YatraInfoRow(
+                      label: 'Dates',
+                      value:
+                          '${_formatDate(departureDate)} – '
+                          '${_formatDate(returnDate)}',
+                    ),
+                    YatraInfoRow(
+                      label: 'Duration',
+                      value: '$duration days',
+                    ),
+                    YatraInfoRow(label: 'Travelers', value: '$groupSize'),
+                    YatraInfoRow(label: 'Travel Type', value: travelType),
+                    YatraInfoRow(
+                      label: 'Budget',
+                      value: '$currency ${budget.toStringAsFixed(0)}',
+                    ),
+                    YatraInfoRow(label: 'Season', value: season),
+                  ],
                 ),
               ),
 
-              const SizedBox(height: 12),
-
-              Text(
-                recommendation.summary,
-                style: const TextStyle(fontSize: 16, height: 1.5),
-              ),
-
-              const SizedBox(height: 25),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // OVERALL TRIP SUITABILITY
               // ==================================================
-              const Text(
-                'Overall Trip Suitability',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+
+              YatraSectionTitle(
+                title: 'Overall Trip Suitability',
+                subtitle:
+                    'A summary of how well this trip fits your selections.',
               ),
 
-              const SizedBox(height: 15),
+              const SizedBox(height: AppSpacing.md),
 
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.deepPurple.shade200),
-                ),
+              YatraCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const Icon(Icons.analytics_outlined, size: 32),
-                        const SizedBox(width: 12),
+                        Container(
+                          width: 46,
+                          height: 46,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: scheme.primary.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.analytics_outlined,
+                            size: 26,
+                            color: scheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Text(
                             recommendation.overallSuitability,
-                            style: const TextStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: textTheme.titleLarge,
                           ),
                         ),
-                        Text(
-                          '${recommendation.overallScore}/100',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        YatraStatusBadge(
+                          label: '${recommendation.overallScore}/100',
+                          color: AppColors.primary,
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: AppSpacing.lg),
 
                     ...recommendation.suitabilityFactors.map((factor) {
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.check_circle_outline, size: 19),
-                            const SizedBox(width: 10),
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 19,
+                              color: scheme.primary,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: Text(
                                 factor,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  height: 1.4,
-                               ),
+                                style: textTheme.bodyMedium
+                                    ?.copyWith(height: 1.4),
                               ),
                             ),
                           ],
@@ -155,14 +219,12 @@ class RecommendationScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // BUDGET
               // ==================================================
-              // ==================================================
-              // BUDGET
-              // ==================================================
+
               _StatusCard(
                 title: recommendation.budgetIsLow
                     ? 'Budget Warning'
@@ -172,85 +234,78 @@ class RecommendationScreen extends StatelessWidget {
                     ? Icons.warning_amber_rounded
                     : Icons.check_circle,
                 iconColor: recommendation.budgetIsLow
-                    ? Colors.red
-                    : Colors.green,
+                    ? AppColors.danger
+                    : AppColors.success,
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // OVERVIEW
               // ==================================================
-              const Text(
-                'Trip Overview',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-              ),
 
-              const SizedBox(height: 15),
+              YatraSectionTitle(title: 'Trip Overview'),
 
-              _InfoRow(label: 'Destination', value: destination),
+              const SizedBox(height: AppSpacing.md),
 
-              _InfoRow(label: 'Season', value: season),
-
-              _InfoRow(label: 'Suitability', value: suitability),
-
-              _InfoRow(
-                label: 'Budget',
-                value: '$currency ${budget.toStringAsFixed(0)}',
-              ),
-
-              _InfoRow(
-                label: 'Transportation',
-                value: route.transportationDescription,
-              ),
-
-              _InfoRow(label: 'Travel Type', value: travelType),
-
-              const SizedBox(height: 15),
-
-              const Text(
-                'Your Travel Route',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 15),
-
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.blueGrey.shade200),
+              YatraCard(
+                child: Column(
+                  children: [
+                    YatraInfoRow(label: 'Destination', value: destination),
+                    YatraInfoRow(label: 'Season', value: season),
+                    YatraInfoRow(label: 'Suitability', value: suitability),
+                    YatraInfoRow(
+                      label: 'Budget',
+                      value: '$currency ${budget.toStringAsFixed(0)}',
+                    ),
+                    YatraInfoRow(
+                      label: 'Transportation',
+                      value: route.transportationDescription,
+                    ),
+                    YatraInfoRow(label: 'Travel Type', value: travelType),
+                  ],
                 ),
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // ==================================================
+              // YOUR TRAVEL ROUTE
+              // ==================================================
+
+              YatraSectionTitle(title: 'Your Travel Route'),
+
+              const SizedBox(height: AppSpacing.md),
+
+              YatraCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${route.boardingPoint} → ${route.destination}',
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: textTheme.titleMedium,
                     ),
 
-                    const SizedBox(height: 15),
+                    const SizedBox(height: AppSpacing.lg),
 
                     ...route.segments.map(
                       (segment) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.directions, size: 20),
-                            const SizedBox(width: 10),
+                            Icon(
+                              Icons.directions,
+                              size: 20,
+                              color: scheme.primary,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
                             Expanded(
                               child: Text(
                                 '${segment.from} → ${segment.to}\n'
                                 '${segment.transportation}',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  height: 1.4,
-                                ),
+                                style: textTheme.bodyMedium
+                                    ?.copyWith(height: 1.4),
                               ),
                             ),
                           ],
@@ -258,37 +313,77 @@ class RecommendationScreen extends StatelessWidget {
                       ),
                     ),
 
+                    if (route.isRoundTrip &&
+                        route.returnSegments.isNotEmpty) ...[
+                      const Divider(height: AppSpacing.xxl),
+                      Text(
+                        'Return Journey',
+                        style: textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      ...route.returnSegments.map(
+                        (segment) => Padding(
+                          padding:
+                              const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.directions,
+                                size: 20,
+                                color: AppColors.accent,
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Text(
+                                  '${segment.from} → ${segment.to}\n'
+                                  '${segment.transportation}',
+                                  style: textTheme.bodyMedium
+                                      ?.copyWith(height: 1.4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+
                     if (recommendation.routeDestinations.length > 1) ...[
-                      const Divider(height: 24),
+                      const Divider(height: AppSpacing.xxl),
                       Text(
                         'Recommendations include stops in: '
                         '${recommendation.routeDestinations.join(', ')}',
-                        style: const TextStyle(fontSize: 14, height: 1.4),
+                        style: textTheme.bodyMedium,
                       ),
                     ],
                   ],
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: AppSpacing.xl),
 
-              _InfoRow(label: 'Travellers', value: '$groupSize'),
+              YatraCard(
+                child: Column(
+                  children: [
+                    YatraInfoRow(label: 'Travelers', value: '$groupSize'),
+                    YatraInfoRow(label: 'Age', value: ageDisplay),
+                    YatraInfoRow(
+                      label: 'Selected Duration',
+                      value: '$duration days',
+                    ),
+                  ],
+                ),
+              ),
 
-              _InfoRow(label: 'Age', value: ageDisplay),
-
-              _InfoRow(label: 'Selected Duration', value: '$duration days'),
-
-              const SizedBox(height: 30),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // DURATION
               // ==================================================
-              const Text(
-                'Recommended Travel Duration',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-              ),
 
-              const SizedBox(height: 15),
+              YatraSectionTitle(title: 'Recommended Travel Duration'),
+
+              const SizedBox(height: AppSpacing.md),
 
               _StatusCard(
                 title: recommendation.recommendedDurationTitle,
@@ -301,79 +396,90 @@ class RecommendationScreen extends StatelessWidget {
                     ? Icons.info_outline
                     : Icons.check_circle,
                 iconColor: recommendation.durationIsTooShort
-                    ? Colors.red
+                    ? AppColors.danger
                     : recommendation.durationIsTooLong
-                    ? Colors.orange
-                    : Colors.green,
+                    ? AppColors.accent
+                    : AppColors.success,
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: AppSpacing.xl),
 
-              Text(
-                seasonMessage,
-                style: const TextStyle(fontSize: 15, height: 1.5),
+              YatraCard(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 20,
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Text(
+                        seasonMessage,
+                        style: textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // REMAINING DAYS
               // ==================================================
-              const Text(
-                'What About the Remaining Days?',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-              ),
 
-              const SizedBox(height: 15),
+              YatraSectionTitle(title: 'What About the Remaining Days?'),
 
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
+              const SizedBox(height: AppSpacing.md),
+
+              YatraCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Row(
                       children: [
                         Icon(Icons.explore_outlined),
-                        SizedBox(width: 10),
+                        SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Text(
                             'Additional Destination Suggestions',
                             style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
+                              color: AppColors.onSurface,
                             ),
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.md),
 
                     Text(
                       recommendation.remainingDaysMessage,
-                      style: const TextStyle(fontSize: 14, height: 1.5),
+                      style: textTheme.bodyMedium?.copyWith(height: 1.5),
                     ),
 
                     if (recommendation.additionalDestinations.isNotEmpty) ...[
-                      const SizedBox(height: 15),
+                      const SizedBox(height: AppSpacing.lg),
 
                       ...recommendation.additionalDestinations.map(
                         (place) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                           child: Row(
                             children: [
-                              const Icon(Icons.location_on_outlined, size: 20),
-                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 20,
+                                color: scheme.primary,
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
                               Text(
                                 place,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: textTheme.titleMedium,
                               ),
                             ],
                           ),
@@ -384,115 +490,168 @@ class RecommendationScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // DAY PLAN
               // ==================================================
-              const Text(
-                'Your Day-by-Day Plan',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+
+              YatraSectionTitle(
+                title: 'Your Day-by-Day Plan',
+                subtitle:
+                    'A day-by-day breakdown of your journey and sightseeing.',
               ),
 
-              const SizedBox(height: 15),
+              const SizedBox(height: AppSpacing.md),
 
               if (recommendation.dayPlans.isEmpty)
-                const Text('No route plan is currently available.'),
+                const YatraEmptyState(
+                  icon: Icons.map_outlined,
+                  message: 'No route plan is currently available.',
+                ),
 
               ...recommendation.dayPlans.map((dayPlan) {
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Day ${dayPlan.day}',
-                          style: const TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.bold,
+                final dayDate =
+                    departureDate.add(Duration(days: dayPlan.day - 1));
+                return YatraCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.sm,
+                              ),
+                            ),
+                            child: Text(
+                              '${dayPlan.day}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        ...dayPlan.items.map((item) {
-                          final place = item.type == DayPlanItemType.attraction
-                              ? findPlaceByName(item.title)
-                              : null;
-
-                          final isTravelItem =
-                              item.type == DayPlanItemType.travel;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(
-                                isTravelItem
-                                    ? Icons.directions_bus
-                                    : Icons.location_on,
-                              ),
-                              title: Text(
-                                item.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Day ${dayPlan.day}',
+                                  style: textTheme.titleLarge,
                                 ),
-                              ),
-                              subtitle: item.subtitle == null
-                                  ? null
-                                  : Text(item.subtitle!),
-                              trailing: place == null
-                                  ? null
-                                  : const Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 15,
-                                    ),
-                              onTap: place == null
-                                  ? null
-                                  : () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              PlaceDetailsScreen(place: place),
-                                        ),
-                                      );
-                                    },
+                                Text(
+                                  _formatDate(dayDate),
+                                  style: AppType.caption,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      ...dayPlan.items.map((item) {
+                        final isTravel =
+                            item.type == DayPlanItemType.travel;
+                        final isActivity =
+                            item.type == DayPlanItemType.activity;
+                        final place = item.type ==
+                                    DayPlanItemType.attraction
+                            ? item.place
+                            : null;
+
+                        if (isTravel) {
+                          return _travelItem(
+                            context,
+                            from: item.from,
+                            to: item.to,
+                            transportation: item.transportation,
+                          );
+                        }
+
+                        if (isActivity) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.check_circle_outline,
+                                  size: 20,
+                                  color: AppColors.accent,
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    item.activity ?? 'Recommended activity',
+                                    style: textTheme.bodyMedium
+                                        ?.copyWith(height: 1.4),
+                                  ),
+                                ),
+                              ],
                             ),
                           );
-                        }),
-                      ],
-                    ),
+                        }
+
+                        // Attraction item.
+                        if (place == null) {
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
+                            child: Text(
+                              item.title,
+                              style: textTheme.titleMedium,
+                            ),
+                          );
+                        }
+
+                        return _attractionItem(
+                          context,
+                          item: item,
+                          place: place,
+                        );
+                      }),
+                    ],
                   ),
                 );
               }),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // WHY THIS TRIP
               // ==================================================
-              const Text(
-                'Why This Trip?',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-              ),
 
-              const SizedBox(height: 15),
+              YatraSectionTitle(title: 'Why This Trip?'),
+
+              const SizedBox(height: AppSpacing.md),
 
               ...recommendation.reasons.map((reason) {
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.check_circle_outline, size: 20),
-                      const SizedBox(width: 10),
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 20,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Text(
                           reason,
-                          style: const TextStyle(fontSize: 15, height: 1.4),
+                          style: textTheme.bodyMedium?.copyWith(height: 1.4),
                         ),
                       ),
                     ],
@@ -500,46 +659,56 @@ class RecommendationScreen extends StatelessWidget {
                 );
               }),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.xl),
 
               // ==================================================
               // SUGGESTED PLACES
               // ==================================================
-              const Text(
-                'Places You Can Visit',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+
+              YatraSectionTitle(title: 'Places You Can Visit'),
+
+              const SizedBox(height: AppSpacing.sm),
+
+              Text(
+                'Here are some places you can visit during your trip.',
+                style: textTheme.bodyMedium,
               ),
 
-              const SizedBox(height: 15),
-              const Text(
-                'Here are some places you can visit during your trip.',
-                style: TextStyle(fontSize: 15, height: 1.4),
-              ),
-              const SizedBox(height: 15),
+              const SizedBox(height: AppSpacing.md),
 
               if (recommendation.suggestedPlaces.isEmpty)
-                const Text('No attraction data is currently available.'),
+                const YatraEmptyState(
+                  icon: Icons.place_outlined,
+                  message: 'No attraction data is currently available.',
+                ),
 
               ...recommendation.suggestedPlaces.map((placeName) {
                 final place = findPlaceByName(placeName);
 
                 if (place == null) {
                   return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: ListTile(
                       leading: const Icon(Icons.location_on_outlined),
                       title: Text(placeName),
+                      subtitle: const Text('Details unavailable'),
                     ),
                   );
                 }
 
                 return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: ListTile(
-                    leading: const Icon(Icons.location_on_outlined),
+                    leading: Icon(
+                      Icons.location_on_outlined,
+                      color: scheme.primary,
+                    ),
                     title: Text(place.name),
                     subtitle: Text(place.location),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    trailing: const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                    ),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -552,7 +721,195 @@ class RecommendationScreen extends StatelessWidget {
                   ),
                 );
               }),
+
+              const SizedBox(height: AppSpacing.xxl),
+
+              // ==================================================
+              // RESTART
+              // ==================================================
+
+              YatraPrimaryButton(
+                label: 'Plan Another Trip',
+                icon: Icons.home_outlined,
+                onPressed: () {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+              ),
+
+              const SizedBox(height: AppSpacing.sm),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // TRAVEL ITEM
+  // ============================================================
+
+  Widget _travelItem(
+    BuildContext context, {
+    required String? from,
+    required String? to,
+    required String? transportation,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    final fromText = from ?? '';
+    final toText = to ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: scheme.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: scheme.primary.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.directions_bus, size: 20, color: scheme.primary),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Travel · $fromText → $toText',
+                    style: textTheme.titleMedium,
+                  ),
+                  if (transportation != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        transportation,
+                        style: textTheme.bodySmall,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // ATTRACTION ITEM
+  // ============================================================
+
+  Widget _attractionItem(
+    BuildContext context, {
+    required DayPlanItem item,
+    required Place place,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PlaceDetailsScreen(place: place),
+              ),
+            );
+          },
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: 0.6),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Image.asset(
+                  place.imageUrl,
+                  width: double.infinity,
+                  height: 120,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: double.infinity,
+                      height: 120,
+                      color: scheme.primary.withValues(alpha: 0.1),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.landscape,
+                        size: 40,
+                        color: scheme.primary,
+                      ),
+                    );
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 18,
+                            color: AppColors.accent,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              place.name,
+                              style: textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (place.location.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          place.location,
+                          style: AppType.caption,
+                        ),
+                      ],
+                      if (place.description.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          place.description,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(height: 1.4),
+                        ),
+                      ],
+                      if (item.subtitle != null &&
+                          place.description.isEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          item.subtitle!,
+                          style: textTheme.bodySmall,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -560,9 +917,9 @@ class RecommendationScreen extends StatelessWidget {
   }
 }
 
-// ==================================================
+// ============================================================
 // STATUS CARD
-// ==================================================
+// ============================================================
 
 class _StatusCard extends StatelessWidget {
   final String title;
@@ -579,67 +936,31 @@ class _StatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: iconColor.withValues(alpha: 0.35)),
-      ),
+    final textTheme = Theme.of(context).textTheme;
+
+    return YatraCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: iconColor, size: 28),
-          const SizedBox(width: 12),
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  style: const TextStyle(fontSize: 14, height: 1.5),
-                ),
+                Text(title, style: textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text(message, style: textTheme.bodyMedium?.copyWith(height: 1.5)),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ==================================================
-// INFO ROW
-// ==================================================
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label, style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
         ],

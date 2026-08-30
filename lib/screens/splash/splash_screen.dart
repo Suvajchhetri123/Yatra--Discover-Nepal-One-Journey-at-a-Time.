@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../home/home_screen.dart';
+import '../auth/login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,22 +12,32 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
 
-    Timer(const Duration(seconds: 3), () {
+    _timer = Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     });
   }
 
   @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -36,30 +46,63 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset(
-                  'assets/images/yatra_logo.jpeg',
-                  width: 220,
-                  height: 220,
-                  fit: BoxFit.contain,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Image.asset(
+                    'assets/images/yatra_logo.jpeg',
+                    width: 220,
+                    height: 220,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 220,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.explore,
+                          size: 96,
+                          color: scheme.primary,
+                        ),
+                      );
+                    },
+                  ),
                 ),
 
                 const SizedBox(height: 28),
 
-                const Text(
+                Text(
                   'YATRA',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 5,
+                    color: scheme.primary,
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
                 Text(
-                  'Discover Nepal, One Journey at a Time.',
+                  'Explore Nepal. Plan Your Journey.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.grey.shade600,
+                      ),
+                ),
+
+                const SizedBox(height: 40),
+
+                SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: scheme.primary,
+                  ),
                 ),
               ],
             ),

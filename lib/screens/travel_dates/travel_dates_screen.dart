@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+
 import '../../models/package_model.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/yatra_components.dart';
 import '../travel_group/travel_group_screen.dart';
 
+/// Travel Dates — wizard step 1 of 4.
+///
+/// Redesigned on the central Yatra design system. All date selection and
+/// validation logic is unchanged.
 class TravelDatesScreen extends StatefulWidget {
-	final TourPackage? package;
-  const TravelDatesScreen({
-	super.key,
-this.package,
-	});
+  final TourPackage? package;
+
+  const TravelDatesScreen({super.key, this.package});
 
   @override
   State<TravelDatesScreen> createState() => _TravelDatesScreenState();
@@ -67,125 +72,220 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
     return returnDate!.difference(departureDate!).inDays + 1;
   }
 
+  bool get _canContinue => departureDate != null && returnDate != null;
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Travel Dates'), centerTitle: true),
+      appBar: AppBar(title: const Text('Travel Dates')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'When are you travelling?',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'Select your departure and return dates.',
-                style: TextStyle(fontSize: 16),
-              ),
-
-              const SizedBox(height: 35),
-
-              const Text(
-                'Departure Date',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: OutlinedButton.icon(
-                  onPressed: selectDepartureDate,
-                  icon: const Icon(Icons.calendar_today),
-                  label: Text(
-                    formatDate(departureDate),
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              const Text(
-                'Return Date',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: OutlinedButton.icon(
-                  onPressed: selectReturnDate,
-                  icon: const Icon(Icons.calendar_today),
-                  label: Text(
-                    formatDate(returnDate),
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              if (tripDuration != null)
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.screen),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const YatraWizardHeader(
+                      step: 1,
+                      totalSteps: 4,
+                      title: 'When are you travelling?',
+                      subtitle: 'Select your departure and return dates.',
                     ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: Colors.deepPurple.withValues(alpha: 0.08),
-                    ),
-                    child: Text(
-                      'Trip Duration: ${tripDuration!} '
-                      '${tripDuration == 1 ? 'day' : 'days'}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
+                    const SizedBox(height: AppSpacing.xxl),
 
-              const Spacer(),
+                    Text('Departure Date', style: textTheme.titleLarge),
+                    const SizedBox(height: AppSpacing.md),
+                    _DateSelectorCard(
+                      icon: Icons.flight_takeoff,
+                      label: 'Departure',
+                      value: formatDate(departureDate),
+                      selected: departureDate != null,
+                      onTap: selectDepartureDate,
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
 
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: departureDate != null && returnDate != null
-                      ? () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => TravelGroupScreen(
-                                departureDate: departureDate!,
-                                returnDate: returnDate!,
-				package: widget.package,
+                    Text('Return Date', style: textTheme.titleLarge),
+                    const SizedBox(height: AppSpacing.md),
+                    _DateSelectorCard(
+                      icon: Icons.flight_land,
+                      label: 'Return',
+                      value: formatDate(returnDate),
+                      selected: returnDate != null,
+                      enabled: departureDate != null,
+                      onTap: selectReturnDate,
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+
+                    if (tripDuration != null)
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xl,
+                            vertical: AppSpacing.md,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.md),
+                            color: scheme.primary.withValues(alpha: 0.1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.hourglass_bottom,
+                                  size: 20, color: scheme.primary),
+                              const SizedBox(width: AppSpacing.sm),
+                              Text(
+                                'Trip Duration: $tripDuration '
+                                '${tripDuration == 1 ? 'day' : 'days'}',
+                                style: AppType.bodyEmphasis.copyWith(
+                                  color: scheme.primary,
+                                ),
                               ),
-                            ),
-                          );
-                        }
-                      : null,
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ],
+            ),
+            _buildBottomBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screen,
+        AppSpacing.md,
+        AppSpacing.screen,
+        AppSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.6),
           ),
         ),
+      ),
+      child: YatraPrimaryButton(
+        label: 'Continue',
+        onPressed: _canContinue
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TravelGroupScreen(
+                      departureDate: departureDate!,
+                      returnDate: returnDate!,
+                      package: widget.package,
+                    ),
+                  ),
+                );
+              }
+            : null,
+      ),
+    );
+  }
+}
+
+class _DateSelectorCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _DateSelectorCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.selected,
+    this.enabled = true,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) {
+      return Opacity(
+        opacity: 0.5,
+        child: _buildContent(
+          context,
+          selected: false,
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: _buildContent(context, selected: selected),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, {required bool selected}) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: selected
+            ? scheme.primary.withValues(alpha: 0.06)
+            : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: selected ? scheme.primary : scheme.outlineVariant,
+          width: selected ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: scheme.primary, size: 22),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: AppType.bodyEmphasis,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            selected ? Icons.check_circle : Icons.chevron_right,
+            color: selected ? scheme.primary : scheme.outline,
+            size: 24,
+          ),
+        ],
       ),
     );
   }

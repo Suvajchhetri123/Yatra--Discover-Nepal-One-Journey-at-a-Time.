@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
 import '../../data/transportation_data.dart';
 import '../../models/transportation_option_model.dart';
+import '../../widgets/yatra_components.dart';
 import '../boarding/boarding_screen.dart';
 
 class TransportationScreen extends StatefulWidget {
@@ -45,272 +47,309 @@ class _TransportationScreenState
     return transportOptionsFor(widget.destination);
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transportation'),
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'How will you travel to ${widget.destination}?',
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.screen),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ============================================
+                    // HEADER
+                    // ============================================
+
+                    Text(
+                      'Transportation',
+                      style: textTheme.headlineMedium,
+                    ),
+
+                    const SizedBox(height: AppSpacing.sm),
+
+                    Text(
+                      'Choose from the transportation options available '
+                      'for your selected destination to plan your journey.',
+                      style: textTheme.bodyLarge,
+                    ),
+
+                    const SizedBox(height: AppSpacing.xl),
+
+                    // ============================================
+                    // DESTINATION CONTEXT
+                    // ============================================
+
+                    YatraCard(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.location_on,
+                              color: scheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Destination',
+                                  style: AppType.caption,
+                                ),
+                                Text(
+                                  widget.destination,
+                                  style: textTheme.titleMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSpacing.xl),
+
+                    YatraSectionTitle(
+                      title: 'Available Options',
+                      subtitle:
+                          'Tap an option to record your selection.',
+                    ),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ============================================
+                    // EMPTY STATE
+                    // ============================================
+
+                    if (options.isEmpty)
+                      const YatraEmptyState(
+                        icon: Icons.directions_bus_outlined,
+                        message:
+                            'No transportation options are available '
+                            'for this destination yet.',
+                      ),
+
+                    // ============================================
+                    // OPTIONS
+                    // ============================================
+
+                    ...options.map((option) {
+                      final name = option.name;
+                      final selected =
+                          selectedTransportation == name;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppSpacing.md,
+                        ),
+                        child: _TransportOptionCard(
+                          option: option,
+                          selected: selected,
+                          onTap: () {
+                            setState(() {
+                              selectedTransportation = name;
+                            });
+                          },
+                        ),
+                      );
+                    }),
+                  ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 10),
+            // ============================================
+            // BOTTOM CTA
+            // ============================================
 
-              const Text(
-                'Choose from transportation options available '
-                'for your selected destination.',
-                style: TextStyle(
-                  fontSize: 16,
-                  height: 1.4,
-                ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screen,
+                AppSpacing.lg,
+                AppSpacing.screen,
+                AppSpacing.lg,
               ),
-
-              const SizedBox(height: 20),
-
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: Colors.deepPurple.withValues(alpha: 0.05),
-                  border: Border.all(
-                    color: Colors.deepPurple.withValues(alpha: 0.2),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                border: Border(
+                  top: BorderSide(
+                    color: scheme.outlineVariant.withValues(alpha: 0.6),
                   ),
                 ),
-                child: Row(
+              ),
+              child: SafeArea(
+                top: false,
+                child: YatraPrimaryButton(
+                  label: 'Continue to Boarding',
+                  icon: Icons.arrow_forward,
+                  onPressed: selectedTransportation == null
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BoardingScreen(
+                                destination: widget.destination,
+                                departureDate: widget.departureDate,
+                                returnDate: widget.returnDate,
+                                season: widget.season,
+                                suitability: widget.suitability,
+                                currency: widget.currency,
+                                budget: widget.budget,
+                                ages: widget.ages,
+                                travelType: widget.travelType,
+                                groupSize: widget.groupSize,
+                                seasonMessage: widget.seasonMessage,
+                              ),
+                            ),
+                          );
+                        },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// TRANSPORT OPTION CARD
+// ============================================================
+
+class _TransportOptionCard extends StatelessWidget {
+  final TransportationOption option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TransportOptionCard({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: selected
+                  ? scheme.primary
+                  : scheme.outlineVariant,
+              width: selected ? 2 : 1,
+            ),
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.06)
+                : AppColors.surface,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  color: selected
+                      ? scheme.primary
+                      : scheme.primary.withValues(alpha: 0.1),
+                ),
+                child: Icon(
+                  option.icon,
+                  color: selected
+                      ? Colors.white
+                      : scheme.primary,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.location_on,
-                      color: Colors.deepPurple,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Destination: ${widget.destination}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            option.name,
+                            style: selected
+                                ? textTheme.titleMedium?.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w700,
+                                  )
+                                : textTheme.titleMedium,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: AppSpacing.sm),
+                        YatraStatusBadge(
+                          label: 'Available',
+                          color: AppColors.success,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: AppSpacing.xs),
+
+                    Text(
+                      option.description,
+                      style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                    ),
+
+                    const SizedBox(height: AppSpacing.xs),
+
+                    Text(
+                      option.details,
+                      style: AppType.caption.copyWith(height: 1.4),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(width: AppSpacing.sm),
 
-              Expanded(
-                child: ListView.builder(
-                  itemCount: options.length,
-                  itemBuilder: (context, index) {
-                    final option = options[index];
-
-                    final String name = option.name;
-
-                    final bool selected =
-                        selectedTransportation == name;
-
-                    return Padding(
-                      padding:
-                          const EdgeInsets.only(bottom: 14),
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            selectedTransportation = name;
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration:
-                              const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(18),
-                            border: Border.all(
-                              color: selected
-                                  ? Colors.deepPurple
-                                  : Colors.grey.shade300,
-                              width: selected ? 2 : 1,
-                            ),
-                            color: selected
-                                ? Colors.deepPurple
-                                    .withValues(alpha: 0.05)
-                                : null,
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 58,
-                                height: 58,
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(15),
-                                  color: selected
-                                      ? Colors.deepPurple
-                                      : Colors.grey.shade100,
-                                ),
-                                child: Icon(
-                                  option.icon,
-                                  color: selected
-                                      ? Colors.white
-                                      : Colors.grey.shade700,
-                                  size: 28,
-                                ),
-                              ),
-
-                              const SizedBox(width: 16),
-
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            name,
-                                            style:
-                                                const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight:
-                                                  FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        Container(
-                                          padding:
-                                              const EdgeInsets
-                                                  .symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration:
-                                              BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius
-                                                    .circular(8),
-                                            color: Colors.green
-                                                .withValues(
-                                              alpha: 0.1,
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            'Available',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight:
-                                                  FontWeight.bold,
-                                              color: Colors.green,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-
-                                    const SizedBox(height: 5),
-
-                                    Text(
-                                      option.description,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color:
-                                            Colors.grey.shade700,
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 3),
-
-                                    Text(
-                                      option.details,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color:
-                                            Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              const SizedBox(width: 8),
-
-                              Icon(
-                                selected
-                                    ? Icons.check_circle
-                                    : Icons
-                                        .radio_button_unchecked,
-                                color: selected
-                                    ? Colors.deepPurple
-                                    : Colors.grey,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed:
-                      selectedTransportation == null
-                          ? null
-                          : () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      BoardingScreen(
-                                    destination:
-                                        widget.destination,
-                                    departureDate:
-                                        widget.departureDate,
-                                    returnDate:
-                                        widget.returnDate,
-                                    season: widget.season,
-                                    suitability:
-                                        widget.suitability,
-                                    currency: widget.currency,
-                                    budget: widget.budget,
-                                    ages: widget.ages,
-                                    travelType:
-                                        widget.travelType,
-                                    groupSize:
-                                        widget.groupSize,
-                                    seasonMessage:
-                                        widget.seasonMessage,
-                                  ),
-                                ),
-                              );
-                            },
-                  child: const Text(
-                    'Continue to Boarding',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+              Icon(
+                selected
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                color: selected
+                    ? scheme.primary
+                    : scheme.outline,
               ),
             ],
           ),

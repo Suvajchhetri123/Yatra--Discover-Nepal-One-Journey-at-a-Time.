@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
 import '../../models/travel_route_model.dart';
 import '../../data/transportation_data.dart';
+import '../../widgets/yatra_components.dart';
 import '../recommendation/recommendation_screen.dart';
 
 class BoardingScreen extends StatefulWidget {
@@ -728,22 +730,26 @@ class _BoardingScreenState extends State<BoardingScreen> {
       return DropdownMenuItem<String>(
         value: option.name,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(option.icon,
-                size: 20, color: Colors.grey.shade700),
+                size: 20, color: AppColors.onSurfaceMuted),
             const SizedBox(width: 10),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(option.name),
+                  Text(
+                    option.name,
+                    style: AppType.bodyEmphasis,
+                  ),
                   if (rt.requiresTransfer && rt.transferNote != null)
-                    Text(
-                      rt.transferNote!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        rt.transferNote!,
+                        style: AppType.caption.copyWith(height: 1.4),
                       ),
                     ),
                 ],
@@ -756,613 +762,751 @@ class _BoardingScreenState extends State<BoardingScreen> {
   }
 
   // ============================================================
+  // ROUTE VISUALIZATION (FROM → TO)
+  // ============================================================
+
+  Widget _routeConnector({
+    required String from,
+    required String to,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _routeStop(
+            label: 'From',
+            value: from,
+            icon: Icons.trip_origin,
+            color: AppColors.primary,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.lg,
+          ),
+          child: Icon(
+            Icons.arrow_forward,
+            color: scheme.outline,
+            size: 22,
+          ),
+        ),
+        Expanded(
+          child: _routeStop(
+            label: 'To',
+            value: to,
+            icon: Icons.location_on_outlined,
+            color: AppColors.accent,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _routeStop({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppType.caption.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: textTheme.titleMedium,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // JOURNEY SECTION HEADER (GOING / RETURN)
+  // ============================================================
+
+  Widget _journeyHeader({
+    required String title,
+    required String subtitle,
+    IconData icon = Icons.navigation_outlined,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 20, color: scheme.primary),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: YatraSectionTitle(
+            title: title,
+            subtitle: subtitle,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // SELECTED TRANSPORT INDICATOR
+  // ============================================================
+
+  Widget _transportSelectionHint({
+    required String? selected,
+    required String from,
+    required String to,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+
+    if (selected == null) {
+      return Text(
+        'Transportation: $from → $to',
+        style: AppType.caption,
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, size: 20, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Selected: $selected',
+              style: textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // BOTTOM CTA
+  // ============================================================
+
+  Widget _bottomBar(bool enabled) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screen,
+        AppSpacing.lg,
+        AppSpacing.screen,
+        AppSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant
+                .withValues(alpha: 0.6),
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: YatraPrimaryButton(
+          label: 'Continue',
+          icon: Icons.arrow_forward,
+          onPressed: enabled ? _continue : null,
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
   // BUILD
   // ============================================================
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Travel Route'),
-        centerTitle: true,
-      ),
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
 
-      // ========================================================
-      // IMPORTANT:
-      // SingleChildScrollView fixes the bottom overflow.
-      // ========================================================
+    final boardingChosen = selectedBoardingPoint != null;
+    final outgoing = boardingChosen && !routeComplete;
+    final transportChosen = selectedNextPoint != null;
+    final canAddLeg = outgoing && transportChosen &&
+        selectedTransportation != null;
+
+    final showReturn =
+        routeComplete &&
+            selectedTripDirection == TripDirection.roundTrip;
+
+    // Continue is available once the outgoing (and return, if round trip)
+    // routes are complete.
+    final canContinue = routeComplete && returnRouteComplete;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Choose Transportation')),
 
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ==================================================
-              // HEADER
-              // ==================================================
-
-              const Text(
-                'Plan Your Route',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                'Build your route to '
-                '${widget.destination} using relevant locations.',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey.shade700,
-                  height: 1.4,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ==================================================
-              // BOARDING POINT
-              // ==================================================
-
-              const Text(
-                'Boarding Point',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              DropdownButtonFormField<String>(
-                initialValue: selectedBoardingPoint,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  hintText: 'Choose where you want to start',
-                  prefixIcon: const Icon(
-                    Icons.location_on_outlined,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                items: boardingPoints
-                    .map(
-                      (place) => DropdownMenuItem<String>(
-                        value: place,
-                        child: Text(place),
-                      ),
-                    )
-                    .toList(),
-                onChanged: _selectBoardingPoint,
-              ),
-
-              const SizedBox(height: 20),
-
-              // ==================================================
-              // OUTGOING ROUTE
-              // ==================================================
-
-              if (selectedBoardingPoint != null) ...[
-                const Text(
-                  'Your Route',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.grey.shade300,
-                    ),
-                  ),
-                  child: Text(
-                    _outgoingRoutePreview(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-              ],
-
-              // ==================================================
-              // OUTGOING LOCATION
-              // ==================================================
-
-              if (selectedBoardingPoint != null &&
-                  !routeComplete) ...[
-                Text(
-                  'From ${currentLocation!}',
-                  style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                DropdownButtonFormField<String>(
-                  initialValue: selectedNextPoint,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    hintText: 'Choose next location',
-                    prefixIcon: const Icon(
-                      Icons.place_outlined,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  items: nextLocations
-                      .map(
-                        (place) => DropdownMenuItem<String>(
-                          value: place,
-                          child: Text(place),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _selectNextPoint,
-                ),
-
-                const SizedBox(height: 16),
-
-                if (selectedNextPoint != null) ...[
-                  // ==========================================
-                  // TRANSPORTATION FOR THE CURRENT OUTGOING LEG
-                  // Only shown once the leg's destination (the
-                  // next point) has been chosen.
-                  // ==========================================
-
-                  const Text(
-                    'Transportation',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    'Transportation: '
-                    '${currentLocation!} → $selectedNextPoint',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedTransportation,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      hintText: 'Choose transportation',
-                      prefixIcon: const Icon(
-                        Icons.directions_bus_outlined,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    items: _transportItems(
-                      transportOptionsForRoute(
-                        currentLocation!,
-                        selectedNextPoint!,
-                      ),
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        selectedTransportation = value;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  if (selectedTransportation != null)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        onPressed: _addRouteLeg,
-                        icon: const Icon(Icons.add),
-                        label: const Text(
-                          'Add Route Leg',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  const SizedBox(height: 10),
-                ],
-              ],
-
-              // ==================================================
-              // REMOVE OUTGOING LEG
-              // ==================================================
-
-              if (segments.isNotEmpty && !routeComplete)
-                SizedBox(
-                  width: double.infinity,
-                  height: 45,
-                  child: TextButton.icon(
-                    onPressed: _removeLastLeg,
-                    icon: const Icon(Icons.undo),
-                    label: const Text(
-                      'Remove Last Leg',
-                    ),
-                  ),
-                ),
-
-              // ==================================================
-              // TRIP DIRECTION
-              // ==================================================
-
-              if (routeComplete) ...[
-                const SizedBox(height: 20),
-
-                const Text(
-                  'Trip Direction',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                Row(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.screen),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: ChoiceChip(
-                        label: const Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.arrow_forward,
-                              size: 19,
-                            ),
-                            SizedBox(width: 7),
-                            Text('One Way'),
-                          ],
-                        ),
-                        selected:
-                            selectedTripDirection ==
-                                TripDirection.oneWay,
-                        onSelected: (_) {
-                          _selectTripDirection(
-                            TripDirection.oneWay,
-                          );
-                        },
-                      ),
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    Expanded(
-                      child: ChoiceChip(
-                        label: const Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.sync_alt,
-                              size: 19,
-                            ),
-                            SizedBox(width: 7),
-                            Text('Round Trip'),
-                          ],
-                        ),
-                        selected:
-                            selectedTripDirection ==
-                                TripDirection.roundTrip,
-                        onSelected: (_) {
-                          _selectTripDirection(
-                            TripDirection.roundTrip,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(13),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.grey.shade100,
-                  ),
-                  child: Text(
-                    selectedTripDirection ==
-                            TripDirection.roundTrip
-                        ? 'The return journey is planned '
-                            'separately, so you can choose '
-                            'different transportation for the '
-                            'return trip.'
-                        : 'The itinerary will end at '
-                            '${widget.destination}.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-
-              // ==================================================
-              // RETURN JOURNEY
-              // ==================================================
-
-              if (routeComplete &&
-                  selectedTripDirection ==
-                      TripDirection.roundTrip) ...[
-                const SizedBox(height: 20),
-
-                const Text(
-                  'Return Journey',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: Colors.grey.shade100,
-                  ),
-                  child: Text(
-                    _returnRoutePreview(),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                if (!returnRouteComplete) ...[
-                  Text(
-                    'From ${currentReturnLocation!}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    'Returning to '
-                    '${nextReturnLocation ?? selectedBoardingPoint}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  if (nextReturnLocation != null) ...[
-                    const Text(
-                      'Transportation',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
+                    // ============================================
+                    // HEADER
+                    // ============================================
 
                     Text(
-                      'Transportation: '
-                      '${currentReturnLocation!} → '
-                      '$nextReturnLocation',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
+                      'Choose Your Transportation',
+                      style: textTheme.headlineMedium,
+                    ),
+
+                    const SizedBox(height: AppSpacing.sm),
+
+                    Text(
+                      'Build your route to ${widget.destination} and pick '
+                      'how you get there — every leg, your way.',
+                      style: textTheme.bodyLarge,
+                    ),
+
+                    const SizedBox(height: AppSpacing.xl),
+
+                    // ============================================
+                    // ROUTE VISUALIZATION (FROM → TO)
+                    // ============================================
+
+                    YatraCard(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: _routeConnector(
+                        from: selectedBoardingPoint ?? 'Select start',
+                        to: widget.destination,
                       ),
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: AppSpacing.xl),
+
+                    // ============================================
+                    // OUTGOING ROUTE PREVIEW
+                    // ============================================
+
+                    if (boardingChosen) ...[
+                      YatraCard(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.route_outlined,
+                              color: scheme.primary,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Text(
+                                _outgoingRoutePreview(),
+                                style: textTheme.titleMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: AppSpacing.xl),
+                    ],
+
+                    // ============================================
+                    // BOARDING POINT
+                    // ============================================
+
+                    _journeyHeader(
+                      title: 'Boarding Point',
+                      subtitle: 'Where does your journey begin?',
+                      icon: Icons.trip_origin_outlined,
+                    ),
+
+                    const SizedBox(height: AppSpacing.md),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedReturnTransportation,
+                      initialValue: selectedBoardingPoint,
                       isExpanded: true,
-                      decoration: InputDecoration(
-                        hintText: 'Choose transportation',
-                        prefixIcon: const Icon(
-                          Icons.directions_bus_outlined,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
+                      decoration: const InputDecoration(
+                        hintText: 'Choose where you want to start',
+                        prefixIcon: Icon(
+                          Icons.location_on_outlined,
                         ),
                       ),
-                      items: _transportItems(
-                        transportOptionsForRoute(
-                          currentReturnLocation!,
-                          nextReturnLocation!,
-                        ),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedReturnTransportation = value;
-                        });
-                      },
+                      items: boardingPoints
+                          .map(
+                            (place) => DropdownMenuItem<String>(
+                              value: place,
+                              child: Text(place),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _selectBoardingPoint,
                     ),
 
-                    const SizedBox(height: 16),
+                    // ============================================
+                    // GOING — OUTGOING JOURNEY
+                    // ============================================
+
+                    if (outgoing) ...[
+                      const SizedBox(height: AppSpacing.xxl + AppSpacing.md),
+
+                      _journeyHeader(
+                        title: 'Going',
+                        subtitle:
+                            'From ${currentLocation!} to '
+                            '${widget.destination}.',
+                        icon: Icons.navigation_outlined,
+                      ),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      // Next location picker.
+                      Text(
+                        'Next stop',
+                        style: textTheme.titleLarge,
+                      ),
+
+                      const SizedBox(height: AppSpacing.sm),
+
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedNextPoint,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Choose next location',
+                          prefixIcon: Icon(
+                            Icons.place_outlined,
+                          ),
+                        ),
+                        items: nextLocations
+                            .map(
+                              (place) => DropdownMenuItem<String>(
+                                value: place,
+                                child: Text(place),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _selectNextPoint,
+                      ),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      // Transportation for current outgoing leg,
+                      // only shown once the leg's destination is chosen.
+                      if (transportChosen) ...[
+                        Text(
+                          'Transportation',
+                          style: textTheme.titleLarge,
+                        ),
+
+                        const SizedBox(height: AppSpacing.sm),
+
+                        _transportSelectionHint(
+                          selected: selectedTransportation,
+                          from: currentLocation!,
+                          to: selectedNextPoint!,
+                        ),
+
+                        const SizedBox(height: AppSpacing.md),
+
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedTransportation,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            hintText: 'Choose transportation',
+                            prefixIcon: Icon(
+                              Icons.directions_bus_outlined,
+                            ),
+                          ),
+                          items: _transportItems(
+                            transportOptionsForRoute(
+                              currentLocation!,
+                              selectedNextPoint!,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedTransportation = value;
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: AppSpacing.md),
+
+                        if (canAddLeg)
+                          YatraSecondaryButton(
+                            label: 'Add Route Leg',
+                            icon: Icons.add,
+                            expanded: false,
+                            onPressed: _addRouteLeg,
+                          ),
+
+                        const SizedBox(height: AppSpacing.xs),
+                      ],
+                    ],
+
+                    // Remove last outgoing leg.
+                    if (segments.isNotEmpty && !routeComplete)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _removeLastLeg,
+                          icon: const Icon(Icons.undo),
+                          label: const Text('Remove Last Leg'),
+                        ),
+                      ),
+
+                    // ============================================
+                    // TRIP DIRECTION
+                    // ============================================
+
+                    if (routeComplete) ...[
+                      const SizedBox(height: AppSpacing.xl),
+
+                      Text('Trip Direction', style: textTheme.titleLarge),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.arrow_forward,
+                                    size: 19,
+                                  ),
+                                  SizedBox(width: 7),
+                                  Text('One Way'),
+                                ],
+                              ),
+                              selected:
+                                  selectedTripDirection ==
+                                      TripDirection.oneWay,
+                              onSelected: (_) {
+                                _selectTripDirection(
+                                  TripDirection.oneWay,
+                                );
+                              },
+                            ),
+                          ),
+
+                          const SizedBox(width: AppSpacing.md),
+
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.sync_alt,
+                                    size: 19,
+                                  ),
+                                  SizedBox(width: 7),
+                                  Text('Round Trip'),
+                                ],
+                              ),
+                              selected:
+                                  selectedTripDirection ==
+                                      TripDirection.roundTrip,
+                              onSelected: (_) {
+                                _selectTripDirection(
+                                  TripDirection.roundTrip,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      YatraCard(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              selectedTripDirection ==
+                                      TripDirection.roundTrip
+                                  ? Icons.sync_alt
+                                  : Icons.info_outline,
+                              size: 20,
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Text(
+                                selectedTripDirection ==
+                                        TripDirection.roundTrip
+                                    ? 'The return journey is planned '
+                                        'separately, so you can choose '
+                                        'different transportation for the '
+                                        'return trip.'
+                                    : 'The itinerary will end at '
+                                        '${widget.destination}.',
+                                style: textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // ============================================
+                    // RETURN JOURNEY
+                    // ============================================
+
+                    if (showReturn) ...[
+                      const SizedBox(height: AppSpacing.xl),
+
+                      _journeyHeader(
+                        title: 'Return',
+                        subtitle:
+                            '${widget.destination} → '
+                            '$selectedBoardingPoint.',
+                        icon: Icons.sync_alt,
+                      ),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      YatraCard(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.route_outlined,
+                              color: AppColors.accent,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Text(
+                                _returnRoutePreview(),
+                                style: textTheme.titleMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      if (!returnRouteComplete) ...[
+                        const SizedBox(height: AppSpacing.lg),
+
+                        Text(
+                          'From ${currentReturnLocation!}',
+                          style: textTheme.titleLarge,
+                        ),
+
+                        const SizedBox(height: AppSpacing.sm),
+
+                        Text(
+                          'Returning to '
+                          '${nextReturnLocation ?? selectedBoardingPoint}',
+                          style: AppType.caption,
+                        ),
+
+                        const SizedBox(height: AppSpacing.md),
+
+                        if (nextReturnLocation != null) ...[
+                          Text(
+                            'Transportation',
+                            style: textTheme.titleLarge,
+                          ),
+
+                          const SizedBox(height: AppSpacing.sm),
+
+                          _transportSelectionHint(
+                            selected: selectedReturnTransportation,
+                            from: currentReturnLocation!,
+                            to: nextReturnLocation!,
+                          ),
+
+                          const SizedBox(height: AppSpacing.md),
+
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedReturnTransportation,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              hintText: 'Choose transportation',
+                              prefixIcon: Icon(
+                                Icons.directions_bus_outlined,
+                              ),
+                            ),
+                            items: _transportItems(
+                              transportOptionsForRoute(
+                                currentReturnLocation!,
+                                nextReturnLocation!,
+                              ),
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                selectedReturnTransportation = value;
+                              });
+                            },
+                          ),
+
+                          const SizedBox(height: AppSpacing.md),
+                        ],
+
+                        if (selectedReturnTransportation != null)
+                          YatraSecondaryButton(
+                            label: 'Add Return Leg',
+                            icon: Icons.add,
+                            expanded: false,
+                            onPressed: _addReturnLeg,
+                          ),
+
+                        if (returnSegments.isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _removeLastReturnLeg,
+                              icon: const Icon(Icons.undo),
+                              label:
+                                  const Text('Remove Last Return Leg'),
+                            ),
+                          ),
+                      ],
+                    ],
+
+                    // ============================================
+                    // COMPLETION MESSAGES
+                    // ============================================
+
+                    if (routeComplete &&
+                        selectedTripDirection ==
+                            TripDirection.oneWay) ...[
+                      const SizedBox(height: AppSpacing.xl),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          color: AppColors.success.withValues(alpha: 0.08),
+                          border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Text(
+                                'You have reached '
+                                '${widget.destination}.',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    if (selectedTripDirection ==
+                            TripDirection.roundTrip &&
+                        returnRouteComplete) ...[
+                      const SizedBox(height: AppSpacing.xl),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          color: AppColors.success.withValues(alpha: 0.08),
+                          border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Text(
+                                'Round trip route completed.',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // Extra bottom space so the pinned CTA never overlaps
+                    // the last scrollable item.
+                    const SizedBox(height: AppSpacing.xxxl),
                   ],
-
-                  if (selectedReturnTransportation != null)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        onPressed: _addReturnLeg,
-                        icon: const Icon(Icons.add),
-                        label: const Text(
-                          'Add Return Leg',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  if (returnSegments.isNotEmpty)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 45,
-                      child: TextButton.icon(
-                        onPressed:
-                            _removeLastReturnLeg,
-                        icon: const Icon(Icons.undo),
-                        label: const Text(
-                          'Remove Last Return Leg',
-                        ),
-                      ),
-                    ),
-                ],
-              ],
-
-              // ==================================================
-              // COMPLETION MESSAGE
-              // ==================================================
-
-              if (routeComplete &&
-                  selectedTripDirection ==
-                      TripDirection.oneWay) ...[
-                const SizedBox(height: 20),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Colors.green.shade300,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        color: Colors.green.shade700,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'You have reached '
-                          '${widget.destination}.',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              if (selectedTripDirection ==
-                      TripDirection.roundTrip &&
-                  returnRouteComplete) ...[
-                const SizedBox(height: 20),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Colors.green.shade300,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        color: Colors.green.shade700,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Round trip route completed.',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              // ==================================================
-              // CONTINUE BUTTON
-              // ==================================================
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed:
-                      routeComplete &&
-                              returnRouteComplete
-                          ? _continue
-                          : null,
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
                 ),
               ),
+            ),
 
-              // Extra bottom space for comfortable scrolling.
-              const SizedBox(height: 24),
-            ],
-          ),
+            // ============================================
+            // PINNED BOTTOM CTA
+            // ============================================
+
+            _bottomBar(canContinue),
+          ],
         ),
       ),
     );

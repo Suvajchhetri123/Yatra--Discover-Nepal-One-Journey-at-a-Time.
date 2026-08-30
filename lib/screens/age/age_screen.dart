@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../models/package_model.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/yatra_components.dart';
 import '../budget/budget_screen.dart';
 
+/// Traveller Ages — wizard step 3 of 4.
+///
+/// Redesigned on the central Yatra design system. All age values, validation
+/// and age categories are unchanged.
 class AgeScreen extends StatefulWidget {
   final String travelType;
   final int adultCount;
@@ -98,123 +104,177 @@ class _AgeScreenState extends State<AgeScreen> {
   @override
   Widget build(BuildContext context) {
     final isSolo = widget.travelType == 'Solo';
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Traveller Ages'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Traveller Ages')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isSolo
-                    ? 'How old are you?'
-                    : 'How old are the travellers?',
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              Text(
-                isSolo
-                    ? 'Your age helps Yatra suggest a suitable '
-                        'travel pace and experience.'
-                    : 'The ages of all travellers help Yatra '
-                        'calculate a suitable travel pace and duration '
-                        'for the whole group.',
-                style: const TextStyle(
-                  fontSize: 16,
-                  height: 1.4,
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              Expanded(
-                child: ListView.builder(
-                  itemCount: ageControllers.length,
-                  itemBuilder: (context, index) {
-                    final controller = ageControllers[index];
-
-                    final enteredAge =
-                        int.tryParse(controller.text.trim());
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isSolo
-                                ? 'Your Age'
-                                : index < widget.adultCount
-                                    ? 'Adult ${index + 1}'
-                                    : 'Child ${index - widget.adultCount + 1}',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          TextField(
-                            controller: controller,
-                            keyboardType: TextInputType.number,
-                            maxLength: 3,
-                            decoration: InputDecoration(
-                              hintText: index < widget.adultCount
-                                  ? 'Enter adult age'
-                                  : 'Enter child age',
-                              border: const OutlineInputBorder(),
-                              suffixText: 'years',
-                            ),
-                            onChanged: (_) {
-                              setState(() {});
-                            },
-                          ),
-
-                          if (enteredAge != null &&
-                              _isValidAge(controller.text, index))
-                            Text(
-                              'Age group: ${getAgeCategory(enteredAge)}',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _allAgesValid ? _continue : null,
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.screen),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    YatraWizardHeader(
+                      step: 3,
+                      totalSteps: 4,
+                      title: isSolo
+                          ? 'How old are you?'
+                          : 'How old are the travellers?',
+                      subtitle: isSolo
+                          ? 'Your age helps Yatra suggest a suitable '
+                              'travel pace and experience.'
+                          : 'The ages of all travellers help Yatra '
+                              'calculate a suitable travel pace and duration '
+                              'for the whole group.',
                     ),
+                    const SizedBox(height: AppSpacing.xxl),
+
+                    for (var index = 0; index < ageControllers.length; index++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        child: _AgeField(
+                          controller: ageControllers[index],
+                          index: index,
+                          isSolo: isSolo,
+                          adultCount: widget.adultCount,
+                          isValidAge: (value) =>
+                              _isValidAge(value, index),
+                          theme: textTheme,
+                          scheme: scheme,
+                          onChanged: () => setState(() {}),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screen,
+                AppSpacing.md,
+                AppSpacing.screen,
+                AppSpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outlineVariant
+                        .withValues(alpha: 0.6),
                   ),
                 ),
               ),
-            ],
-          ),
+              child: YatraPrimaryButton(
+                label: 'Continue',
+                onPressed: _allAgesValid ? _continue : null,
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+}
+
+class _AgeField extends StatelessWidget {
+  final TextEditingController controller;
+  final int index;
+  final bool isSolo;
+  final int adultCount;
+  final bool Function(String value) isValidAge;
+  final TextTheme theme;
+  final ColorScheme scheme;
+  final VoidCallback onChanged;
+
+  const _AgeField({
+    required this.controller,
+    required this.index,
+    required this.isSolo,
+    required this.adultCount,
+    required this.isValidAge,
+    required this.theme,
+    required this.scheme,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enteredAge = int.tryParse(controller.text.trim());
+    final isEmpty = controller.text.trim().isEmpty;
+    final valid = enteredAge != null && isValidAge(controller.text);
+
+    final title = isSolo
+        ? 'Your Age'
+        : index < adultCount
+            ? 'Adult ${index + 1}'
+            : 'Child ${index - adultCount + 1}';
+
+    final hint =
+        index < adultCount ? 'Enter adult age' : 'Enter child age';
+
+    final errorText = (isEmpty || valid)
+        ? null
+        : index < adultCount
+            ? 'Adults must be 18 or older'
+            : 'Children must be aged 1–17';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: errorText != null
+                  ? scheme.error
+                  : valid
+                      ? scheme.primary
+                      : scheme.outlineVariant,
+              width: errorText != null || valid ? 1.5 : 1,
+            ),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            maxLength: 3,
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: hint,
+              suffixIcon: valid
+                  ? Icon(Icons.check_circle, color: scheme.primary, size: 20)
+                  : null,
+              errorText: errorText,
+              fillColor: Colors.transparent,
+            ),
+            onChanged: (_) => onChanged(),
+          ),
+        ),
+        if (valid)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              'Age group: ${getAgeCategory(enteredAge)}',
+              style: theme.bodyMedium?.copyWith(color: scheme.primary),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String getAgeCategory(int age) {
+    if (age < 18) return 'Under 18';
+    if (age <= 30) return '18–30';
+    if (age <= 45) return '31–45';
+    if (age <= 60) return '46–60';
+    return '60+';
   }
 }
