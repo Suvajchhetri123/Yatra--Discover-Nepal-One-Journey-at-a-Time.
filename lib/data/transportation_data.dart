@@ -219,6 +219,12 @@ const List<DestinationTransport> destinationTransports = [
     destination: 'Kathmandu',
     options: [
       TransportationOption(
+        name: 'Kathmandu',
+        icon: Icons.location_city,
+        description: 'You are already in Kathmandu — explore the city and nearby local spots',
+        details: 'Local exploration around the Kathmandu Valley',
+      ),
+      TransportationOption(
         name: 'Bus',
         icon: Icons.directions_bus,
         description: 'Widely available road transportation',
@@ -367,7 +373,6 @@ List<TransportationOption> _mustangRoadOnly() => const [
       _busOption,
       _jeepOption,
       _privateVehicleOption,
-      _motorbikeOption,
     ];
 
 List<TransportationOption> _trekOnly() => const [
@@ -379,7 +384,7 @@ List<TransportationOption> _trekOnly() => const [
 // ============================================================
 
 const String _luklaNote =
-    'No road reaches Lukla directly: drive to Jiri/Salleri, then trek the rest.';
+    'No road reaches Lukla: drive to Jiri/Salleri, then trek the rest.';
 
 const String _viaJomsomNote =
     'Via Jomsom: combine air travel with road transportation.';

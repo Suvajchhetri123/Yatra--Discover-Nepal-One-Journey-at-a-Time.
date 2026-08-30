@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "142493673789",
+    "project_id": "yatra-nepal-7c54d",
+    "storage_bucket": "yatra-nepal-7c54d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:142493673789:android:ba00dc4059d69ed666bd54",
+        "android_client_info": {
+          "package_name": "com.example.yatra"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDsTAWh1lw-SAdARWZf5ydagcIlOy-WXQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

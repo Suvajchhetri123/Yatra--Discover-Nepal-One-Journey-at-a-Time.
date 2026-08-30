@@ -73,6 +73,13 @@ class RecommendationScreen extends StatelessWidget {
         ? '${ages.isNotEmpty ? ages.first : 18} years'
         : ages.join(', ');
 
+    // A local-exploration route (e.g. "already in Kathmandu") has no intercity
+    // segments and the same boarding point and destination, so it must not be
+    // rendered as a pointless "Kathmandu → Kathmandu" journey.
+    final isLocalExploration = route.segments.isEmpty &&
+        route.boardingPoint.toLowerCase().trim() ==
+            route.destination.toLowerCase().trim();
+
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
@@ -281,37 +288,63 @@ class RecommendationScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${route.boardingPoint} → ${route.destination}',
-                      style: textTheme.titleMedium,
-                    ),
-
-                    const SizedBox(height: AppSpacing.lg),
-
-                    ...route.segments.map(
-                      (segment) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.directions,
-                              size: 20,
-                              color: scheme.primary,
+                    if (isLocalExploration) ...[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.explore_outlined,
+                               size: 20, color: scheme.primary),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(
+                              'Local exploration in '
+                              '${route.destination}',
+                              style: textTheme.titleMedium,
                             ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Text(
-                                '${segment.from} → ${segment.to}\n'
-                                '${segment.transportation}',
-                                style: textTheme.bodyMedium
-                                    ?.copyWith(height: 1.4),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'You are already in ${route.destination} — '
+                        'exploring the area locally, with no intercity '
+                        'transportation required.',
+                        style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                      ),
+                    ] else ...[
+                      Text(
+                        '${route.boardingPoint} → ${route.destination}',
+                        style: textTheme.titleMedium,
+                      ),
+
+                      const SizedBox(height: AppSpacing.lg),
+
+                      ...route.segments.map(
+                        (segment) => Padding(
+                          padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.directions,
+                                size: 20,
+                                color: scheme.primary,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Text(
+                                  '${segment.from} → ${segment.to}\n'
+                                  '${segment.transportation}',
+                                  style: textTheme.bodyMedium
+                                      ?.copyWith(height: 1.4),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
 
                     if (route.isRoundTrip &&
                         route.returnSegments.isNotEmpty) ...[

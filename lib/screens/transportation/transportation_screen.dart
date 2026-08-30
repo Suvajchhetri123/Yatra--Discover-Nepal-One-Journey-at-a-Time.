@@ -35,12 +35,10 @@ class TransportationScreen extends StatefulWidget {
   });
 
   @override
-  State<TransportationScreen> createState() =>
-      _TransportationScreenState();
+  State<TransportationScreen> createState() => _TransportationScreenState();
 }
 
-class _TransportationScreenState
-    extends State<TransportationScreen> {
+class _TransportationScreenState extends State<TransportationScreen> {
   String? selectedTransportation;
 
   List<TransportationOption> get options {
@@ -53,10 +51,7 @@ class _TransportationScreenState
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transportation'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Transportation'), centerTitle: true),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,11 +66,7 @@ class _TransportationScreenState
                     // ============================================
                     // HEADER
                     // ============================================
-
-                    Text(
-                      'Transportation',
-                      style: textTheme.headlineMedium,
-                    ),
+                    Text('Transportation', style: textTheme.headlineMedium),
 
                     const SizedBox(height: AppSpacing.sm),
 
@@ -90,7 +81,6 @@ class _TransportationScreenState
                     // ============================================
                     // DESTINATION CONTEXT
                     // ============================================
-
                     YatraCard(
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Row(
@@ -113,10 +103,7 @@ class _TransportationScreenState
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Destination',
-                                  style: AppType.caption,
-                                ),
+                                Text('Destination', style: AppType.caption),
                                 Text(
                                   widget.destination,
                                   style: textTheme.titleMedium,
@@ -132,8 +119,7 @@ class _TransportationScreenState
 
                     YatraSectionTitle(
                       title: 'Available Options',
-                      subtitle:
-                          'Tap an option to record your selection.',
+                      subtitle: 'Tap an option to record your selection.',
                     ),
 
                     const SizedBox(height: AppSpacing.md),
@@ -141,7 +127,6 @@ class _TransportationScreenState
                     // ============================================
                     // EMPTY STATE
                     // ============================================
-
                     if (options.isEmpty)
                       const YatraEmptyState(
                         icon: Icons.directions_bus_outlined,
@@ -153,16 +138,12 @@ class _TransportationScreenState
                     // ============================================
                     // OPTIONS
                     // ============================================
-
                     ...options.map((option) {
                       final name = option.name;
-                      final selected =
-                          selectedTransportation == name;
+                      final selected = selectedTransportation == name;
 
                       return Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppSpacing.md,
-                        ),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
                         child: _TransportOptionCard(
                           option: option,
                           selected: selected,
@@ -182,7 +163,6 @@ class _TransportationScreenState
             // ============================================
             // BOTTOM CTA
             // ============================================
-
             Container(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screen,
@@ -211,6 +191,7 @@ class _TransportationScreenState
                             MaterialPageRoute(
                               builder: (context) => BoardingScreen(
                                 destination: widget.destination,
+                                selectedTransport: selectedTransportation,
                                 departureDate: widget.departureDate,
                                 returnDate: widget.returnDate,
                                 season: widget.season,
@@ -266,9 +247,7 @@ class _TransportOptionCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: Border.all(
-              color: selected
-                  ? scheme.primary
-                  : scheme.outlineVariant,
+              color: selected ? scheme.primary : scheme.outlineVariant,
               width: selected ? 2 : 1,
             ),
             color: selected
@@ -290,9 +269,7 @@ class _TransportOptionCard extends StatelessWidget {
                 ),
                 child: Icon(
                   option.icon,
-                  color: selected
-                      ? Colors.white
-                      : scheme.primary,
+                  color: selected ? Colors.white : scheme.primary,
                   size: 26,
                 ),
               ),
@@ -344,12 +321,8 @@ class _TransportOptionCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
 
               Icon(
-                selected
-                    ? Icons.check_circle
-                    : Icons.radio_button_unchecked,
-                color: selected
-                    ? scheme.primary
-                    : scheme.outline,
+                selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: selected ? scheme.primary : scheme.outline,
               ),
             ],
           ),

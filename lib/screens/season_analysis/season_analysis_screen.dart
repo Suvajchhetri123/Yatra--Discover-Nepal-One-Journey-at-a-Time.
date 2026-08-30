@@ -4,7 +4,7 @@ import '../../data/packages_data.dart';
 import '../../services/season_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
-import '../boarding/boarding_screen.dart';
+import '../transportation/transportation_screen.dart';
 
 /// Trip Overview / Season Analysis — the user's final review before the route
 /// builder.
@@ -206,13 +206,13 @@ class SeasonAnalysisScreen extends StatelessWidget {
                 ),
               ),
               child: YatraPrimaryButton(
-                label: 'Continue to Boarding',
+                label: 'Continue to Transportation',
                 icon: Icons.arrow_forward,
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => BoardingScreen(
+                      builder: (context) => TransportationScreen(
                         destination: destination,
                         departureDate: departureDate,
                         returnDate: returnDate,

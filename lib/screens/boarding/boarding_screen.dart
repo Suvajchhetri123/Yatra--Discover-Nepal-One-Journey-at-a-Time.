@@ -19,9 +19,15 @@ class BoardingScreen extends StatefulWidget {
   final int groupSize;
   final String seasonMessage;
 
+  /// The transportation option the user selected on the Transportation
+  /// screen. Used to detect the special "already in Kathmandu / local
+  /// exploration" case (destination Kathmandu + transport Kathmandu).
+  final String? selectedTransport;
+
   const BoardingScreen({
     super.key,
     required this.destination,
+    this.selectedTransport,
     required this.departureDate,
     required this.returnDate,
     required this.season,
@@ -73,8 +79,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
     'Kathmandu',
     'Pokhara',
     'Chitwan',
-    'Tansen',
-    'Rasuwa',
     'Jomsom',
     'Marpha',
     'Kagbeni',
@@ -94,121 +98,50 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
   final Map<String, Map<String, List<String>>> destinationRoutes = {
     'Mustang': {
-      'Kathmandu': [
-        'Pokhara',
-        'Jomsom',
-        'Kagbeni',
-        'Mustang',
-      ],
-      'Pokhara': [
-        'Jomsom',
-        'Kagbeni',
-        'Mustang',
-      ],
-      'Jomsom': [
-        'Marpha',
-        'Kagbeni',
-        'Mustang',
-      ],
-      'Marpha': [
-        'Kagbeni',
-        'Mustang',
-      ],
-      'Kagbeni': [
-        'Muktinath',
-        'Mustang',
-      ],
+      'Kathmandu': ['Pokhara', 'Jomsom', 'Kagbeni', 'Mustang'],
+      'Pokhara': ['Jomsom', 'Kagbeni', 'Mustang'],
+      'Jomsom': ['Marpha', 'Kagbeni', 'Mustang'],
+      'Marpha': ['Kagbeni', 'Mustang'],
+      'Kagbeni': ['Muktinath', 'Mustang'],
     },
 
     'Annapurna': {
-      'Kathmandu': [
-        'Pokhara',
-      ],
-      'Pokhara': [
-        'Ghandruk',
-        'Poon Hill',
-        'Annapurna',
-      ],
-      'Ghandruk': [
-        'Poon Hill',
-        'Annapurna',
-      ],
-      'Poon Hill': [
-        'Annapurna',
-      ],
+      'Kathmandu': ['Pokhara', 'Ghandruk', 'Poon Hill', 'Annapurna'],
+      'Pokhara': ['Ghandruk', 'Poon Hill', 'Annapurna'],
+      'Ghandruk': ['Poon Hill', 'Annapurna'],
+      'Poon Hill': ['Annapurna'],
     },
 
     'Everest': {
-      'Kathmandu': [
-        'Lukla',
-      ],
-      'Lukla': [
-        'Namche Bazaar',
-      ],
-      'Namche Bazaar': [
-        'Everest',
-      ],
+      'Kathmandu': ['Lukla', 'Namche Bazaar', 'Everest'],
+      'Lukla': ['Namche Bazaar', 'Everest'],
+      'Namche Bazaar': ['Everest'],
     },
 
     'Pokhara': {
-      'Kathmandu': [
-        'Pokhara',
-      ],
-      'Chitwan': [
-        'Pokhara',
-      ],
-      'Tansen': [
-        'Pokhara',
-      ],
+      'Kathmandu': ['Pokhara'],
+      'Chitwan': ['Pokhara'],
+      'Tansen': ['Pokhara'],
     },
 
     'Chitwan': {
-      'Kathmandu': [
-        'Chitwan',
-      ],
-      'Pokhara': [
-        'Chitwan',
-      ],
-      'Tansen': [
-        'Chitwan',
-      ],
+      'Kathmandu': ['Chitwan'],
+      'Pokhara': ['Chitwan'],
+      'Tansen': ['Chitwan'],
     },
 
     'Kathmandu': {
-      'Pokhara': [
-        'Kathmandu',
-      ],
-      'Chitwan': [
-        'Kathmandu',
-      ],
-      'Tansen': [
-        'Kathmandu',
-      ],
-      'Rasuwa': [
-        'Kathmandu',
-      ],
-      'Lukla': [
-        'Kathmandu',
-      ],
+      'Pokhara': ['Kathmandu'],
+      'Chitwan': ['Kathmandu'],
+      'Tansen': ['Kathmandu'],
+      'Rasuwa': ['Kathmandu'],
+      'Lukla': ['Kathmandu'],
     },
 
     'Tansen': {
-      'Kathmandu': [
-        'Tansen',
-      ],
-      'Pokhara': [
-        'Tansen',
-      ],
-      'Chitwan': [
-        'Tansen',
-      ],
-    },
-
-    'Rasuwa': {
-      'Kathmandu': [
-        'Rasuwa',
-      ],
-      'Rasuwa': [],
+      'Kathmandu': ['Tansen'],
+      'Pokhara': ['Tansen'],
+      'Chitwan': ['Tansen'],
     },
   };
 
@@ -218,6 +151,18 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
   String _normalize(String value) {
     return value.trim().toLowerCase();
+  }
+
+  /// True when the user chose "Kathmandu" transportation for the Kathmandu
+  /// destination, i.e. they are already in Kathmandu and want local
+  /// exploration rather than an intercity journey.
+  ///
+  /// In this case no boarding-point / intercity route is needed: the user
+  /// continues straight toward the recommendation.
+  bool get isKathmanduLocalExploration {
+    return _normalize(widget.destination) == 'kathmandu' &&
+        widget.selectedTransport != null &&
+        _normalize(widget.selectedTransport!) == 'kathmandu';
   }
 
   // ============================================================
@@ -268,10 +213,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // CAN REACH DESTINATION
   // ============================================================
 
-  bool _canReachDestination(
-    String start,
-    String destination,
-  ) {
+  bool _canReachDestination(String start, String destination) {
     final routeMap = activeRouteMap;
     final visited = <String>{};
     final queue = <String>[start];
@@ -315,10 +257,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
         continue;
       }
 
-      if (_canReachDestination(
-        location,
-        widget.destination,
-      )) {
+      if (_canReachDestination(location, widget.destination)) {
         result.add(location);
       }
     }
@@ -341,25 +280,16 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     final routeMap = activeRouteMap;
 
-    final possible = <String>[
-      ...(routeMap[current] ?? []),
-    ];
+    final possible = <String>[...(routeMap[current] ?? [])];
 
     // Destination fallback
     if (_normalize(current) != _normalize(widget.destination) &&
-        _canReachDestination(
-          current,
-          widget.destination,
-        ) &&
+        _canReachDestination(current, widget.destination) &&
         !possible.any(
-          (location) =>
-              _normalize(location) ==
-              _normalize(widget.destination),
+          (location) => _normalize(location) == _normalize(widget.destination),
         )) {
       final directDestination = locations.firstWhere(
-        (location) =>
-            _normalize(location) ==
-            _normalize(widget.destination),
+        (location) => _normalize(location) == _normalize(widget.destination),
         orElse: () => widget.destination,
       );
 
@@ -370,28 +300,21 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     // Remove current location.
     possible.removeWhere(
-      (location) =>
-          _normalize(location) ==
-          _normalize(current),
+      (location) => _normalize(location) == _normalize(current),
     );
 
     // Remove locations already used.
     possible.removeWhere(
       (location) => segments.any(
         (segment) =>
-            _normalize(segment.from) ==
-                _normalize(location) ||
-            _normalize(segment.to) ==
-                _normalize(location),
+            _normalize(segment.from) == _normalize(location) ||
+            _normalize(segment.to) == _normalize(location),
       ),
     );
 
     // Safety filter.
     possible.removeWhere(
-      (location) => !_canReachDestination(
-        location,
-        widget.destination,
-      ),
+      (location) => !_canReachDestination(location, widget.destination),
     );
 
     return possible;
@@ -402,9 +325,13 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // ============================================================
 
   bool get routeComplete {
+    // Local exploration in Kathmandu needs no intercity route.
+    if (isKathmanduLocalExploration) {
+      return true;
+    }
+
     return currentLocation != null &&
-        _normalize(currentLocation!) ==
-            _normalize(widget.destination) &&
+        _normalize(currentLocation!) == _normalize(widget.destination) &&
         segments.isNotEmpty;
   }
 
@@ -413,6 +340,11 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // ============================================================
 
   bool get returnRouteComplete {
+    // Local exploration has no return leg to plan.
+    if (isKathmanduLocalExploration) {
+      return true;
+    }
+
     if (selectedTripDirection == TripDirection.oneWay) {
       return true;
     }
@@ -444,9 +376,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     final outgoingPoints = <String>[
       segments.first.from,
-      ...segments.map(
-        (segment) => segment.to,
-      ),
+      ...segments.map((segment) => segment.to),
     ];
 
     return outgoingPoints.reversed.toList();
@@ -466,13 +396,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
     final current = currentReturnLocation;
 
     final currentIndex = points.indexWhere(
-      (point) =>
-          _normalize(point) ==
-          _normalize(current ?? ''),
+      (point) => _normalize(point) == _normalize(current ?? ''),
     );
 
-    if (currentIndex == -1 ||
-        currentIndex >= points.length - 1) {
+    if (currentIndex == -1 || currentIndex >= points.length - 1) {
       return null;
     }
 
@@ -545,8 +472,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
     final from = currentReturnLocation;
     final to = nextReturnLocation;
 
-    if (from == null || to == null ||
-        selectedReturnTransportation == null) {
+    if (from == null || to == null || selectedReturnTransportation == null) {
       return;
     }
 
@@ -601,9 +527,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // SELECT TRIP DIRECTION
   // ============================================================
 
-  void _selectTripDirection(
-    TripDirection direction,
-  ) {
+  void _selectTripDirection(TripDirection direction) {
     setState(() {
       selectedTripDirection = direction;
 
@@ -628,22 +552,39 @@ class _BoardingScreenState extends State<BoardingScreen> {
     }
 
     /*
-     * The TravelRoute model now supports explicit return segments.
-     *
-     * When this is a round trip the user's exact return legs and
-     * their chosen transportation are preserved. For a one-way trip
-     * we pass no return segments, so TravelRoute leaves them empty.
+     * Local exploration in Kathmandu: the user is already there, so no
+     * intercity legs (and no Kathmandu → Kathmandu segment) are created.
+     * An empty-segment route is used so the flow continues cleanly to the
+     * recommendation.
      */
 
-    final route = TravelRoute(
-      boardingPoint: segments.first.from,
-      destination: widget.destination,
-      segments: List<RouteSegment>.from(segments),
-      tripDirection: selectedTripDirection,
-      returnSegments: selectedTripDirection == TripDirection.roundTrip
-          ? List<RouteSegment>.from(returnSegments)
-          : null,
-    );
+    final TravelRoute route;
+    if (isKathmanduLocalExploration) {
+      route = TravelRoute(
+        boardingPoint: 'Kathmandu',
+        destination: widget.destination,
+        segments: const [],
+        tripDirection: TripDirection.oneWay,
+      );
+    } else {
+      /*
+       * The TravelRoute model now supports explicit return segments.
+       *
+       * When this is a round trip the user's exact return legs and
+       * their chosen transportation are preserved. For a one-way trip
+       * we pass no return segments, so TravelRoute leaves them empty.
+       */
+
+      route = TravelRoute(
+        boardingPoint: segments.first.from,
+        destination: widget.destination,
+        segments: List<RouteSegment>.from(segments),
+        tripDirection: selectedTripDirection,
+        returnSegments: selectedTripDirection == TripDirection.roundTrip
+            ? List<RouteSegment>.from(returnSegments)
+            : null,
+      );
+    }
 
     Navigator.push(
       context,
@@ -682,9 +623,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     final points = <String>[
       segments.first.from,
-      ...segments.map(
-        (segment) => segment.to,
-      ),
+      ...segments.map((segment) => segment.to),
     ];
 
     return points.join(' → ');
@@ -706,9 +645,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     final points = <String>[
       returnSegments.first.from,
-      ...returnSegments.map(
-        (segment) => segment.to,
-      ),
+      ...returnSegments.map((segment) => segment.to),
     ];
 
     return points.join(' → ');
@@ -732,18 +669,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(option.icon,
-                size: 20, color: AppColors.onSurfaceMuted),
+            Icon(option.icon, size: 20, color: AppColors.onSurfaceMuted),
             const SizedBox(width: 10),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    option.name,
-                    style: AppType.bodyEmphasis,
-                  ),
+                  Text(option.name, style: AppType.bodyEmphasis),
                   if (rt.requiresTransfer && rt.transferNote != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
@@ -765,10 +698,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // ROUTE VISUALIZATION (FROM → TO)
   // ============================================================
 
-  Widget _routeConnector({
-    required String from,
-    required String to,
-  }) {
+  Widget _routeConnector({required String from, required String to}) {
     final scheme = Theme.of(context).colorScheme;
 
     return Row(
@@ -787,11 +717,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
             horizontal: AppSpacing.sm,
             vertical: AppSpacing.lg,
           ),
-          child: Icon(
-            Icons.arrow_forward,
-            color: scheme.outline,
-            size: 22,
-          ),
+          child: Icon(Icons.arrow_forward, color: scheme.outline, size: 22),
         ),
         Expanded(
           child: _routeStop(
@@ -873,10 +799,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
-          child: YatraSectionTitle(
-            title: title,
-            subtitle: subtitle,
-          ),
+          child: YatraSectionTitle(title: title, subtitle: subtitle),
         ),
       ],
     );
@@ -894,10 +817,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
     final textTheme = Theme.of(context).textTheme;
 
     if (selected == null) {
-      return Text(
-        'Transportation: $from → $to',
-        style: AppType.caption,
-      );
+      return Text('Transportation: $from → $to', style: AppType.caption);
     }
 
     return Container(
@@ -906,19 +826,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.5),
-        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
           const Icon(Icons.check_circle, size: 20, color: AppColors.primary),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(
-              'Selected: $selected',
-              style: textTheme.bodyMedium,
-            ),
+            child: Text('Selected: $selected', style: textTheme.bodyMedium),
           ),
         ],
       ),
@@ -941,8 +856,9 @@ class _BoardingScreenState extends State<BoardingScreen> {
         color: AppColors.background,
         border: Border(
           top: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant
-                .withValues(alpha: 0.6),
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
           ),
         ),
       ),
@@ -969,12 +885,11 @@ class _BoardingScreenState extends State<BoardingScreen> {
     final boardingChosen = selectedBoardingPoint != null;
     final outgoing = boardingChosen && !routeComplete;
     final transportChosen = selectedNextPoint != null;
-    final canAddLeg = outgoing && transportChosen &&
-        selectedTransportation != null;
+    final canAddLeg =
+        outgoing && transportChosen && selectedTransportation != null;
 
     final showReturn =
-        routeComplete &&
-            selectedTripDirection == TripDirection.roundTrip;
+        routeComplete && selectedTripDirection == TripDirection.roundTrip;
 
     // Continue is available once the outgoing (and return, if round trip)
     // routes are complete.
@@ -996,7 +911,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
                     // ============================================
                     // HEADER
                     // ============================================
-
                     Text(
                       'Choose Your Transportation',
                       style: textTheme.headlineMedium,
@@ -1005,90 +919,122 @@ class _BoardingScreenState extends State<BoardingScreen> {
                     const SizedBox(height: AppSpacing.sm),
 
                     Text(
-                      'Build your route to ${widget.destination} and pick '
-                      'how you get there — every leg, your way.',
+                      isKathmanduLocalExploration
+                          ? 'You are already in Kathmandu — explore the '
+                                'city and valley locally.'
+                          : 'Build your route to ${widget.destination} and pick '
+                                'how you get there — every leg, your way.',
                       style: textTheme.bodyLarge,
                     ),
 
                     const SizedBox(height: AppSpacing.xl),
 
-                    // ============================================
-                    // ROUTE VISUALIZATION (FROM → TO)
-                    // ============================================
-
-                    YatraCard(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: _routeConnector(
-                        from: selectedBoardingPoint ?? 'Select start',
-                        to: widget.destination,
-                      ),
-                    ),
-
-                    const SizedBox(height: AppSpacing.xl),
-
-                    // ============================================
-                    // OUTGOING ROUTE PREVIEW
-                    // ============================================
-
-                    if (boardingChosen) ...[
+                    if (isKathmanduLocalExploration) ...[
                       YatraCard(
                         padding: const EdgeInsets.all(AppSpacing.lg),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Icon(
-                              Icons.route_outlined,
+                              Icons.explore_outlined,
+                              size: 28,
                               color: scheme.primary,
                             ),
                             const SizedBox(width: AppSpacing.md),
                             Expanded(
-                              child: Text(
-                                _outgoingRoutePreview(),
-                                style: textTheme.titleMedium,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Kathmandu Local Exploration',
+                                    style: textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Text(
+                                    'You are already in Kathmandu, so no '
+                                    'intercity boarding route is needed. '
+                                    'Explore the city and Kathmandu Valley '
+                                    'locally and continue when ready.',
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-
-                      const SizedBox(height: AppSpacing.xl),
-                    ],
-
-                    // ============================================
-                    // BOARDING POINT
-                    // ============================================
-
-                    _journeyHeader(
-                      title: 'Boarding Point',
-                      subtitle: 'Where does your journey begin?',
-                      icon: Icons.trip_origin_outlined,
-                    ),
-
-                    const SizedBox(height: AppSpacing.md),
-
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedBoardingPoint,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        hintText: 'Choose where you want to start',
-                        prefixIcon: Icon(
-                          Icons.location_on_outlined,
+                    ] else ...[
+                      // ============================================
+                      // ROUTE VISUALIZATION (FROM → TO)
+                      // ============================================
+                      YatraCard(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: _routeConnector(
+                          from: selectedBoardingPoint ?? 'Select start',
+                          to: widget.destination,
                         ),
                       ),
-                      items: boardingPoints
-                          .map(
-                            (place) => DropdownMenuItem<String>(
-                              value: place,
-                              child: Text(place),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _selectBoardingPoint,
-                    ),
+
+                      const SizedBox(height: AppSpacing.xl),
+
+                      // ============================================
+                      // OUTGOING ROUTE PREVIEW
+                      // ============================================
+                      if (boardingChosen) ...[
+                        YatraCard(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          child: Row(
+                            children: [
+                              Icon(Icons.route_outlined, color: scheme.primary),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Text(
+                                  _outgoingRoutePreview(),
+                                  style: textTheme.titleMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: AppSpacing.xl),
+                      ],
+
+                      // ============================================
+                      // BOARDING POINT
+                      // ============================================
+                      _journeyHeader(
+                        title: 'Boarding Point',
+                        subtitle: 'Where does your journey begin?',
+                        icon: Icons.trip_origin_outlined,
+                      ),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBoardingPoint,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Choose where you want to start',
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                        ),
+                        items: boardingPoints
+                            .map(
+                              (place) => DropdownMenuItem<String>(
+                                value: place,
+                                child: Text(place),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _selectBoardingPoint,
+                      ),
+                    ],
 
                     // ============================================
                     // GOING — OUTGOING JOURNEY
                     // ============================================
-
                     if (outgoing) ...[
                       const SizedBox(height: AppSpacing.xxl + AppSpacing.md),
 
@@ -1103,10 +1049,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                       const SizedBox(height: AppSpacing.md),
 
                       // Next location picker.
-                      Text(
-                        'Next stop',
-                        style: textTheme.titleLarge,
-                      ),
+                      Text('Next stop', style: textTheme.titleLarge),
 
                       const SizedBox(height: AppSpacing.sm),
 
@@ -1115,9 +1058,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         isExpanded: true,
                         decoration: const InputDecoration(
                           hintText: 'Choose next location',
-                          prefixIcon: Icon(
-                            Icons.place_outlined,
-                          ),
+                          prefixIcon: Icon(Icons.place_outlined),
                         ),
                         items: nextLocations
                             .map(
@@ -1135,10 +1076,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                       // Transportation for current outgoing leg,
                       // only shown once the leg's destination is chosen.
                       if (transportChosen) ...[
-                        Text(
-                          'Transportation',
-                          style: textTheme.titleLarge,
-                        ),
+                        Text('Transportation', style: textTheme.titleLarge),
 
                         const SizedBox(height: AppSpacing.sm),
 
@@ -1155,9 +1093,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                           isExpanded: true,
                           decoration: const InputDecoration(
                             hintText: 'Choose transportation',
-                            prefixIcon: Icon(
-                              Icons.directions_bus_outlined,
-                            ),
+                            prefixIcon: Icon(Icons.directions_bus_outlined),
                           ),
                           items: _transportItems(
                             transportOptionsForRoute(
@@ -1200,8 +1136,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                     // ============================================
                     // TRIP DIRECTION
                     // ============================================
-
-                    if (routeComplete) ...[
+                    if (routeComplete && !isKathmanduLocalExploration) ...[
                       const SizedBox(height: AppSpacing.xl),
 
                       Text('Trip Direction', style: textTheme.titleLarge),
@@ -1213,25 +1148,18 @@ class _BoardingScreenState extends State<BoardingScreen> {
                           Expanded(
                             child: ChoiceChip(
                               label: const Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.arrow_forward,
-                                    size: 19,
-                                  ),
+                                  Icon(Icons.arrow_forward, size: 19),
                                   SizedBox(width: 7),
                                   Text('One Way'),
                                 ],
                               ),
                               selected:
-                                  selectedTripDirection ==
-                                      TripDirection.oneWay,
+                                  selectedTripDirection == TripDirection.oneWay,
                               onSelected: (_) {
-                                _selectTripDirection(
-                                  TripDirection.oneWay,
-                                );
+                                _selectTripDirection(TripDirection.oneWay);
                               },
                             ),
                           ),
@@ -1241,25 +1169,19 @@ class _BoardingScreenState extends State<BoardingScreen> {
                           Expanded(
                             child: ChoiceChip(
                               label: const Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.sync_alt,
-                                    size: 19,
-                                  ),
+                                  Icon(Icons.sync_alt, size: 19),
                                   SizedBox(width: 7),
                                   Text('Round Trip'),
                                 ],
                               ),
                               selected:
                                   selectedTripDirection ==
-                                      TripDirection.roundTrip,
-                              onSelected: (_) {
-                                _selectTripDirection(
                                   TripDirection.roundTrip,
-                                );
+                              onSelected: (_) {
+                                _selectTripDirection(TripDirection.roundTrip);
                               },
                             ),
                           ),
@@ -1274,8 +1196,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Icon(
-                              selectedTripDirection ==
-                                      TripDirection.roundTrip
+                              selectedTripDirection == TripDirection.roundTrip
                                   ? Icons.sync_alt
                                   : Icons.info_outline,
                               size: 20,
@@ -1284,14 +1205,13 @@ class _BoardingScreenState extends State<BoardingScreen> {
                             const SizedBox(width: AppSpacing.md),
                             Expanded(
                               child: Text(
-                                selectedTripDirection ==
-                                        TripDirection.roundTrip
+                                selectedTripDirection == TripDirection.roundTrip
                                     ? 'The return journey is planned '
-                                        'separately, so you can choose '
-                                        'different transportation for the '
-                                        'return trip.'
+                                          'separately, so you can choose '
+                                          'different transportation for the '
+                                          'return trip.'
                                     : 'The itinerary will end at '
-                                        '${widget.destination}.',
+                                          '${widget.destination}.',
                                 style: textTheme.bodyMedium,
                               ),
                             ),
@@ -1303,7 +1223,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
                     // ============================================
                     // RETURN JOURNEY
                     // ============================================
-
                     if (showReturn) ...[
                       const SizedBox(height: AppSpacing.xl),
 
@@ -1321,10 +1240,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         padding: const EdgeInsets.all(AppSpacing.lg),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.route_outlined,
-                              color: AppColors.accent,
-                            ),
+                            Icon(Icons.route_outlined, color: AppColors.accent),
                             const SizedBox(width: AppSpacing.md),
                             Expanded(
                               child: Text(
@@ -1355,10 +1271,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         const SizedBox(height: AppSpacing.md),
 
                         if (nextReturnLocation != null) ...[
-                          Text(
-                            'Transportation',
-                            style: textTheme.titleLarge,
-                          ),
+                          Text('Transportation', style: textTheme.titleLarge),
 
                           const SizedBox(height: AppSpacing.sm),
 
@@ -1375,9 +1288,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                             isExpanded: true,
                             decoration: const InputDecoration(
                               hintText: 'Choose transportation',
-                              prefixIcon: Icon(
-                                Icons.directions_bus_outlined,
-                              ),
+                              prefixIcon: Icon(Icons.directions_bus_outlined),
                             ),
                             items: _transportItems(
                               transportOptionsForRoute(
@@ -1409,8 +1320,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                             child: TextButton.icon(
                               onPressed: _removeLastReturnLeg,
                               icon: const Icon(Icons.undo),
-                              label:
-                                  const Text('Remove Last Return Leg'),
+                              label: const Text('Remove Last Return Leg'),
                             ),
                           ),
                       ],
@@ -1419,10 +1329,9 @@ class _BoardingScreenState extends State<BoardingScreen> {
                     // ============================================
                     // COMPLETION MESSAGES
                     // ============================================
-
                     if (routeComplete &&
-                        selectedTripDirection ==
-                            TripDirection.oneWay) ...[
+                        !isKathmanduLocalExploration &&
+                        selectedTripDirection == TripDirection.oneWay) ...[
                       const SizedBox(height: AppSpacing.xl),
 
                       Container(
@@ -1437,10 +1346,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.check_circle,
-                              color: AppColors.success,
-                            ),
+                            Icon(Icons.check_circle, color: AppColors.success),
                             const SizedBox(width: AppSpacing.md),
                             Expanded(
                               child: Text(
@@ -1457,8 +1363,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                       ),
                     ],
 
-                    if (selectedTripDirection ==
-                            TripDirection.roundTrip &&
+                    if (selectedTripDirection == TripDirection.roundTrip &&
                         returnRouteComplete) ...[
                       const SizedBox(height: AppSpacing.xl),
 
@@ -1474,10 +1379,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.check_circle,
-                              color: AppColors.success,
-                            ),
+                            Icon(Icons.check_circle, color: AppColors.success),
                             const SizedBox(width: AppSpacing.md),
                             Expanded(
                               child: Text(
@@ -1504,7 +1406,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
             // ============================================
             // PINNED BOTTOM CTA
             // ============================================
-
             _bottomBar(canContinue),
           ],
         ),

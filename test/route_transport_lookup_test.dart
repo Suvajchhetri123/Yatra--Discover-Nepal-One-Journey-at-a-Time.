@@ -9,27 +9,33 @@ List<String> _names(List<RouteTransport> transports) =>
 
 /// Finds the [RouteTransport] for [mode] on the [from] -> [to] leg.
 RouteTransport _route(String from, String to, String mode) {
-  return transportOptionsForRoute(from, to)
-      .firstWhere((rt) => rt.option.name == mode);
+  return transportOptionsForRoute(
+    from,
+    to,
+  ).firstWhere((rt) => rt.option.name == mode);
 }
 
 void main() {
   group('route-aware transportation lookup', () {
     test('Everest trekking legs show only Trek', () {
-      expect(_names(transportOptionsForRoute('Lukla', 'Namche Bazaar')),
-          ['Trek']);
-      expect(
-          _names(transportOptionsForRoute('Namche Bazaar', 'Everest')),
-          ['Trek']);
+      expect(_names(transportOptionsForRoute('Lukla', 'Namche Bazaar')), [
+        'Trek',
+      ]);
+      expect(_names(transportOptionsForRoute('Namche Bazaar', 'Everest')), [
+        'Trek',
+      ]);
     });
 
-    test(
-        'Kathmandu -> Lukla offers Flight directly plus realistic '
+    test('Kathmandu -> Lukla offers Flight directly plus realistic '
         'transfer options', () {
       final options = transportOptionsForRoute('Kathmandu', 'Lukla');
-      expect(
-          _names(options),
-          ['Flight', 'Bus', 'Private Vehicle', 'Jeep', 'Motorbike']);
+      expect(_names(options), [
+        'Flight',
+        'Bus',
+        'Private Vehicle',
+        'Jeep',
+        'Motorbike',
+      ]);
 
       // Flight covers the leg directly. The road modes only cover part of
       // the journey (no road reaches Lukla), so they are labelled as
@@ -49,16 +55,18 @@ void main() {
     });
 
     test('Annapurna village-to-village trekking legs show Trek', () {
-      expect(_names(transportOptionsForRoute('Ghandruk', 'Poon Hill')),
-          ['Trek']);
-      expect(_names(transportOptionsForRoute('Poon Hill', 'Annapurna')),
-          ['Trek']);
-      expect(_names(transportOptionsForRoute('Ghandruk', 'Annapurna')),
-          ['Trek']);
+      expect(_names(transportOptionsForRoute('Ghandruk', 'Poon Hill')), [
+        'Trek',
+      ]);
+      expect(_names(transportOptionsForRoute('Poon Hill', 'Annapurna')), [
+        'Trek',
+      ]);
+      expect(_names(transportOptionsForRoute('Ghandruk', 'Annapurna')), [
+        'Trek',
+      ]);
     });
 
-    test(
-        'road-to-trailhead travel is offered as labelled transfer modes '
+    test('road-to-trailhead travel is offered as labelled transfer modes '
         'on Poon Hill and Annapurna Base Camp legs', () {
       for (final (from, to) in [
         ('Pokhara', 'Poon Hill'),
@@ -99,15 +107,13 @@ void main() {
     });
 
     test('non-trekking routes do not incorrectly show Trek', () {
-      final chitwan =
-          _names(transportOptionsForRoute('Kathmandu', 'Chitwan'));
+      final chitwan = _names(transportOptionsForRoute('Kathmandu', 'Chitwan'));
       expect(chitwan, isNot(contains('Trek')));
       final mustang = _names(transportOptionsForRoute('Pokhara', 'Mustang'));
       expect(mustang, isNot(contains('Trek')));
     });
 
-    test(
-        'Mustang valley and Upper-Mustang legs are road-only '
+    test('Mustang valley and Upper-Mustang legs are road-only '
         'without Motorbike', () {
       for (final (from, to) in [
         ('Jomsom', 'Kagbeni'),
@@ -128,22 +134,27 @@ void main() {
       final jomsom = _names(transportOptionsForRoute('Kathmandu', 'Jomsom'));
       expect(
         jomsom,
-        containsAll(
-            ['Flight', 'Bus', 'Jeep', 'Private Vehicle', 'Motorbike']),
+        containsAll(['Flight', 'Bus', 'Jeep', 'Private Vehicle', 'Motorbike']),
       );
     });
 
     test('route pairing is symmetric (returns use the same suitability)', () {
-      expect(_names(transportOptionsForRoute('Namche Bazaar', 'Everest')),
-          ['Trek']);
-      expect(_names(transportOptionsForRoute('Everest', 'Namche Bazaar')),
-          ['Trek']);
-      expect(_names(transportOptionsForRoute('Mustang', 'Pokhara')),
-          contains('Jeep'));
+      expect(_names(transportOptionsForRoute('Namche Bazaar', 'Everest')), [
+        'Trek',
+      ]);
+      expect(_names(transportOptionsForRoute('Everest', 'Namche Bazaar')), [
+        'Trek',
+      ]);
+      expect(
+        _names(transportOptionsForRoute('Mustang', 'Pokhara')),
+        contains('Jeep'),
+      );
       // Flying Mustang -> Pokhara goes via Jomsom, so it is a transfer too.
       expect(_route('Mustang', 'Pokhara', 'Flight').requiresTransfer, isTrue);
-      expect(_names(transportOptionsForRoute('Jomsom', 'Pokhara')),
-          contains('Flight'));
+      expect(
+        _names(transportOptionsForRoute('Jomsom', 'Pokhara')),
+        contains('Flight'),
+      );
     });
 
     test('Trek is a first-class recognized mode', () {
@@ -153,8 +164,10 @@ void main() {
 
   // ---- Widget-level: option visibility driven by the real route ----
 
-  Future<void> pumpBoarding(WidgetTester tester,
-      {String destination = 'Everest'}) async {
+  Future<void> pumpBoarding(
+    WidgetTester tester, {
+    String destination = 'Everest',
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         home: BoardingScreen(
@@ -177,7 +190,8 @@ void main() {
 
   Future<void> pick(WidgetTester tester, String hint, String value) async {
     final dropdown = find.byWidgetPredicate(
-      (w) => w is DropdownButtonFormField<String> &&
+      (w) =>
+          w is DropdownButtonFormField<String> &&
           (w.decoration.hintText == hint),
     );
     expect(dropdown, findsOneWidget, reason: 'dropdown with hint "$hint"');
@@ -216,7 +230,8 @@ void main() {
     ],
   }) async {
     final dropdown = find.byWidgetPredicate(
-      (w) => w is DropdownButtonFormField<String> &&
+      (w) =>
+          w is DropdownButtonFormField<String> &&
           (w.decoration.hintText == hint),
     );
     expect(dropdown, findsOneWidget, reason: 'dropdown with hint "$hint"');
@@ -236,9 +251,9 @@ void main() {
     return present;
   }
 
-  testWidgets(
-      'Kathmandu -> Lukla offers the realistic set of transportation',
-      (tester) async {
+  testWidgets('Kathmandu -> Lukla offers the realistic set of transportation', (
+    tester,
+  ) async {
     await pumpBoarding(tester, destination: 'Everest');
     await pick(tester, 'Choose where you want to start', 'Kathmandu');
     await pick(tester, 'Choose next location', 'Lukla');
@@ -251,15 +266,15 @@ void main() {
     expect(options, isNot(contains('Trek')));
   });
 
-  testWidgets(
-      'transfer journeys are labelled so road options to Lukla are '
+  testWidgets('transfer journeys are labelled so road options to Lukla are '
       'not implied as direct', (tester) async {
     await pumpBoarding(tester, destination: 'Everest');
     await pick(tester, 'Choose where you want to start', 'Kathmandu');
     await pick(tester, 'Choose next location', 'Lukla');
 
     final transportDropdown = find.byWidgetPredicate(
-      (w) => w is DropdownButtonFormField<String> &&
+      (w) =>
+          w is DropdownButtonFormField<String> &&
           (w.decoration.hintText == 'Choose transportation'),
     );
     await tester.ensureVisible(transportDropdown);
@@ -267,20 +282,40 @@ void main() {
     await tester.tap(transportDropdown, warnIfMissed: false);
     await tester.pumpAndSettle();
 
-    // One note per road option (Bus / Private Vehicle / Jeep / Motorbike).
+    // Verify that the four road options are present.
+    for (final mode in ['Bus', 'Private Vehicle', 'Jeep', 'Motorbike']) {
+      expect(
+        find.text(mode),
+        findsOneWidget,
+        reason: '$mode should be available as a transfer option',
+      );
+    }
+
+    // The transfer explanation is part of each RouteTransport record.
+    final options = transportOptionsForRoute('Kathmandu', 'Lukla');
+
+    final transferOptions = options.where((rt) => rt.requiresTransfer);
     expect(
-      find.text(
-          'No road reaches Lukla: drive to Jiri/Salleri, then trek the rest'),
-      findsNWidgets(4),
+      transferOptions.length,
+      4,
+      reason: 'Four road options should be required a transfer',
     );
+
+    for (final rt in transferOptions) {
+      expect(rt.transferNote, isNotNull);
+      expect(
+        rt.transferNote,
+        'No road reaches Lukla: drive to Jiri/Salleri, then trek the rest.',
+      );
+    }
 
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
   });
 
-  testWidgets(
-      'Everest second leg (Lukla -> Namche Bazaar) is Trek-only',
-      (tester) async {
+  testWidgets('Everest second leg (Lukla -> Namche Bazaar) is Trek-only', (
+    tester,
+  ) async {
     await pumpBoarding(tester, destination: 'Everest');
     await pick(tester, 'Choose where you want to start', 'Kathmandu');
     await pick(tester, 'Choose next location', 'Lukla');
@@ -291,8 +326,7 @@ void main() {
     expect(await dropdownOptions(tester, 'Choose transportation'), ['Trek']);
   });
 
-  testWidgets('Kathmandu -> Pokhara offers road+air, not Trek',
-      (tester) async {
+  testWidgets('Kathmandu -> Pokhara offers road+air, not Trek', (tester) async {
     await pumpBoarding(tester, destination: 'Mustang');
     await pick(tester, 'Choose where you want to start', 'Kathmandu');
     await pick(tester, 'Choose next location', 'Pokhara');
