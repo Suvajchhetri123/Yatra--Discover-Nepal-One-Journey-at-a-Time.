@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 import 'screens/splash/splash_screen.dart';
+import 'services/session_manager.dart';
 import 'theme/app_theme.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +14,8 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  SessionManager.instance.initialize(navigatorKey);
 
   runApp(const YatraApp());
 }
@@ -24,6 +29,24 @@ class YatraApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Yatra',
       theme: AppTheme.light,
+      navigatorKey: navigatorKey,
+
+      builder: (context, child) {
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) {
+            SessionManager.instance.userActivity();
+          },
+          onPointerMove: (_) {
+            SessionManager.instance.userActivity();
+          },
+          onPointerUp: (_) {
+            SessionManager.instance.userActivity();
+          },
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+
       home: const SplashScreen(),
     );
   }

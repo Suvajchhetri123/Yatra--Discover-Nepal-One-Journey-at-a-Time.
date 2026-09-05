@@ -10,7 +10,7 @@ import '../../widgets/yatra_components.dart';
 ///
 /// Collects the 6-digit code sent by Firebase (once connected) and verifies
 /// it. Today [AuthService.verifyPhoneCode] and
-/// [AuthService.resendPhoneVerificationCode] throw [UnsupportedError] because
+///  [AuthService.resendPhoneVerificationCode] throw [UnsupportedError] because
 /// Firebase is not configured, so the screen shows a clear message and never
 /// fabricates a successful verification. The OTP is kept in local controllers
 /// only — it is never logged or rendered as readable text.

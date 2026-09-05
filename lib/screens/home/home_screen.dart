@@ -7,6 +7,7 @@ import '../../widgets/common.dart';
 import '../../widgets/yatra_components.dart';
 import '../package_details/package_details_screen.dart';
 import '../plan_trip/plan_trip_screen.dart';
+import '../../services/session_manager.dart';
 
 /// Home landing page: hero, plan-trip CTA, destination discovery and popular
 /// packages. Redesigned on the central Yatra design system.
@@ -25,6 +26,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const String _allRegions = 'All';
 
+  void _logout() {
+    SessionManager.instance.logout();
+  }
+
   String _selectedRegion = _allRegions;
 
   List<String> get _regions => [_allRegions, ...packageRegions];
@@ -32,8 +37,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<TourPackage> get _visiblePackages => _selectedRegion == _allRegions
       ? tourPackages
       : tourPackages
-          .where((package) => package.region == _selectedRegion)
-          .toList();
+            .where((package) => package.region == _selectedRegion)
+            .toList();
 
   /// Distinct destinations (one per region) derived from real package data —
   /// never invented. Each carries the image of its first package.
@@ -80,8 +85,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext content) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Yatra'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: _logout,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -91,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _PlanTripCard(onTap: _openPlanTrip),
             const SizedBox(height: AppSpacing.xxl),
             _buildDestinationSection(),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.xxl),
             _buildPackagesSection(),
             const SizedBox(height: AppSpacing.xxl),
           ],
@@ -120,7 +135,8 @@ class _HomeScreenState extends State<HomeScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screen),
             itemCount: destinations.length,
-            separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.lg),
+            separatorBuilder: (context, index) =>
+                const SizedBox(width: AppSpacing.lg),
             itemBuilder: (context, index) {
               final destination = destinations[index];
               final selected = destination.name == _selectedRegion;
@@ -172,7 +188,9 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 330,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screen),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screen,
+              ),
               itemCount: packages.length,
               separatorBuilder: (context, index) =>
                   const SizedBox(width: AppSpacing.lg),
@@ -196,7 +214,8 @@ class _HomeScreenState extends State<HomeScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screen),
         itemCount: _regions.length,
-        separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.sm),
+        separatorBuilder: (context, index) =>
+            const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, index) {
           final region = _regions[index];
 
@@ -287,8 +306,11 @@ class _Hero extends StatelessWidget {
                             height: 34,
                             color: Colors.white.withValues(alpha: 0.2),
                             alignment: Alignment.center,
-                            child: Icon(Icons.explore,
-                                color: Colors.white, size: 22),
+                            child: Icon(
+                              Icons.explore,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                           );
                         },
                       ),
@@ -382,10 +404,7 @@ class _PlanTripCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Plan your own trip',
-                    style: AppType.bodyEmphasis,
-                  ),
+                  Text('Plan your own trip', style: AppType.bodyEmphasis),
                   SizedBox(height: AppSpacing.xs),
                   Text(
                     'Get a personalized plan for your journey',
@@ -576,8 +595,11 @@ class _PackageCard extends StatelessWidget {
                     const Spacer(),
                     Row(
                       children: [
-                        Icon(Icons.calendar_today,
-                            size: 15, color: AppColors.onSurfaceHint),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 15,
+                          color: AppColors.onSurfaceHint,
+                        ),
                         const SizedBox(width: AppSpacing.xs + 2),
                         Text(
                           '${package.durationDays} days',
@@ -642,8 +664,9 @@ class _Rating extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = onDark ? Colors.white : AppColors.onSurface;
-    final shadow =
-        onDark ? Colors.black.withValues(alpha: 0.4) : Colors.transparent;
+    final shadow = onDark
+        ? Colors.black.withValues(alpha: 0.4)
+        : Colors.transparent;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -662,9 +685,7 @@ class _Rating extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: color,
-              shadows: [
-                Shadow(color: shadow, blurRadius: 3),
-              ],
+              shadows: [Shadow(color: shadow, blurRadius: 3)],
             ),
           ),
         ],
