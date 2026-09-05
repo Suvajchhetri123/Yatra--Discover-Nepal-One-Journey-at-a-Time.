@@ -10,9 +10,13 @@ class TransportationScreen extends StatefulWidget {
   final String destination;
   final DateTime departureDate;
   final DateTime returnDate;
+
+  /// Season analysis runs on the following Trip Overview screen, so these
+  /// are optional here and forwarded along once computed there.
   final String season;
   final String suitability;
   final String seasonMessage;
+
   final String currency;
   final double budget;
   final List<int> ages;
@@ -24,9 +28,9 @@ class TransportationScreen extends StatefulWidget {
     required this.destination,
     required this.departureDate,
     required this.returnDate,
-    required this.season,
-    required this.suitability,
-    required this.seasonMessage,
+    this.season = '',
+    this.suitability = '',
+    this.seasonMessage = '',
     required this.currency,
     required this.budget,
     required this.ages,
@@ -181,7 +185,7 @@ class _TransportationScreenState extends State<TransportationScreen> {
               child: SafeArea(
                 top: false,
                 child: YatraPrimaryButton(
-                  label: 'Continue to Boarding',
+                  label: 'Continue to Route Builder',
                   icon: Icons.arrow_forward,
                   onPressed: selectedTransportation == null
                       ? null
@@ -196,12 +200,12 @@ class _TransportationScreenState extends State<TransportationScreen> {
                                 returnDate: widget.returnDate,
                                 season: widget.season,
                                 suitability: widget.suitability,
+                                seasonMessage: widget.seasonMessage,
                                 currency: widget.currency,
                                 budget: widget.budget,
                                 ages: widget.ages,
                                 travelType: widget.travelType,
                                 groupSize: widget.groupSize,
-                                seasonMessage: widget.seasonMessage,
                               ),
                             ),
                           );

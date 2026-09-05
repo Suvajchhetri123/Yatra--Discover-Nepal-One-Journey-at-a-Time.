@@ -96,9 +96,15 @@ class RecommendationResult {
   // DURATION
   // ============================================================
 
+  /// Minimum number of days actually required by the route.
   final int minimumDays;
+
+  /// Maximum recommended duration.
   final int maximumDays;
+
+  /// Text such as "5-6 days".
   final String recommendedTime;
+
   final int travelDays;
   final int visitDays;
   final int returnDays;
@@ -203,7 +209,18 @@ class RecommendationService {
     required List<int> ages,
     required String travelType,
     required int groupSize,
+
+    /// IMPORTANT:
+    /// This is the user's selected calendar duration.
+    ///
+    /// Example:
+    /// September 5 -> September 30 = 26 days.
+    ///
+    /// This value is NOT used to generate the main Day-by-Day
+    /// journey. It is only used to determine whether the user
+    /// has extra available days.
     required int duration,
+
     required TravelRoute route,
   }) {
     // ==========================================================
@@ -230,19 +247,52 @@ class RecommendationService {
         : 0;
 
     // ==========================================================
-    // 4. TOTAL RECOMMENDED DURATION
+    // 4. ACTUAL ROUTE DURATION
+    // ==========================================================
+    //
+    // This is the important distinction:
+    //
+    // duration     = user's selected calendar duration
+    // minimumDays  = actual route/recommended journey duration
+    //
+    // Example:
+    //
+    // User selects: 26 days
+    // Actual route: 5 days
+    //
+    // minimumDays = 5
+    // remainingDays = 26 - 5 = 21
+    //
     // ==========================================================
 
     final int minimumDays =
         travelDays + visitDays + returnDays;
 
-    final int maximumDays = minimumDays + 1;
+    final int maximumDays =
+        minimumDays + 1;
 
     final String recommendedTime =
         '$minimumDays-$maximumDays days';
 
     // ==========================================================
     // 5. DAY-BY-DAY PLAN
+    // ==========================================================
+    //
+    // VERY IMPORTANT:
+    //
+    // The Day-by-Day Plan uses minimumDays.
+    //
+    // It DOES NOT use the user's selected duration.
+    //
+    // Example:
+    //
+    // Selected dates = 26 days
+    // Actual route = 5 days
+    //
+    // Day-by-Day Plan = Day 1 -> Day 5
+    //
+    // The remaining 21 days are handled separately.
+    //
     // ==========================================================
 
     final List<DayPlan> dayPlans = _generateDayPlans(
@@ -251,6 +301,9 @@ class RecommendationService {
       visitDays: visitDays,
       returnDays: returnDays,
       ages: ages,
+
+      // Use actual route duration.
+      actualJourneyDays: minimumDays,
     );
 
     // ==========================================================
@@ -289,7 +342,8 @@ class RecommendationService {
     // 9. SUITABILITY
     // ==========================================================
 
-    final int overallScore = _calculateOverallScore(
+    final int overallScore =
+        _calculateOverallScore(
       season: season,
       suitability: suitability,
       ages: ages,
@@ -314,6 +368,11 @@ class RecommendationService {
     // ==========================================================
     // 10. BUDGET
     // ==========================================================
+    //
+    // Budget is based on the actual recommended journey,
+    // not the user's unused extra calendar days.
+    //
+    // ==========================================================
 
     final bool budgetIsLow = _isBudgetLow(
       destination: route.destination,
@@ -322,7 +381,8 @@ class RecommendationService {
       groupSize: groupSize,
     );
 
-    final String budgetMessage = _buildBudgetMessage(
+    final String budgetMessage =
+        _buildBudgetMessage(
       destination: route.destination,
       budget: budget,
       currency: currency,
@@ -362,10 +422,22 @@ class RecommendationService {
     // ==========================================================
     // 12. REMAINING DAYS
     // ==========================================================
+    //
+    // Extra days are calculated against the ACTUAL minimum
+    // journey duration.
+    //
+    // Example:
+    //
+    // Selected duration = 26
+    // Actual journey = 5
+    //
+    // Remaining = 21
+    //
+    // ==========================================================
 
     final int remainingDays =
-        duration > maximumDays
-            ? duration - maximumDays
+        duration > minimumDays
+            ? duration - minimumDays
             : 0;
 
     final List<String> additionalDestinations =
@@ -378,7 +450,7 @@ class RecommendationService {
     final String remainingDaysMessage =
         _buildRemainingDaysMessage(
       selectedDuration: duration,
-      maximumDays: maximumDays,
+      minimumDays: minimumDays,
       remainingDays: remainingDays,
       destination: route.destination,
     );
@@ -422,8 +494,10 @@ class RecommendationService {
       durationMessage: durationMessage,
       durationIsTooShort: durationIsTooShort,
       durationIsTooLong: durationIsTooLong,
-      remainingDaysMessage: remainingDaysMessage,
-      additionalDestinations: additionalDestinations,
+      remainingDaysMessage:
+          remainingDaysMessage,
+      additionalDestinations:
+          additionalDestinations,
       dayPlans: dayPlans,
       reasons: reasons,
       suggestedPlaces: suggestedPlaces,
@@ -568,7 +642,9 @@ class RecommendationService {
     required String from,
     required String to,
   }) {
-    // Everest
+    // ----------------------------------------------------------
+    // EVEREST
+    // ----------------------------------------------------------
 
     if (from.contains('lukla') &&
         to.contains('namche')) {
@@ -579,7 +655,9 @@ class RecommendationService {
       return 3;
     }
 
-    // Annapurna
+    // ----------------------------------------------------------
+    // ANNAPURNA
+    // ----------------------------------------------------------
 
     if (to.contains('annapurna base camp')) {
       return 3;
@@ -672,27 +750,175 @@ class RecommendationService {
     required int visitDays,
     required int returnDays,
     required List<int> ages,
+
+    /// Actual number of days required to complete the route.
+    ///
+    /// IMPORTANT:
+    /// This is NOT the user's selected calendar duration.
+    required int actualJourneyDays,
   }) {
     final List<DayPlan> plans = [];
 
+    final List<RouteSegment> outbound =
+        List<RouteSegment>.from(route.segments);
+
+    // ============================================================
+    // INVALID / VERY SHORT JOURNEY
+    // ============================================================
+
+    if (actualJourneyDays <= 0) {
+      return plans;
+    }
+
+    // ============================================================
+    // LOCAL EXPLORATION / NO TRANSPORT
+    // ============================================================
+
+    if (outbound.isEmpty) {
+      return _createVisitPlans(
+        places: _getDestinationPlaces(
+          route.destination,
+        ),
+        numberOfDays: actualJourneyDays,
+        startingDay: 1,
+        ages: ages,
+      );
+    }
+
+    // ============================================================
+    // ONE WAY / ROUND TRIP
+    // ============================================================
+    //
+    // ONE WAY:
+    //   Outbound route only.
+    //
+    // ROUND TRIP:
+    //   Outbound route + return segments.
+    //
+    // Neither case is expanded to the user's full calendar
+    // duration.
+    // ============================================================
+
+    final List<RouteSegment> effectiveOutbound =
+        outbound.length > actualJourneyDays
+            ? outbound.sublist(
+                0,
+                actualJourneyDays,
+              )
+            : outbound;
+
+    // ============================================================
+    // RETURN SEGMENTS
+    // ============================================================
+
+    final List<RouteSegment> returnLegs =
+        route.isRoundTrip
+            ? List<RouteSegment>.from(
+                route.returnSegments,
+              )
+            : <RouteSegment>[];
+
+    // ============================================================
+    // AVAILABLE JOURNEY DAYS
+    // ============================================================
+
+    int remainingJourneyDays =
+        actualJourneyDays -
+        effectiveOutbound.length;
+
+    if (remainingJourneyDays < 0) {
+      remainingJourneyDays = 0;
+    }
+
+    // ============================================================
+    // ADD OUTBOUND TRAVEL
+    // ============================================================
+
     int currentDay = 1;
 
-    // Age information is intentionally passed to the
-    // itinerary generator so that future itinerary rules
-    // can use it without changing the public API.
+    for (final RouteSegment segment
+        in effectiveOutbound) {
+      if (currentDay > actualJourneyDays) {
+        break;
+      }
 
-    // ==========================================================
-    // 1. OUTBOUND JOURNEY
-    // ==========================================================
-
-    for (final segment in route.segments) {
-      final int segmentDays = _daysForTransport(
-        from: segment.from,
-        to: segment.to,
-        transportation: segment.transportation,
+      plans.add(
+        DayPlan(
+          day: currentDay,
+          items: [
+            DayPlanItem.travel(
+              from: segment.from,
+              to: segment.to,
+              transportation:
+                  segment.transportation,
+            ),
+          ],
+        ),
       );
 
-      for (int i = 0; i < segmentDays; i++) {
+      currentDay++;
+    }
+
+    // ============================================================
+    // RETURN JOURNEY DAYS
+    // ============================================================
+
+    int returnDaysToUse = 0;
+
+    if (route.isRoundTrip &&
+        returnLegs.isNotEmpty) {
+      returnDaysToUse =
+          returnLegs.length <
+                  remainingJourneyDays
+              ? returnLegs.length
+              : remainingJourneyDays;
+    }
+
+    // ============================================================
+    // DESTINATION EXPLORATION
+    // ============================================================
+
+    final int explorationDays =
+        remainingJourneyDays -
+        returnDaysToUse;
+
+    final List<Place> destinationPlaces =
+        _getDestinationPlaces(
+      route.destination,
+    );
+
+    if (explorationDays > 0) {
+      final List<DayPlan> visitPlans =
+          _createVisitPlans(
+        places: destinationPlaces,
+        numberOfDays: explorationDays,
+        startingDay: currentDay,
+        ages: ages,
+      );
+
+      plans.addAll(visitPlans);
+
+      currentDay += explorationDays;
+    }
+
+    // ============================================================
+    // ADD RETURN JOURNEY
+    // ============================================================
+    //
+    // ONLY for Round Trip.
+    // One Way never creates a return journey.
+    // ============================================================
+
+    if (route.isRoundTrip) {
+      for (
+        int i = 0;
+        i < returnDaysToUse &&
+            currentDay <= actualJourneyDays;
+        i++
+      ) {
+        final RouteSegment segment =
+            returnLegs[i];
+
         plans.add(
           DayPlan(
             day: currentDay,
@@ -711,56 +937,21 @@ class RecommendationService {
       }
     }
 
-    // ==========================================================
-    // 2. DESTINATION VISITS
-    // ==========================================================
+    // ============================================================
+    // SAFETY CHECK
+    // ============================================================
+    //
+    // The Day-by-Day Plan must NEVER contain more days
+    // than the actual route duration.
+    //
+    // It must NOT use the user's 26-day calendar duration.
+    // ============================================================
 
-    final List<Place> destinationPlaces =
-        _getDestinationPlaces(route.destination);
-
-    final List<DayPlan> visitPlans =
-        _createVisitPlans(
-      places: destinationPlaces,
-      numberOfDays: visitDays,
-      startingDay: currentDay,
-      ages: ages,
-    );
-
-    plans.addAll(visitPlans);
-
-    currentDay += visitDays;
-
-    // ==========================================================
-    // 3. RETURN JOURNEY
-    // ==========================================================
-
-    if (route.isRoundTrip) {
-      for (final segment in route.returnSegments) {
-        final int segmentDays =
-            _daysForTransport(
-          from: segment.from,
-          to: segment.to,
-          transportation: segment.transportation,
-        );
-
-        for (int i = 0; i < segmentDays; i++) {
-          plans.add(
-            DayPlan(
-              day: currentDay,
-              items: [
-                DayPlanItem.travel(
-                  from: segment.from,
-                  to: segment.to,
-                  transportation:
-                      segment.transportation,
-                ),
-              ],
-            ),
-          );
-
-          currentDay++;
-        }
-      }
+    if (plans.length > actualJourneyDays) {
+      return plans.sublist(
+        0,
+        actualJourneyDays,
+      );
     }
 
     return plans;
@@ -776,7 +967,9 @@ class RecommendationService {
     final String destinationLower =
         destination.toLowerCase().trim();
 
-    // First try exact location.
+    // ----------------------------------------------------------
+    // EXACT LOCATION MATCH
+    // ----------------------------------------------------------
 
     final List<Place> exactMatches =
         nepalPlaces.where((place) {
@@ -790,7 +983,9 @@ class RecommendationService {
       return exactMatches;
     }
 
-    // Then try partial matching.
+    // ----------------------------------------------------------
+    // PARTIAL MATCH
+    // ----------------------------------------------------------
 
     return nepalPlaces.where((place) {
       final String location =
@@ -832,7 +1027,9 @@ class RecommendationService {
     // ==========================================================
 
     if (places.isEmpty) {
-      for (int i = 0; i < numberOfDays; i++) {
+      for (int i = 0;
+          i < numberOfDays;
+          i++) {
         plans.add(
           DayPlan(
             day: startingDay + i,
@@ -850,13 +1047,18 @@ class RecommendationService {
 
     final bool isEverest = places.any(
       (place) =>
-          place.location.toLowerCase().trim() ==
+          place.location
+              .toLowerCase()
+              .trim() ==
           'everest',
     );
 
     if (isEverest) {
-      for (int i = 0; i < numberOfDays; i++) {
-        final int day = startingDay + i;
+      for (int i = 0;
+          i < numberOfDays;
+          i++) {
+        final int day =
+            startingDay + i;
 
         final List<DayPlanItem> items = [];
 
@@ -868,9 +1070,6 @@ class RecommendationService {
           final Place place = places[i];
 
           if (hasChild || hasSenior) {
-            // For children or seniors, alternate attractions
-            // with easier activities.
-
             if (i == 0 || i % 2 == 0) {
               items.add(
                 DayPlanItem.attraction(
@@ -965,16 +1164,16 @@ class RecommendationService {
       (_) => <Place>[],
     );
 
-    for (int i = 0; i < places.length; i++) {
+    for (int i = 0;
+        i < places.length;
+        i++) {
       final int dayIndex =
           i % numberOfDays;
 
       // Maximum 3 attractions per day.
-
       if (placesPerDay[dayIndex].length < 3) {
-        placesPerDay[dayIndex].add(
-          places[i],
-        );
+        placesPerDay[dayIndex]
+            .add(places[i]);
       }
     }
 
@@ -982,7 +1181,9 @@ class RecommendationService {
     // CREATE DAY PLANS
     // ==========================================================
 
-    for (int i = 0; i < numberOfDays; i++) {
+    for (int i = 0;
+        i < numberOfDays;
+        i++) {
       final List<DayPlanItem> items =
           placesPerDay[i]
               .map(
@@ -993,8 +1194,9 @@ class RecommendationService {
               )
               .toList();
 
-      // If the group contains a child or senior and
-      // a day has no attraction, provide an easy activity.
+      // If the group contains a child or senior
+      // and the day has no attraction, provide
+      // an easy activity.
 
       if (items.isEmpty &&
           (hasChild || hasSenior)) {
@@ -1041,7 +1243,9 @@ class RecommendationService {
       }
     }
 
-    if (!destinations.contains(route.destination)) {
+    if (!destinations.contains(
+      route.destination,
+    )) {
       destinations.add(route.destination);
     }
 
@@ -1291,7 +1495,8 @@ class RecommendationService {
     required int duration,
     required int groupSize,
   }) {
-    double estimatedPerPersonPerDay = 2500;
+    double estimatedPerPersonPerDay =
+        2500;
 
     final String destinationLower =
         destination.toLowerCase();
@@ -1362,12 +1567,13 @@ class RecommendationService {
 
     if (selectedDuration > maximumDays) {
       final int extra =
-          selectedDuration - maximumDays;
+          selectedDuration - minimumDays;
 
       return 'You have $selectedDuration day(s). '
-          'The recommended trip uses about '
-          '$minimumDays-$maximumDays days, leaving '
-          '$extra extra day(s) available for other destinations.';
+          'The actual journey uses about '
+          '$minimumDays day(s), leaving '
+          '$extra extra day(s) available for '
+          'other destinations.';
     }
 
     return 'Your selected $selectedDuration-day duration '
@@ -1380,7 +1586,7 @@ class RecommendationService {
 
   static String _buildRemainingDaysMessage({
     required int selectedDuration,
-    required int maximumDays,
+    required int minimumDays,
     required int remainingDays,
     required String destination,
   }) {
@@ -1389,8 +1595,8 @@ class RecommendationService {
           'the recommended time for $destination.';
     }
 
-    return 'The $destination plan uses about '
-        '$maximumDays days. You have $remainingDays '
+    return 'The $destination journey uses about '
+        '$minimumDays day(s). You have $remainingDays '
         'remaining day(s) from your $selectedDuration-day '
         'trip. These days are not added to the $destination '
         'itinerary. You can use them to explore other '

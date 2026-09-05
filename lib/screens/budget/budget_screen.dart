@@ -4,7 +4,6 @@ import '../../models/package_model.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/yatra_components.dart';
-
 import '../destination/destination_screen.dart';
 import '../season_analysis/season_analysis_screen.dart';
 
@@ -208,7 +207,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                               builder: (context) => SeasonAnalysisScreen(
                                 destination: widget.package!.region,
                                 departureDate: widget.departureDate,
-                                returnDate: widget.returnDate,
+                                returnDate: widget.returnDate, 
                                 currency: selectedCurrency,
                                 budget: enteredBudget,
                                 ages: widget.ages,

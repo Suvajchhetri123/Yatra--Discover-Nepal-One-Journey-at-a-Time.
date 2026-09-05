@@ -4,10 +4,10 @@ import '../../data/packages_data.dart';
 import '../../services/season_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
-import '../transportation/transportation_screen.dart';
+import '../boarding/boarding_screen.dart';
 
-/// Trip Overview / Season Analysis — the user's final review before the route
-/// builder.
+/// Trip Overview / Season Analysis — the user's review of the destination,
+/// chosen transportation and season before building the route.
 ///
 /// Redesigned on the central Yatra design system. All season calculation,
 /// suitability result, constructor parameters and navigation are unchanged.
@@ -21,6 +21,11 @@ class SeasonAnalysisScreen extends StatelessWidget {
   final String travelType;
   final int groupSize;
 
+  /// Transportation chosen on the Transportation screen. Displayed here so
+  /// the Trip Overview reflects the user's selection and is forwarded on to
+  /// the route builder.
+  final String? selectedTransport;
+
   const SeasonAnalysisScreen({
     super.key,
     required this.destination,
@@ -31,6 +36,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
     required this.ages,
     required this.travelType,
     required this.groupSize,
+    this.selectedTransport,
   });
 
   String formatDate(DateTime date) {
@@ -133,6 +139,13 @@ class SeasonAnalysisScreen extends StatelessWidget {
                             value: destination,
                             emphasized: true,
                           ),
+                          if (selectedTransport != null &&
+                              selectedTransport!.isNotEmpty)
+                            YatraInfoRow(
+                              label: 'Transportation',
+                              value: selectedTransport!,
+                              emphasized: true,
+                            ),
                           YatraInfoRow(
                             label: 'Travel dates',
                             value:
@@ -206,24 +219,25 @@ class SeasonAnalysisScreen extends StatelessWidget {
                 ),
               ),
               child: YatraPrimaryButton(
-                label: 'Continue to Transportation',
+                label: 'Continue to Route Builder',
                 icon: Icons.arrow_forward,
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => TransportationScreen(
+                      builder: (context) => BoardingScreen(
                         destination: destination,
+                        selectedTransport: selectedTransport,
                         departureDate: departureDate,
                         returnDate: returnDate,
                         season: result.season,
                         suitability: result.suitability,
-                        seasonMessage: result.message,
                         currency: currency,
                         budget: budget,
                         ages: ages,
                         travelType: travelType,
                         groupSize: groupSize,
+                        seasonMessage: result.message,
                       ),
                     ),
                   );
@@ -525,34 +539,51 @@ class _TripProfileGrid extends StatelessWidget {
 
     final budgetText = '$currency ${budget.toStringAsFixed(0)}';
 
-    return GridView(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        mainAxisSpacing: AppSpacing.md,
-        crossAxisSpacing: AppSpacing.md,
-        childAspectRatio: 1.9,
-      ),
-      children: [
-        _ProfileTile(icon: Icons.calendar_month, value: dateRange, label: 'Dates'),
-        _ProfileTile(
-          icon: Icons.groups,
-          value: '$groupSize ${groupSize == 1 ? 'traveller' : 'travellers'}',
-          label: 'Travelers',
-        ),
-        _ProfileTile(
-          icon: Icons.luggage,
-          value: travelType,
-          label: 'Travel Type',
-        ),
-        _ProfileTile(icon: Icons.payments, value: budgetText, label: 'Budget'),
-        _ProfileTile(
-          icon: Icons.landscape_outlined,
-          value: season,
-          label: 'Season',
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Fixed-height grid rows keep profile tiles fully visible on
+        // small screens (aspect-ratio cells get too short and overflow).
+        final columns = constraints.maxWidth >= 480 ? 3 : 2;
+
+        return GridView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisExtent: 68,
+            mainAxisSpacing: AppSpacing.md,
+            crossAxisSpacing: AppSpacing.md,
+          ),
+          children: [
+            _ProfileTile(
+              icon: Icons.calendar_month,
+              value: dateRange,
+              label: 'Dates',
+            ),
+            _ProfileTile(
+              icon: Icons.groups,
+              value: '$groupSize '
+                  '${groupSize == 1 ? 'traveller' : 'travellers'}',
+              label: 'Travelers',
+            ),
+            _ProfileTile(
+              icon: Icons.luggage,
+              value: travelType,
+              label: 'Travel Type',
+            ),
+            _ProfileTile(
+              icon: Icons.payments,
+              value: budgetText,
+              label: 'Budget',
+            ),
+            _ProfileTile(
+              icon: Icons.landscape_outlined,
+              value: season,
+              label: 'Season',
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -585,6 +616,7 @@ class _ProfileTile extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm + 2),
           Expanded(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -597,6 +629,8 @@ class _ProfileTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

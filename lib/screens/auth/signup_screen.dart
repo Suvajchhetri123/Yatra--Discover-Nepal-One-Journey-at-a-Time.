@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import '../home/home_screen.dart';
@@ -20,6 +22,7 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final AuthService _auth = const AuthService();
+  final FirestoreService _firestore = FirestoreService();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -75,27 +78,58 @@ class _SignupScreenState extends State<SignupScreen> {
       _passwordError == null &&
       _confirmError == null;
 
-  void _createAccount() {
+  Future<void> _createAccount() async {
     setState(() => _showErrors = true);
     if (!_isValid || _submitting) return;
 
     setState(() => _submitting = true);
 
-    // Route through the auth service. For now the service is a mock that
-    // resolves successfully, matching the previous behaviour.
-    _auth
-        .signUpWithEmail(
-          name: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        )
-        .whenComplete(() {
+    try {
+      await _auth.signUpWithEmail(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      await _firestore.createOrUpdateUserProfile(
+        name: _nameController.text.trim(),
+      );
+
       if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
-    });
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      String message;
+
+      switch (e.code) {
+        case 'email-already-in-use':
+          message = 'An account already exists with this email.';
+          break;
+        case 'invalid-email':
+          message = 'The email address is invalid.';
+          break;
+        case 'weak-password':
+          message = 'The password is too weak.';
+          break;
+        default:
+          message = e.message ?? 'Unable to create account.';
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+    // Route through the auth service. For now the service is a mock that
+    // resolves successfully, matching the previous behaviour.
   }
 
   /// Handles a social sign-up attempt. Until Firebase is configured the
@@ -117,9 +151,7 @@ class _SignupScreenState extends State<SignupScreen> {
     } on UnsupportedError {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Social login will be configured soon.'),
-        ),
+        const SnackBar(content: Text('Social login will be configured soon.')),
       );
     } finally {
       if (mounted) setState(() => _socialSubmitting = false);
@@ -227,9 +259,8 @@ class _SignupScreenState extends State<SignupScreen> {
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
                         ),
-                        onPressed: () => setState(
-                          () => _obscureConfirm = !_obscureConfirm,
-                        ),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
                       errorText: _showErrors ? _confirmError : null,
                     ),

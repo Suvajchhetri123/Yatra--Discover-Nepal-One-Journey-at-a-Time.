@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
@@ -52,27 +53,60 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool get _isValid => _emailError == null && _passwordError == null;
 
-  void _login() {
+  Future<void> _login() async {
     setState(() => _showErrors = true);
+
     if (!_isValid || _submitting) return;
 
     setState(() => _submitting = true);
 
-    // Route through the auth service. For now the service is a mock that
-    // resolves successfully, matching the previous behaviour. Replace with
-    // real authentication once Firebase is connected.
-    _auth
-        .signInWithEmail(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        )
-        .whenComplete(() {
+    try {
+      await _auth.signInWithEmail(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
       if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
-    });
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth Error Code: ${e.code}');
+      debugPrint('Firebase Auth Error Message: $e{e.message}');
+      if (!mounted) return;
+
+      String message;
+
+      switch (e.code) {
+        case 'invalid-credential':
+          message = 'Incorrect email or password.';
+          break;
+        case 'user-not-found':
+          message = 'No account found with this email.';
+          break;
+        case 'wrong-password':
+          message = 'Incorrect password.';
+          break;
+        case 'invalid-email':
+          message = 'The email address is invalid.';
+          break;
+        case 'user-disabled':
+          message = 'This account has been disabled.';
+          break;
+        default:
+          message = e.message ?? 'Unable to log in.';
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   /// Handles a social sign-in attempt. Until Firebase is configured the
@@ -94,9 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on UnsupportedError {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Social login will be configured soon.'),
-        ),
+        const SnackBar(content: Text('Social login will be configured soon.')),
       );
     } finally {
       if (mounted) setState(() => _socialSubmitting = false);
@@ -196,9 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   YatraPrimaryButton(
                     label: 'Login',
                     icon: Icons.login,
-                    onPressed: _submitting || _socialSubmitting
-                        ? null
-                        : _login,
+                    onPressed: _submitting || _socialSubmitting ? null : _login,
                   ),
 
                   const SizedBox(height: AppSpacing.xl),
@@ -261,8 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const SignupScreen(),
+                                    builder: (context) => const SignupScreen(),
                                   ),
                                 );
                               },

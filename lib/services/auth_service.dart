@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+
 /// Yatra authentication service.
 ///
 /// A thin abstraction over authentication so the UI never talks directly to
@@ -30,9 +32,10 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    // TODO(firebase): replace with real email/password authentication.
-    // Ignore the inputs for now — validation is handled by the UI.
-    return;
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
+      email: email.trim(),
+      password: password,
+    );
   }
 
   /// Email/password account creation.
@@ -46,8 +49,10 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    // TODO(firebase): replace with real account creation.
-    return;
+    await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
   }
 
   /// Sign in with Google.
@@ -144,7 +149,6 @@ class AuthService {
   /// Mock for now: does nothing. Replace with a `FirebaseAuth.instance.signOut`
   /// call once Firebase is connected.
   Future<void> signOut() async {
-    // TODO(firebase): replace with a real sign-out.
-    return;
+    await FirebaseAuth.instance.signOut();
   }
 }

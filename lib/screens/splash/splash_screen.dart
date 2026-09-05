@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../auth/login_screen.dart';
+import '../home/home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,9 +23,15 @@ class _SplashScreenState extends State<SplashScreen> {
     _timer = Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
 
+      final user = FirebaseAuth.instance.currentUser;
+
+      final destination = user == null
+          ? const LoginScreen()
+          : const HomeScreen();
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(builder: (context) => destination),
       );
     });
   }
@@ -89,9 +97,9 @@ class _SplashScreenState extends State<SplashScreen> {
                 Text(
                   'Explore Nepal. Plan Your Journey.',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Colors.grey.shade600,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600),
                 ),
 
                 const SizedBox(height: 40),
