@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../widgets/common.dart';
-import '../travel_dates/travel_dates_screen.dart';
+import '../tourist_type/tourist_type_screen.dart';
 
 class PlanTripScreen extends StatelessWidget {
   const PlanTripScreen({super.key});
@@ -38,8 +38,10 @@ class PlanTripScreen extends StatelessWidget {
                   children: [
                     Icon(Icons.travel_explore, size: 42, color: scheme.primary),
                     const SizedBox(height: 16),
-                    Text('Personalized Travel Planning',
-                        style: textTheme.headlineSmall),
+                    Text(
+                      'Personalized Travel Planning',
+                      style: textTheme.headlineSmall,
+                    ),
                     const SizedBox(height: 10),
                     Text(
                       'Tell us about your journey, preferences, '
@@ -58,7 +60,7 @@ class PlanTripScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const TravelDatesScreen(),
+                      builder: (context) => const TouristTypeScreen(),
                     ),
                   );
                 },

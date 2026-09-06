@@ -5,6 +5,7 @@ import '../../widgets/yatra_components.dart';
 import '../season_analysis/season_analysis_screen.dart';
 
 class DestinationScreen extends StatefulWidget {
+  final String touristType;
   final String currency;
   final double budget;
   final List<int> ages;
@@ -15,6 +16,7 @@ class DestinationScreen extends StatefulWidget {
 
   const DestinationScreen({
     super.key,
+    required this.touristType,
     required this.currency,
     required this.budget,
     required this.ages,
@@ -60,7 +62,6 @@ class _DestinationScreenState extends State<DestinationScreen> {
                     // ============================================
                     // HEADER
                     // ============================================
-
                     Text(
                       'Choose Your Destination',
                       style: textTheme.headlineMedium,
@@ -94,19 +95,18 @@ class _DestinationScreenState extends State<DestinationScreen> {
                     else
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final columns =
-                              constraints.maxWidth > 600 ? 3 : 2;
+                          final columns = constraints.maxWidth > 600 ? 3 : 2;
                           return GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: destinations.length,
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: columns,
-                              crossAxisSpacing: AppSpacing.md,
-                              mainAxisSpacing: AppSpacing.md,
-                              childAspectRatio: 1.55,
-                            ),
+                                  crossAxisCount: columns,
+                                  crossAxisSpacing: AppSpacing.md,
+                                  mainAxisSpacing: AppSpacing.md,
+                                  childAspectRatio: 1.55,
+                                ),
                             itemBuilder: (context, index) {
                               final destination = destinations[index];
                               final isSelected =
@@ -126,13 +126,12 @@ class _DestinationScreenState extends State<DestinationScreen> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: isSelected
-                                      ? Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: AppColors.primary,
-                                            fontWeight: FontWeight.w700,
-                                          )
+                                      ? Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium?.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w700,
+                                        )
                                       : textTheme.titleMedium,
                                 ),
                               );
@@ -148,7 +147,6 @@ class _DestinationScreenState extends State<DestinationScreen> {
             // ============================================
             // BOTTOM CTA
             // ============================================
-
             Container(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screen,
@@ -160,10 +158,9 @@ class _DestinationScreenState extends State<DestinationScreen> {
                 color: AppColors.background,
                 border: Border(
                   top: BorderSide(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outlineVariant
-                        .withValues(alpha: 0.6),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.6),
                   ),
                 ),
               ),
@@ -179,6 +176,7 @@ class _DestinationScreenState extends State<DestinationScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => SeasonAnalysisScreen(
+                                touristType: widget.touristType,
                                 destination: selectedDestination!,
                                 departureDate: widget.departureDate,
                                 returnDate: widget.returnDate,

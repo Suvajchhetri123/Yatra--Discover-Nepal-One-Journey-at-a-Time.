@@ -11,6 +11,7 @@ Future<void> _pumpBoarding(
   await tester.pumpWidget(
     MaterialApp(
       home: BoardingScreen(
+        touristType: 'Domestic Tourist',
         destination: destination,
         selectedTransport: selectedTransport,
         departureDate: DateTime(2026, 9, 1),

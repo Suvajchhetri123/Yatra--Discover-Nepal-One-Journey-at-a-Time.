@@ -19,6 +19,7 @@ TravelRoute _mustangRoute() {
 
 RecommendationResult _generate(int duration) {
   return RecommendationService.generate(
+    touristType: 'Domestic Tourist',
     destination: 'Mustang',
     season: 'Autumn',
     suitability: 'Suitable',
@@ -76,6 +77,7 @@ void main() {
     );
 
     final result = RecommendationService.generate(
+      touristType: 'Domestic Tourist',
       destination: 'Pokhara',
       season: 'Autumn',
       suitability: 'Suitable',

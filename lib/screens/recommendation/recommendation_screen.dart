@@ -9,6 +9,7 @@ import '../../models/place_model.dart';
 import '../../models/travel_route_model.dart';
 
 class RecommendationScreen extends StatelessWidget {
+  final String touristType;
   final String destination;
   final DateTime departureDate;
   final DateTime returnDate;
@@ -24,6 +25,7 @@ class RecommendationScreen extends StatelessWidget {
 
   const RecommendationScreen({
     super.key,
+    required this.touristType,
     required this.destination,
     required this.departureDate,
     required this.returnDate,
@@ -39,11 +41,28 @@ class RecommendationScreen extends StatelessWidget {
   });
 
   static const _days = [
-    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
   ];
+
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   String _formatDate(DateTime date) {
@@ -57,6 +76,7 @@ class RecommendationScreen extends StatelessWidget {
     final duration = returnDate.difference(departureDate).inDays + 1;
 
     final recommendation = RecommendationService.generate(
+      touristType: touristType,
       destination: destination,
       season: season,
       suitability: suitability,
@@ -73,10 +93,11 @@ class RecommendationScreen extends StatelessWidget {
         ? '${ages.isNotEmpty ? ages.first : 18} years'
         : ages.join(', ');
 
-    // A local-exploration route (e.g. "already in Kathmandu") has no intercity
-    // segments and the same boarding point and destination, so it must not be
-    // rendered as a pointless "Kathmandu → Kathmandu" journey.
-    final isLocalExploration = route.segments.isEmpty &&
+    // A local-exploration route has no intercity segments and the same
+    // boarding point and destination, so it must not be rendered as
+    // a pointless "Kathmandu → Kathmandu" journey.
+    final isLocalExploration =
+        route.segments.isEmpty &&
         route.boardingPoint.toLowerCase().trim() ==
             route.destination.toLowerCase().trim();
 
@@ -85,7 +106,6 @@ class RecommendationScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Your Journey')),
-
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -126,7 +146,14 @@ class RecommendationScreen extends StatelessWidget {
               YatraCard(
                 child: Column(
                   children: [
-                    YatraInfoRow(label: 'Destination', value: destination),
+                    YatraInfoRow(
+                      label: 'Tourist Type',
+                      value: touristType,
+                    ),
+                    YatraInfoRow(
+                      label: 'Destination',
+                      value: destination,
+                    ),
                     YatraInfoRow(
                       label: 'Dates',
                       value:
@@ -137,13 +164,22 @@ class RecommendationScreen extends StatelessWidget {
                       label: 'Duration',
                       value: '$duration days',
                     ),
-                    YatraInfoRow(label: 'Travelers', value: '$groupSize'),
-                    YatraInfoRow(label: 'Travel Type', value: travelType),
+                    YatraInfoRow(
+                      label: 'Travelers',
+                      value: '$groupSize',
+                    ),
+                    YatraInfoRow(
+                      label: 'Travel Type',
+                      value: travelType,
+                    ),
                     YatraInfoRow(
                       label: 'Budget',
                       value: '$currency ${budget.toStringAsFixed(0)}',
                     ),
-                    YatraInfoRow(label: 'Season', value: season),
+                    YatraInfoRow(
+                      label: 'Season',
+                      value: season,
+                    ),
                   ],
                 ),
               ),
@@ -201,7 +237,9 @@ class RecommendationScreen extends StatelessWidget {
 
                     ...recommendation.suitabilityFactors.map((factor) {
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        padding: const EdgeInsets.only(
+                          bottom: AppSpacing.sm,
+                        ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -214,8 +252,9 @@ class RecommendationScreen extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 factor,
-                                style: textTheme.bodyMedium
-                                    ?.copyWith(height: 1.4),
+                                style: textTheme.bodyMedium?.copyWith(
+                                  height: 1.4,
+                                ),
                               ),
                             ),
                           ],
@@ -258,9 +297,18 @@ class RecommendationScreen extends StatelessWidget {
               YatraCard(
                 child: Column(
                   children: [
-                    YatraInfoRow(label: 'Destination', value: destination),
-                    YatraInfoRow(label: 'Season', value: season),
-                    YatraInfoRow(label: 'Suitability', value: suitability),
+                    YatraInfoRow(
+                      label: 'Destination',
+                      value: destination,
+                    ),
+                    YatraInfoRow(
+                      label: 'Season',
+                      value: season,
+                    ),
+                    YatraInfoRow(
+                      label: 'Suitability',
+                      value: suitability,
+                    ),
                     YatraInfoRow(
                       label: 'Budget',
                       value: '$currency ${budget.toStringAsFixed(0)}',
@@ -269,7 +317,10 @@ class RecommendationScreen extends StatelessWidget {
                       label: 'Transportation',
                       value: route.transportationDescription,
                     ),
-                    YatraInfoRow(label: 'Travel Type', value: travelType),
+                    YatraInfoRow(
+                      label: 'Travel Type',
+                      value: travelType,
+                    ),
                   ],
                 ),
               ),
@@ -292,8 +343,11 @@ class RecommendationScreen extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.explore_outlined,
-                               size: 20, color: scheme.primary),
+                          Icon(
+                            Icons.explore_outlined,
+                            size: 20,
+                            color: scheme.primary,
+                          ),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
                             child: Text(
@@ -309,20 +363,21 @@ class RecommendationScreen extends StatelessWidget {
                         'You are already in ${route.destination} — '
                         'exploring the area locally, with no intercity '
                         'transportation required.',
-                        style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                        style: textTheme.bodyMedium?.copyWith(
+                          height: 1.4,
+                        ),
                       ),
                     ] else ...[
                       Text(
                         '${route.boardingPoint} → ${route.destination}',
                         style: textTheme.titleMedium,
                       ),
-
                       const SizedBox(height: AppSpacing.lg),
-
                       ...route.segments.map(
                         (segment) => Padding(
                           padding: const EdgeInsets.only(
-                              bottom: AppSpacing.md),
+                            bottom: AppSpacing.md,
+                          ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -336,8 +391,9 @@ class RecommendationScreen extends StatelessWidget {
                                 child: Text(
                                   '${segment.from} → ${segment.to}\n'
                                   '${segment.transportation}',
-                                  style: textTheme.bodyMedium
-                                      ?.copyWith(height: 1.4),
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    height: 1.4,
+                                  ),
                                 ),
                               ),
                             ],
@@ -356,10 +412,12 @@ class RecommendationScreen extends StatelessWidget {
                       const SizedBox(height: AppSpacing.md),
                       ...route.returnSegments.map(
                         (segment) => Padding(
-                          padding:
-                              const EdgeInsets.only(bottom: AppSpacing.md),
+                          padding: const EdgeInsets.only(
+                            bottom: AppSpacing.md,
+                          ),
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
                             children: [
                               Icon(
                                 Icons.directions,
@@ -371,8 +429,9 @@ class RecommendationScreen extends StatelessWidget {
                                 child: Text(
                                   '${segment.from} → ${segment.to}\n'
                                   '${segment.transportation}',
-                                  style: textTheme.bodyMedium
-                                      ?.copyWith(height: 1.4),
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    height: 1.4,
+                                  ),
                                 ),
                               ),
                             ],
@@ -398,8 +457,14 @@ class RecommendationScreen extends StatelessWidget {
               YatraCard(
                 child: Column(
                   children: [
-                    YatraInfoRow(label: 'Travelers', value: '$groupSize'),
-                    YatraInfoRow(label: 'Age', value: ageDisplay),
+                    YatraInfoRow(
+                      label: 'Travelers',
+                      value: '$groupSize',
+                    ),
+                    YatraInfoRow(
+                      label: 'Age',
+                      value: ageDisplay,
+                    ),
                     YatraInfoRow(
                       label: 'Selected Duration',
                       value: '$duration days',
@@ -414,7 +479,9 @@ class RecommendationScreen extends StatelessWidget {
               // DURATION
               // ==================================================
 
-              YatraSectionTitle(title: 'Recommended Travel Duration'),
+              YatraSectionTitle(
+                title: 'Recommended Travel Duration',
+              ),
 
               const SizedBox(height: AppSpacing.md),
 
@@ -464,7 +531,9 @@ class RecommendationScreen extends StatelessWidget {
               // REMAINING DAYS
               // ==================================================
 
-              YatraSectionTitle(title: 'What About the Remaining Days?'),
+              YatraSectionTitle(
+                title: 'What About the Remaining Days?',
+              ),
 
               const SizedBox(height: AppSpacing.md),
 
@@ -493,15 +562,21 @@ class RecommendationScreen extends StatelessWidget {
 
                     Text(
                       recommendation.remainingDaysMessage,
-                      style: textTheme.bodyMedium?.copyWith(height: 1.5),
+                      style: textTheme.bodyMedium?.copyWith(
+                        height: 1.5,
+                      ),
                     ),
 
-                    if (recommendation.additionalDestinations.isNotEmpty) ...[
+                    if (recommendation
+                        .additionalDestinations
+                        .isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.lg),
 
                       ...recommendation.additionalDestinations.map(
                         (place) => Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          padding: const EdgeInsets.only(
+                            bottom: AppSpacing.sm,
+                          ),
                           child: Row(
                             children: [
                               Icon(
@@ -544,8 +619,10 @@ class RecommendationScreen extends StatelessWidget {
                 ),
 
               ...recommendation.dayPlans.map((dayPlan) {
-                final dayDate =
-                    departureDate.add(Duration(days: dayPlan.day - 1));
+                final dayDate = departureDate.add(
+                  Duration(days: dayPlan.day - 1),
+                );
+
                 return YatraCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,7 +651,8 @@ class RecommendationScreen extends StatelessWidget {
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'Day ${dayPlan.day}',
@@ -595,12 +673,14 @@ class RecommendationScreen extends StatelessWidget {
                       ...dayPlan.items.map((item) {
                         final isTravel =
                             item.type == DayPlanItemType.travel;
+
                         final isActivity =
                             item.type == DayPlanItemType.activity;
-                        final place = item.type ==
-                                    DayPlanItemType.attraction
-                            ? item.place
-                            : null;
+
+                        final place =
+                            item.type == DayPlanItemType.attraction
+                                ? item.place
+                                : null;
 
                         if (isTravel) {
                           return _travelItem(
@@ -613,9 +693,12 @@ class RecommendationScreen extends StatelessWidget {
 
                         if (isActivity) {
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 Icon(
                                   Icons.check_circle_outline,
@@ -625,9 +708,12 @@ class RecommendationScreen extends StatelessWidget {
                                 const SizedBox(width: AppSpacing.sm),
                                 Expanded(
                                   child: Text(
-                                    item.activity ?? 'Recommended activity',
-                                    style: textTheme.bodyMedium
-                                        ?.copyWith(height: 1.4),
+                                    item.activity ??
+                                        'Recommended activity',
+                                    style:
+                                        textTheme.bodyMedium?.copyWith(
+                                      height: 1.4,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -665,13 +751,17 @@ class RecommendationScreen extends StatelessWidget {
               // WHY THIS TRIP
               // ==================================================
 
-              YatraSectionTitle(title: 'Why This Trip?'),
+              YatraSectionTitle(
+                title: 'Why This Trip?',
+              ),
 
               const SizedBox(height: AppSpacing.md),
 
               ...recommendation.reasons.map((reason) {
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  padding: const EdgeInsets.only(
+                    bottom: AppSpacing.md,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -684,7 +774,9 @@ class RecommendationScreen extends StatelessWidget {
                       Expanded(
                         child: Text(
                           reason,
-                          style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                          style: textTheme.bodyMedium?.copyWith(
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -698,7 +790,9 @@ class RecommendationScreen extends StatelessWidget {
               // SUGGESTED PLACES
               // ==================================================
 
-              YatraSectionTitle(title: 'Places You Can Visit'),
+              YatraSectionTitle(
+                title: 'Places You Can Visit',
+              ),
 
               const SizedBox(height: AppSpacing.sm),
 
@@ -712,7 +806,8 @@ class RecommendationScreen extends StatelessWidget {
               if (recommendation.suggestedPlaces.isEmpty)
                 const YatraEmptyState(
                   icon: Icons.place_outlined,
-                  message: 'No attraction data is currently available.',
+                  message:
+                      'No attraction data is currently available.',
                 ),
 
               ...recommendation.suggestedPlaces.map((placeName) {
@@ -720,9 +815,13 @@ class RecommendationScreen extends StatelessWidget {
 
                 if (place == null) {
                   return Card(
-                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    margin: const EdgeInsets.only(
+                      bottom: AppSpacing.md,
+                    ),
                     child: ListTile(
-                      leading: const Icon(Icons.location_on_outlined),
+                      leading: const Icon(
+                        Icons.location_on_outlined,
+                      ),
                       title: Text(placeName),
                       subtitle: const Text('Details unavailable'),
                     ),
@@ -730,7 +829,9 @@ class RecommendationScreen extends StatelessWidget {
                 }
 
                 return Card(
-                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  margin: const EdgeInsets.only(
+                    bottom: AppSpacing.md,
+                  ),
                   child: ListTile(
                     leading: Icon(
                       Icons.location_on_outlined,
@@ -765,7 +866,9 @@ class RecommendationScreen extends StatelessWidget {
                 label: 'Plan Another Trip',
                 icon: Icons.home_outlined,
                 onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  Navigator.of(context).popUntil(
+                    (route) => route.isFirst,
+                  );
                 },
               ),
 
@@ -794,7 +897,9 @@ class RecommendationScreen extends StatelessWidget {
     final toText = to ?? '';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.only(
+        bottom: AppSpacing.md,
+      ),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -808,7 +913,11 @@ class RecommendationScreen extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.directions_bus, size: 20, color: scheme.primary),
+            Icon(
+              Icons.directions_bus,
+              size: 20,
+              color: scheme.primary,
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -848,7 +957,9 @@ class RecommendationScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.only(
+        bottom: AppSpacing.md,
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -857,7 +968,8 @@ class RecommendationScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => PlaceDetailsScreen(place: place),
+                builder: (context) =>
+                    PlaceDetailsScreen(place: place),
               ),
             );
           },
@@ -867,7 +979,8 @@ class RecommendationScreen extends StatelessWidget {
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppRadius.lg),
               border: Border.all(
-                color: scheme.outlineVariant.withValues(alpha: 0.6),
+                color:
+                    scheme.outlineVariant.withValues(alpha: 0.6),
               ),
             ),
             clipBehavior: Clip.antiAlias,
@@ -879,11 +992,16 @@ class RecommendationScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 120,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
+                  errorBuilder: (
+                    context,
+                    error,
+                    stackTrace,
+                  ) {
                     return Container(
                       width: double.infinity,
                       height: 120,
-                      color: scheme.primary.withValues(alpha: 0.1),
+                      color:
+                          scheme.primary.withValues(alpha: 0.1),
                       alignment: Alignment.center,
                       child: Icon(
                         Icons.landscape,
@@ -893,10 +1011,12 @@ class RecommendationScreen extends StatelessWidget {
                     );
                   },
                 ),
+
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
@@ -914,6 +1034,7 @@ class RecommendationScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+
                       if (place.location.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
@@ -921,15 +1042,20 @@ class RecommendationScreen extends StatelessWidget {
                           style: AppType.caption,
                         ),
                       ],
+
                       if (place.description.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           place.description,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall?.copyWith(height: 1.4),
+                          style:
+                              textTheme.bodySmall?.copyWith(
+                            height: 1.4,
+                          ),
                         ),
                       ],
+
                       if (item.subtitle != null &&
                           place.description.isEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
@@ -983,16 +1109,28 @@ class _StatusCard extends StatelessWidget {
               color: iconColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: Icon(icon, color: iconColor, size: 24),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: textTheme.titleLarge),
+                Text(
+                  title,
+                  style: textTheme.titleLarge,
+                ),
                 const SizedBox(height: AppSpacing.xs),
-                Text(message, style: textTheme.bodyMedium?.copyWith(height: 1.5)),
+                Text(
+                  message,
+                  style: textTheme.bodyMedium?.copyWith(
+                    height: 1.5,
+                  ),
+                ),
               ],
             ),
           ),

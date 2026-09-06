@@ -7,6 +7,7 @@ import '../../widgets/yatra_components.dart';
 import '../recommendation/recommendation_screen.dart';
 
 class BoardingScreen extends StatefulWidget {
+  final String touristType;
   final String destination;
   final DateTime departureDate;
   final DateTime returnDate;
@@ -24,6 +25,7 @@ class BoardingScreen extends StatefulWidget {
 
   const BoardingScreen({
     super.key,
+    required this.touristType,
     required this.destination,
     this.selectedTransport,
     required this.departureDate,
@@ -769,6 +771,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => RecommendationScreen(
+          touristType: widget.touristType,
           destination: widget.destination,
           departureDate: widget.departureDate,
           returnDate: widget.returnDate,

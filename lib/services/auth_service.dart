@@ -2,32 +2,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 /// Yatra authentication service.
 ///
-/// A thin abstraction over authentication so the UI never talks directly to
-/// a backend. Today the email/password methods are mock implementations that
-/// always succeed (matching the app's prior behaviour, where a non-empty
-/// email + password navigates to Home). Social logins and phone authentication
-/// are placeholders that throw [UnsupportedError] until Firebase Authentication
-/// is connected.
+/// Provides a simple abstraction over Firebase Authentication so that the
+/// UI screens do not need to communicate with Firebase directly.
 ///
-/// ## Connecting Firebase later
-///
-/// To wire real authentication, implement the bodies of these methods using
-/// `firebase_auth` (and `google_sign_in` / `facebook_login` /
-/// `sign_in_with_apple` for the provider flows). For phone sign-in use
-/// `FirebaseAuth.instance.verifyPhoneNumber(...)` from
-/// [sendPhoneVerificationCode]. The screens only depend on this service, so
-/// the UI will not need to change.
-///
-/// No Firebase packages are added to `pubspec.yaml` yet.
+/// Email/password authentication is fully connected to Firebase.
+/// Social login and phone authentication are currently placeholders and
+/// will be connected when their respective Firebase/provider configuration
+/// is completed.
 class AuthService {
   const AuthService();
 
-  /// Email/password sign-in.
+  /// Signs in an existing user using email and password.
   ///
-  /// Mock for now: resolves successfully for any valid-looking credentials so
-  /// the existing Login UX (validation + navigation to Home) is preserved.
-  ///
-  /// Replace with a `FirebaseAuth.instance.signInWithEmailAndPassword` call.
+  /// Throws [FirebaseAuthException] when authentication fails.
   Future<void> signInWithEmail({
     required String email,
     required String password,
@@ -38,62 +25,61 @@ class AuthService {
     );
   }
 
-  /// Email/password account creation.
+  /// Creates a new Firebase Authentication account using email and password.
   ///
-  /// Mock for now: resolves successfully so the existing Signup UX
-  /// (validation + navigation to Home) is preserved.
+  /// The [name] parameter is accepted so the UI can pass the user's name.
+  /// The name itself is stored separately in the user's Firestore profile.
   ///
-  /// Replace with a `FirebaseAuth.instance.createUserWithEmailAndPassword` call.
+  /// Throws [FirebaseAuthException] when account creation fails.
   Future<void> signUpWithEmail({
     required String name,
     required String email,
     required String password,
   }) async {
-    await FirebaseAuth.instance.createUserWithEmailAndPassword(
-      email: email,
+    final credential =
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      email: email.trim(),
       password: password,
+    );
+
+    // Save the user's display name in Firebase Authentication as well.
+    final user = credential.user;
+
+    if (user != null && name.trim().isNotEmpty) {
+      await user.updateDisplayName(name.trim());
+    }
+  }
+
+  /// Signs in using Google.
+  ///
+  /// Google Authentication is not configured yet.
+  Future<void> signInWithGoogle() async {
+    throw UnsupportedError(
+      'Google sign-in is not configured yet.',
     );
   }
 
-  /// Sign in with Google.
+  /// Signs in using Facebook.
   ///
-  /// Not implemented yet. Throws [UnsupportedError] so callers can show a
-  /// "configured soon" message instead of pretending login succeeded.
-  Future<void> signInWithGoogle() async {
-    throw UnsupportedError('Google sign-in is not configured yet.');
-  }
-
-  /// Sign in with Facebook.
-  ///
-  /// Not implemented yet. See [signInWithGoogle].
+  /// Facebook Authentication is not configured yet.
   Future<void> signInWithFacebook() async {
-    throw UnsupportedError('Facebook sign-in is not configured yet.');
+    throw UnsupportedError(
+      'Facebook sign-in is not configured yet.',
+    );
   }
 
-  /// Sign in with Apple.
+  /// Signs in using Apple.
   ///
-  /// Not implemented yet. See [signInWithGoogle].
+  /// Apple Authentication is not configured yet.
   Future<void> signInWithApple() async {
-    throw UnsupportedError('Apple sign-in is not configured yet.');
+    throw UnsupportedError(
+      'Apple sign-in is not configured yet.',
+    );
   }
 
-  /// Sends a 6-digit verification code to a phone number for sign-in.
+  /// Sends a phone verification code.
   ///
-  /// Not implemented yet. This is where Firebase's native phone flow would
-  /// begin:
-  ///
-  /// ```dart
-  /// await FirebaseAuth.instance.verifyPhoneNumber(
-  ///   phoneNumber: '$countryCode$phoneNumber',
-  ///   verificationCompleted: (credential) { /* auto-verify */ },
-  ///   verificationFailed: (error) { /* surface error */ },
-  ///   codeSent: (verificationId, resendToken) { /* show OTP screen */ },
-  ///   codeAutoRetrievalTimeout: (verificationId) { /* timeout */ },
-  /// );
-  /// ```
-  ///
-  /// Until Firebase is configured this throws so callers can show a clear
-  /// "not configured" message instead of faking a sent code.
+  /// Phone Authentication is not configured yet.
   Future<void> sendPhoneVerificationCode({
     required String countryCode,
     required String phoneNumber,
@@ -104,39 +90,35 @@ class AuthService {
     );
   }
 
-  /// Verifies the 6-digit code the user entered against Firebase.
+  /// Verifies a phone authentication code.
   ///
-  /// Replace with `FirebaseAuth.instance.signInWithCredential(PhoneAuthProvider
-  /// .credential(verificationId: ..., smsCode: ...))` once Firebase is wired in.
-  ///
-  /// [verificationId] comes from the `codeSent` callback of
-  /// [sendPhoneVerificationCode].
+  /// Phone Authentication is not configured yet.
   Future<void> verifyPhoneCode({
     required String verificationId,
     required String code,
   }) async {
     throw UnsupportedError(
       'Firebase Phone Authentication needs to be configured before the '
-      'code can be verified.',
+      'verification code can be verified.',
     );
   }
 
-  /// Re-sends the verification code after the countdown expires.
+  /// Resends a phone verification code.
   ///
-  /// Replace with a call to `FirebaseAuth.instance.verifyPhoneNumber` using
-  /// the stored `resendToken` from the original `codeSent` callback.
+  /// Phone Authentication is not configured yet.
   Future<void> resendPhoneVerificationCode({
     required String countryCode,
     required String phoneNumber,
   }) async {
     throw UnsupportedError(
       'Firebase Phone Authentication needs to be configured before the '
-      'code can be resent.',
+      'verification code can be resent.',
     );
   }
 
-  /// Completes phone-sign-in. For now this is grouped with the OTP flow;
-  /// it will be driven internally by Firebase once `verifyPhoneNumber` is used.
+  /// Completes phone sign-in.
+  ///
+  /// Phone Authentication is not configured yet.
   Future<void> signInWithPhone() async {
     throw UnsupportedError(
       'Firebase Phone Authentication needs to be configured before phone '
@@ -144,10 +126,7 @@ class AuthService {
     );
   }
 
-  /// Sign the current user out.
-  ///
-  /// Mock for now: does nothing. Replace with a `FirebaseAuth.instance.signOut`
-  /// call once Firebase is connected.
+  /// Signs out the currently authenticated Firebase user.
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
   }

@@ -7,6 +7,7 @@ Future<void> _pumpBoarding(WidgetTester tester) async {
   await tester.pumpWidget(
     MaterialApp(
       home: BoardingScreen(
+        touristType: 'Domestic Tourist',
         destination: 'Mustang',
         departureDate: DateTime(2026, 9, 1),
         returnDate: DateTime(2026, 9, 10),

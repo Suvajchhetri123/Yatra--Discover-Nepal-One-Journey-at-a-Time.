@@ -13,6 +13,7 @@ import '../season_analysis/season_analysis_screen.dart';
 /// validation, trip profile and both continue branches are unchanged.
 class BudgetScreen extends StatefulWidget {
   final List<int> ages;
+  final String touristType;
   final String travelType;
   final int groupSize;
   final DateTime departureDate;
@@ -21,6 +22,7 @@ class BudgetScreen extends StatefulWidget {
 
   const BudgetScreen({
     super.key,
+    required this.touristType,
     required this.ages,
     required this.travelType,
     required this.groupSize,
@@ -79,7 +81,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       step: 4,
                       totalSteps: 4,
                       title: 'What is your travel budget?',
-                      subtitle: 'Enter the total amount you are comfortable '
+                      subtitle:
+                          'Enter the total amount you are comfortable '
                           'spending on this trip.',
                     ),
                     const SizedBox(height: AppSpacing.xxl),
@@ -139,8 +142,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         errorText: budgetController.text.trim().isEmpty
                             ? null
                             : (isValidBudget
-                                ? null
-                                : 'Enter a valid budget amount'),
+                                  ? null
+                                  : 'Enter a valid budget amount'),
                       ),
                       onChanged: (_) {
                         setState(() {});
@@ -154,6 +157,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         children: [
                           Text('Trip Profile', style: textTheme.titleMedium),
                           const SizedBox(height: AppSpacing.md),
+                          _ProfileRow(
+                            label: 'Tourist type',
+                            value: widget.touristType,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
                           _ProfileRow(
                             label: widget.travelType == 'Solo'
                                 ? 'Age'
@@ -188,10 +196,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 color: Theme.of(context).colorScheme.surface,
                 border: Border(
                   top: BorderSide(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outlineVariant
-                        .withValues(alpha: 0.6),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.6),
                   ),
                 ),
               ),
@@ -205,9 +212,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => SeasonAnalysisScreen(
+                                touristType: widget.touristType,
                                 destination: widget.package!.region,
                                 departureDate: widget.departureDate,
-                                returnDate: widget.returnDate, 
+                                returnDate: widget.returnDate,
                                 currency: selectedCurrency,
                                 budget: enteredBudget,
                                 ages: widget.ages,
@@ -221,6 +229,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => DestinationScreen(
+                                touristType: widget.touristType,
                                 currency: selectedCurrency,
                                 budget: enteredBudget,
                                 ages: widget.ages,
@@ -254,10 +263,7 @@ class _ProfileRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
         ),
         Flexible(
           child: Text(

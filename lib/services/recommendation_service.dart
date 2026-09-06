@@ -192,6 +192,7 @@ class RecommendationService {
   // ============================================================
 
   static RecommendationResult generate({
+    required String touristType,
     required String destination,
     required String season,
     required String suitability,
@@ -240,21 +241,6 @@ class RecommendationService {
     // ==========================================================
     // 4. ACTUAL ROUTE DURATION
     // ==========================================================
-    //
-    // This is the important distinction:
-    //
-    // duration     = user's selected calendar duration
-    // minimumDays  = actual route/recommended journey duration
-    //
-    // Example:
-    //
-    // User selects: 26 days
-    // Actual route: 5 days
-    //
-    // minimumDays = 5
-    // remainingDays = 26 - 5 = 21
-    //
-    // ==========================================================
 
     final int minimumDays = travelDays + visitDays + returnDays;
 
@@ -265,23 +251,6 @@ class RecommendationService {
     // ==========================================================
     // 5. DAY-BY-DAY PLAN
     // ==========================================================
-    //
-    // VERY IMPORTANT:
-    //
-    // The Day-by-Day Plan uses minimumDays.
-    //
-    // It DOES NOT use the user's selected duration.
-    //
-    // Example:
-    //
-    // Selected dates = 26 days
-    // Actual route = 5 days
-    //
-    // Day-by-Day Plan = Day 1 -> Day 5
-    //
-    // The remaining 21 days are handled separately.
-    //
-    // ==========================================================
 
     final List<DayPlan> dayPlans = _generateDayPlans(
       route: route,
@@ -289,8 +258,6 @@ class RecommendationService {
       visitDays: visitDays,
       returnDays: returnDays,
       ages: ages,
-
-      // Use actual route duration.
       actualJourneyDays: minimumDays,
     );
 
@@ -330,6 +297,7 @@ class RecommendationService {
     // ==========================================================
 
     final int overallScore = _calculateOverallScore(
+      touristType: touristType,
       season: season,
       suitability: suitability,
       ages: ages,
@@ -341,6 +309,7 @@ class RecommendationService {
     final String overallSuitability = _getOverallSuitability(overallScore);
 
     final List<String> suitabilityFactors = _buildSuitabilityFactors(
+      touristType: touristType,
       season: season,
       suitability: suitability,
       ages: ages,
@@ -351,11 +320,6 @@ class RecommendationService {
 
     // ==========================================================
     // 10. BUDGET
-    // ==========================================================
-    //
-    // Budget is based on the actual recommended journey,
-    // not the user's unused extra calendar days.
-    //
     // ==========================================================
 
     final bool budgetIsLow = _isBudgetLow(
@@ -401,18 +365,6 @@ class RecommendationService {
     // ==========================================================
     // 12. REMAINING DAYS
     // ==========================================================
-    //
-    // Extra days are calculated against the ACTUAL minimum
-    // journey duration.
-    //
-    // Example:
-    //
-    // Selected duration = 26
-    // Actual journey = 5
-    //
-    // Remaining = 21
-    //
-    // ==========================================================
 
     final int remainingDays = duration > minimumDays
         ? duration - minimumDays
@@ -434,6 +386,7 @@ class RecommendationService {
     // ==========================================================
 
     final List<String> reasons = _buildReasons(
+      touristType: touristType,
       destination: route.destination,
       route: route,
       minimumDays: minimumDays,
@@ -740,16 +693,6 @@ class RecommendationService {
     // ============================================================
     // ONE WAY / ROUND TRIP
     // ============================================================
-    //
-    // ONE WAY:
-    //   Outbound route only.
-    //
-    // ROUND TRIP:
-    //   Outbound route + return segments.
-    //
-    // Neither case is expanded to the user's full calendar
-    // duration.
-    // ============================================================
 
     final List<RouteSegment> effectiveOutbound =
         outbound.length > actualJourneyDays
@@ -839,10 +782,6 @@ class RecommendationService {
     // ============================================================
     // ADD RETURN JOURNEY
     // ============================================================
-    //
-    // ONLY for Round Trip.
-    // One Way never creates a return journey.
-    // ============================================================
 
     if (route.isRoundTrip) {
       for (
@@ -871,12 +810,6 @@ class RecommendationService {
 
     // ============================================================
     // SAFETY CHECK
-    // ============================================================
-    //
-    // The Day-by-Day Plan must NEVER contain more days
-    // than the actual route duration.
-    //
-    // It must NOT use the user's 26-day calendar duration.
     // ============================================================
 
     if (plans.length > actualJourneyDays) {
@@ -1147,6 +1080,7 @@ class RecommendationService {
   // ============================================================
 
   static int _calculateOverallScore({
+    required String touristType,
     required String season,
     required String suitability,
     required List<int> ages,
@@ -1244,6 +1178,22 @@ class RecommendationService {
       score += 1;
     }
 
+    // ----------------------------------------------------------
+    // TOURIST TYPE
+    // ----------------------------------------------------------
+
+    final String touristTypeLower = touristType.toLowerCase();
+
+    if (touristTypeLower.contains('international')) {
+      // International travellers may need additional attention
+      // to local transportation and acclimatization.
+      score += 1;
+    } else if (touristTypeLower.contains('domestic')) {
+      // Domestic travellers are travelling within Nepal and
+      // may already be familiar with local travel conditions.
+      score += 2;
+    }
+
     return score.clamp(0, 100);
   }
 
@@ -1276,6 +1226,7 @@ class RecommendationService {
   // ============================================================
 
   static List<String> _buildSuitabilityFactors({
+    required String touristType,
     required String season,
     required String suitability,
     required List<int> ages,
@@ -1284,6 +1235,22 @@ class RecommendationService {
     required String destination,
   }) {
     final List<String> factors = [];
+
+    // ----------------------------------------------------------
+    // TOURIST TYPE
+    // ----------------------------------------------------------
+
+    final String touristTypeLower = touristType.toLowerCase();
+
+    if (touristTypeLower.contains('international')) {
+      factors.add(
+        'The recommendation considers that international travellers may need additional attention to local transportation, acclimatization and travel conditions in Nepal.',
+      );
+    } else if (touristTypeLower.contains('domestic')) {
+      factors.add(
+        'The recommendation considers that domestic travellers are travelling within Nepal and may already be familiar with local travel conditions.',
+      );
+    }
 
     factors.add(
       'Travel suitability is based on the selected season and destination.',
@@ -1484,6 +1451,7 @@ class RecommendationService {
   // ============================================================
 
   static List<String> _buildReasons({
+    required String touristType,
     required String destination,
     required TravelRoute route,
     required int minimumDays,
@@ -1492,6 +1460,22 @@ class RecommendationService {
     required String travelType,
   }) {
     final List<String> reasons = [];
+
+    // ----------------------------------------------------------
+    // TOURIST TYPE
+    // ----------------------------------------------------------
+
+    final String touristTypeLower = touristType.toLowerCase();
+
+    if (touristTypeLower.contains('international')) {
+      reasons.add(
+        'The recommendation considers the needs of international travellers visiting Nepal, including local travel conditions and acclimatization.',
+      );
+    } else if (touristTypeLower.contains('domestic')) {
+      reasons.add(
+        'The recommendation considers that domestic travellers are travelling within Nepal and may have greater familiarity with local travel conditions.',
+      );
+    }
 
     reasons.add(
       'The recommended duration is calculated from your actual travel route.',
@@ -1542,6 +1526,7 @@ class RecommendationService {
 
   static String getRecommendedTime({required TravelRoute route}) {
     return generate(
+      touristType: 'Domestic Tourist',
       destination: route.destination,
       season: '',
       suitability: '',
@@ -1557,6 +1542,7 @@ class RecommendationService {
 
   static List<DayPlan> getDayPlans({required TravelRoute route}) {
     return generate(
+      touristType: 'Domestic Tourist',
       destination: route.destination,
       season: '',
       suitability: '',

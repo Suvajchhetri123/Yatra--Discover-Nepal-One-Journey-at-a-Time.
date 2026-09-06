@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import '../home/home_screen.dart';
 import 'phone_auth_screen.dart';
 import 'signup_screen.dart';
+import 'tourist_type_setup_screen.dart';
 
 /// Yatra Login screen.
 ///
 /// Uses the central design system. Email/password authentication is routed
-/// through [AuthService]; social sign-in is available in the UI but will not
-/// truly authenticate until Firebase is connected.
+/// through [AuthService]. After successful login, the user's tourist type
+/// is checked from Firestore before deciding where to navigate.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -22,6 +24,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final AuthService _auth = const AuthService();
+  final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -39,19 +42,75 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? get _emailError {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return 'Email is required';
-    final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+    if (email.isEmpty) {
+      return 'Email is required';
+    }
+
+    final valid =
+        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
     return valid ? null : 'Enter a valid email address';
   }
 
   String? get _passwordError {
     final password = _passwordController.text;
-    if (password.isEmpty) return 'Password is required';
-    if (password.length < 6) return 'Password must be at least 6 characters';
+
+    if (password.isEmpty) {
+      return 'Password is required';
+    }
+
+    if (password.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+
     return null;
   }
 
   bool get _isValid => _emailError == null && _passwordError == null;
+
+  /// Decides where the user should go after successful authentication.
+  ///
+  /// If the user has already selected a tourist type, go directly to Home.
+  /// If the tourist type is missing, show the tourist type setup screen.
+  Future<void> _goAfterLogin() async {
+    try {
+      final profile = await _firestoreService.getCurrentUserProfile();
+
+      if (!mounted) return;
+
+      final touristType = profile?['touristType'] as String?;
+
+      if (touristType == null || touristType.trim().isEmpty) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const TouristTypeSetupScreen(),
+          ),
+        );
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error loading user profile: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Login successful, but your profile could not be loaded.',
+          ),
+        ),
+      );
+    }
+  }
 
   Future<void> _login() async {
     setState(() => _showErrors = true);
@@ -68,13 +127,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+      await _goAfterLogin();
     } on FirebaseAuthException catch (e) {
       debugPrint('Firebase Auth Error Code: ${e.code}');
-      debugPrint('Firebase Auth Error Message: $e{e.message}');
+      debugPrint('Firebase Auth Error Message: ${e.message}');
+
       if (!mounted) return;
 
       String message;
@@ -101,7 +158,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -109,9 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Handles a social sign-in attempt. Until Firebase is configured the
-  /// service throws [UnsupportedError], which we surface as a friendly
-  /// "configured soon" message rather than pretending login succeeded.
+  /// Handles a social sign-in attempt.
   Future<void> _socialLogin(Future<void> Function() action) async {
     if (_socialSubmitting) return;
 
@@ -121,26 +178,34 @@ class _LoginScreenState extends State<LoginScreen> {
       await action();
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+
+      await _goAfterLogin();
     } on UnsupportedError {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Social login will be configured soon.')),
+        const SnackBar(
+          content: Text(
+            'Social login will be configured soon.',
+          ),
+        ),
       );
     } finally {
-      if (mounted) setState(() => _socialSubmitting = false);
+      if (mounted) {
+        setState(() => _socialSubmitting = false);
+      }
     }
   }
 
   /// Opens the phone-number + OTP sign-in flow.
   void _openPhoneAuth() {
     if (_submitting || _socialSubmitting) return;
+
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const PhoneAuthScreen()),
+      MaterialPageRoute(
+        builder: (context) => const PhoneAuthScreen(),
+      ),
     );
   }
 
@@ -163,18 +228,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _BrandLogo(scheme: scheme),
+
                   const SizedBox(height: AppSpacing.lg),
+
                   Text(
                     'Welcome back',
                     textAlign: TextAlign.center,
                     style: textTheme.headlineMedium,
                   ),
+
                   const SizedBox(height: AppSpacing.sm),
+
                   Text(
                     'Sign in to continue planning your journey.',
                     textAlign: TextAlign.center,
                     style: textTheme.bodyLarge,
                   ),
+
                   const SizedBox(height: AppSpacing.xxl),
 
                   TextField(
@@ -190,6 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
+
                   const SizedBox(height: AppSpacing.lg),
 
                   TextField(
@@ -223,17 +294,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text('Forgot password?'),
                     ),
                   ),
+
                   const SizedBox(height: AppSpacing.sm),
 
                   YatraPrimaryButton(
-                    label: 'Login',
+                    label: _submitting ? 'Logging in...' : 'Login',
                     icon: Icons.login,
-                    onPressed: _submitting || _socialSubmitting ? null : _login,
+                    onPressed: _submitting || _socialSubmitting
+                        ? null
+                        : _login,
                   ),
 
                   const SizedBox(height: AppSpacing.xl),
 
-                  const YatraDivider(label: 'or continue with'),
+                  const YatraDivider(
+                    label: 'or continue with',
+                  ),
 
                   const SizedBox(height: AppSpacing.xl),
 
@@ -242,7 +318,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: 'Continue with Google',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () => _socialLogin(_auth.signInWithGoogle),
+                    onPressed: () =>
+                        _socialLogin(_auth.signInWithGoogle),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -252,7 +329,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: 'Continue with Facebook',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () => _socialLogin(_auth.signInWithFacebook),
+                    onPressed: () =>
+                        _socialLogin(_auth.signInWithFacebook),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -262,7 +340,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: 'Continue with Apple',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () => _socialLogin(_auth.signInWithApple),
+                    onPressed: () =>
+                        _socialLogin(_auth.signInWithApple),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -291,7 +370,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const SignupScreen(),
+                                    builder: (context) =>
+                                        const SignupScreen(),
                                   ),
                                 );
                               },
@@ -311,7 +391,9 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showForgotPassword(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Password reset is not set up yet. Try again soon!'),
+        content: Text(
+          'Password reset is not set up yet. Try again soon!',
+        ),
       ),
     );
   }
@@ -321,7 +403,9 @@ class _LoginScreenState extends State<LoginScreen> {
 class _BrandLogo extends StatelessWidget {
   final ColorScheme scheme;
 
-  const _BrandLogo({required this.scheme});
+  const _BrandLogo({
+    required this.scheme,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +425,11 @@ class _BrandLogo extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.xl),
             ),
             alignment: Alignment.center,
-            child: Icon(Icons.explore, size: 48, color: scheme.primary),
+            child: Icon(
+              Icons.explore,
+              size: 48,
+              color: scheme.primary,
+            ),
           );
         },
       ),

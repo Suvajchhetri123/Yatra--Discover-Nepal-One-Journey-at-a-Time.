@@ -10,12 +10,14 @@ import '../age/age_screen.dart';
 /// Redesigned on the central Yatra design system. All travel-type selection,
 /// group-size counters and their limits are unchanged.
 class TravelGroupScreen extends StatefulWidget {
+  final String touristType;
   final DateTime departureDate;
   final DateTime returnDate;
   final TourPackage? package;
 
   const TravelGroupScreen({
     super.key,
+    required this.touristType,
     required this.departureDate,
     required this.returnDate,
     this.package,
@@ -53,6 +55,7 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => AgeScreen(
+          touristType: widget.touristType,
           travelType: selectedTravelType!,
           adultCount: adultCount,
           childCount: childCount,
@@ -96,10 +99,7 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
                         children: [
                           Text('Solo', style: AppType.bodyEmphasis),
                           SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'I am travelling alone',
-                            style: AppType.body,
-                          ),
+                          Text('I am travelling alone', style: AppType.body),
                         ],
                       ),
                     ),
@@ -165,17 +165,17 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
                 color: Theme.of(context).colorScheme.surface,
                 border: Border(
                   top: BorderSide(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outlineVariant
-                        .withValues(alpha: 0.6),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.6),
                   ),
                 ),
               ),
               child: YatraPrimaryButton(
                 label: 'Continue',
-                onPressed:
-                    selectedTravelType == null ? null : continueToAgeScreen,
+                onPressed: selectedTravelType == null
+                    ? null
+                    : continueToAgeScreen,
               ),
             ),
           ],

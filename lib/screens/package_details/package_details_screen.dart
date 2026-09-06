@@ -98,7 +98,7 @@ class PackageDetailsScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TravelDatesScreen(package: package),
+                  builder: (context) => TravelDatesScreen(package: package, touristType: 'Domestic Tourist',),
                 ),
               );
             },

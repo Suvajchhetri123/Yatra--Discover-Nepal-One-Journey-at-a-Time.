@@ -171,6 +171,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: BoardingScreen(
+          touristType: 'Domestic Tourist',
           destination: destination,
           departureDate: DateTime(2026, 9, 1),
           returnDate: DateTime(2026, 9, 10),

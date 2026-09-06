@@ -12,6 +12,7 @@ import '../boarding/boarding_screen.dart';
 /// Redesigned on the central Yatra design system. All season calculation,
 /// suitability result, constructor parameters and navigation are unchanged.
 class SeasonAnalysisScreen extends StatelessWidget {
+  final String touristType;
   final String destination;
   final DateTime departureDate;
   final DateTime returnDate;
@@ -28,6 +29,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
 
   const SeasonAnalysisScreen({
     super.key,
+    required this.touristType,
     required this.destination,
     required this.departureDate,
     required this.returnDate,
@@ -43,8 +45,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  int get _tripDuration =>
-      returnDate.difference(departureDate).inDays + 1;
+  int get _tripDuration => returnDate.difference(departureDate).inDays + 1;
 
   /// Reuses an existing package image for this destination region, if any.
   /// Returns null when no reference image exists (hero falls back to a
@@ -108,10 +109,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Your Trip Overview',
-                      style: textTheme.headlineMedium,
-                    ),
+                    Text('Your Trip Overview', style: textTheme.headlineMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Yatra has prepared your trip based on your '
@@ -139,6 +137,10 @@ class SeasonAnalysisScreen extends StatelessWidget {
                             value: destination,
                             emphasized: true,
                           ),
+                          YatraInfoRow(
+                            label: 'Tourist type',
+                            value: touristType,
+                          ),
                           if (selectedTransport != null &&
                               selectedTransport!.isNotEmpty)
                             YatraInfoRow(
@@ -154,21 +156,16 @@ class SeasonAnalysisScreen extends StatelessWidget {
                           ),
                           YatraInfoRow(
                             label: 'Trip duration',
-                            value: '$_tripDuration '
+                            value:
+                                '$_tripDuration '
                                 '${_tripDuration == 1 ? 'day' : 'days'}',
                           ),
-                          YatraInfoRow(
-                            label: 'Travel type',
-                            value: travelType,
-                          ),
+                          YatraInfoRow(label: 'Travel type', value: travelType),
                           YatraInfoRow(
                             label: 'Travellers',
                             value: '$groupSize',
                           ),
-                          YatraInfoRow(
-                            label: 'Ages',
-                            value: _ageText,
-                          ),
+                          YatraInfoRow(label: 'Ages', value: _ageText),
                           YatraInfoRow(
                             label: 'Budget',
                             value: '$currency ${_formatAmount(budget)}',
@@ -226,6 +223,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => BoardingScreen(
+                        touristType: touristType,
                         destination: destination,
                         selectedTransport: selectedTransport,
                         departureDate: departureDate,
@@ -402,17 +400,11 @@ class _SeasonCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${result.season} Season',
-                  style: textTheme.titleMedium,
-                ),
+                Text('${result.season} Season', style: textTheme.titleMedium),
                 const SizedBox(height: 2),
                 Text(
                   result.suitability,
-                  style: AppType.label.copyWith(
-                    fontSize: 20,
-                    color: color,
-                  ),
+                  style: AppType.label.copyWith(fontSize: 20, color: color),
                 ),
               ],
             ),
@@ -562,7 +554,8 @@ class _TripProfileGrid extends StatelessWidget {
             ),
             _ProfileTile(
               icon: Icons.groups,
-              value: '$groupSize '
+              value:
+                  '$groupSize '
                   '${groupSize == 1 ? 'traveller' : 'travellers'}',
               label: 'Travelers',
             ),

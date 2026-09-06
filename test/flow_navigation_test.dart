@@ -14,6 +14,7 @@ void main() {
       MaterialApp(
         theme: AppTheme.light,
         home: DestinationScreen(
+          touristType: 'Domestic Tourist',
           currency: 'NPR',
           budget: 1000,
           ages: const [30],

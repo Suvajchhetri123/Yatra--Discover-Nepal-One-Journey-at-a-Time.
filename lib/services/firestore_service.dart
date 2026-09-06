@@ -17,6 +17,7 @@ class FirestoreService {
   Future<void> createOrUpdateUserProfile({
     required String name,
     String? phone,
+    String? touristType,
   }) async {
     final user = _auth.currentUser;
 
@@ -34,6 +35,10 @@ class FirestoreService {
 
     if (phone != null && phone.trim().isNotEmpty) {
       data['phone'] = phone.trim();
+    }
+
+    if (touristType != null && touristType.trim().isNotEmpty) {
+      data['touristType'] = touristType.trim();
     }
 
     final existing = await userRef.get();

@@ -12,7 +12,7 @@ import 'login_screen.dart';
 ///
 /// Uses the central design system. Email/password account creation is routed
 /// through [AuthService]; social sign-up is available in the UI but will not
-/// truly authenticate until Firebase is connected.
+/// truly authenticate until Firebase/provider configuration is completed.
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -23,6 +23,7 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final AuthService _auth = const AuthService();
   final FirestoreService _firestore = FirestoreService();
+
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -45,30 +46,54 @@ class _SignupScreenState extends State<SignupScreen> {
 
   String? get _nameError {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return 'Full name is required';
-    if (name.length < 2) return 'Enter your full name';
+
+    if (name.isEmpty) {
+      return 'Full name is required';
+    }
+
+    if (name.length < 2) {
+      return 'Enter your full name';
+    }
+
     return null;
   }
 
   String? get _emailError {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return 'Email is required';
-    final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+    if (email.isEmpty) {
+      return 'Email is required';
+    }
+
+    final valid =
+        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
     return valid ? null : 'Enter a valid email address';
   }
 
   String? get _passwordError {
     final password = _passwordController.text;
-    if (password.isEmpty) return 'Password is required';
-    if (password.length < 6) return 'Password must be at least 6 characters';
+
+    if (password.isEmpty) {
+      return 'Password is required';
+    }
+
+    if (password.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+
     return null;
   }
 
   String? get _confirmError {
-    if (_confirmController.text.isEmpty) return 'Confirm your password';
+    if (_confirmController.text.isEmpty) {
+      return 'Confirm your password';
+    }
+
     if (_confirmController.text != _passwordController.text) {
       return 'Passwords do not match';
     }
+
     return null;
   }
 
@@ -80,29 +105,76 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> _createAccount() async {
     setState(() => _showErrors = true);
-    if (!_isValid || _submitting) return;
+
+    if (!_isValid || _submitting) {
+      return;
+    }
 
     setState(() => _submitting = true);
 
     try {
+      // ------------------------------------------------------------
+      // STEP 1: Create the Firebase Authentication account.
+      // ------------------------------------------------------------
       await _auth.signUpWithEmail(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      await _firestore.createOrUpdateUserProfile(
-        name: _nameController.text.trim(),
+      // ------------------------------------------------------------
+      // STEP 2: Create the user's Firestore profile.
+      //
+      // Authentication has already succeeded. Therefore, if Firestore
+      // has a temporary problem, we do not want to tell the user that
+      // account creation failed.
+      // ------------------------------------------------------------
+      try {
+        await _firestore.createOrUpdateUserProfile(
+          name: _nameController.text.trim(),
+        );
+
+        debugPrint('Firestore user profile created successfully.');
+      } catch (e) {
+        debugPrint('Firestore profile creation failed: $e');
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      // ------------------------------------------------------------
+      // STEP 3: Show success message.
+      // ------------------------------------------------------------
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Account created successfully. Redirecting you to login...',
+          ),
+          duration: Duration(seconds: 2),
+        ),
       );
 
-      if (!mounted) return;
+      // Give the user time to see the success message.
+      await Future.delayed(const Duration(seconds: 2));
 
+      if (!mounted) {
+        return;
+      }
+
+      // ------------------------------------------------------------
+      // STEP 4: Go to Login.
+      // ------------------------------------------------------------
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        MaterialPageRoute(
+          builder: (context) => const LoginScreen(),
+        ),
       );
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       String message;
 
@@ -110,51 +182,93 @@ class _SignupScreenState extends State<SignupScreen> {
         case 'email-already-in-use':
           message = 'An account already exists with this email.';
           break;
+
         case 'invalid-email':
           message = 'The email address is invalid.';
           break;
+
         case 'weak-password':
           message = 'The password is too weak.';
           break;
+
+        case 'operation-not-allowed':
+          message = 'Email/password sign-up is not enabled in Firebase.';
+          break;
+
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
+          break;
+
         default:
           message = e.message ?? 'Unable to create account.';
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      debugPrint('Unexpected signup error: $e');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to create account. Please try again.',
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
       }
     }
-    // Route through the auth service. For now the service is a mock that
-    // resolves successfully, matching the previous behaviour.
   }
 
-  /// Handles a social sign-up attempt. Until Firebase is configured the
-  /// service throws [UnsupportedError], which we surface as a friendly
-  /// "configured soon" message.
+  /// Handles a social sign-up attempt.
+  ///
+  /// Until Firebase social providers are configured, the service throws
+  /// [UnsupportedError], which is shown as a friendly message.
   Future<void> _socialLogin(Future<void> Function() action) async {
-    if (_socialSubmitting) return;
+    if (_socialSubmitting) {
+      return;
+    }
 
     setState(() => _socialSubmitting = true);
 
     try {
       await action();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ),
       );
     } on UnsupportedError {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Social login will be configured soon.')),
+        const SnackBar(
+          content: Text(
+            'Social login will be configured soon.',
+          ),
+        ),
       );
     } finally {
-      if (mounted) setState(() => _socialSubmitting = false);
+      if (mounted) {
+        setState(() => _socialSubmitting = false);
+      }
     }
   }
 
@@ -172,23 +286,30 @@ class _SignupScreenState extends State<SignupScreen> {
               vertical: AppSpacing.xxl,
             ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: const BoxConstraints(
+                maxWidth: 420,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _BrandLogo(scheme: scheme),
+
                   const SizedBox(height: AppSpacing.lg),
+
                   Text(
                     'Create your account',
                     textAlign: TextAlign.center,
                     style: textTheme.headlineMedium,
                   ),
+
                   const SizedBox(height: AppSpacing.sm),
+
                   Text(
                     'Join Yatra and start planning your journey.',
                     textAlign: TextAlign.center,
                     style: textTheme.bodyLarge,
                   ),
+
                   const SizedBox(height: AppSpacing.xxl),
 
                   TextField(
@@ -198,11 +319,14 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Full name',
                       hintText: 'Your full name',
-                      prefixIcon: const Icon(Icons.person_outline),
+                      prefixIcon: const Icon(
+                        Icons.person_outline,
+                      ),
                       errorText: _showErrors ? _nameError : null,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
+
                   const SizedBox(height: AppSpacing.lg),
 
                   TextField(
@@ -213,11 +337,14 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Email',
                       hintText: 'you@example.com',
-                      prefixIcon: const Icon(Icons.mail_outline),
+                      prefixIcon: const Icon(
+                        Icons.mail_outline,
+                      ),
                       errorText: _showErrors ? _emailError : null,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
+
                   const SizedBox(height: AppSpacing.lg),
 
                   TextField(
@@ -227,7 +354,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Password',
                       hintText: 'At least 6 characters',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(
+                        Icons.lock_outline,
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -235,13 +364,16 @@ class _SignupScreenState extends State<SignupScreen> {
                               : Icons.visibility_off_outlined,
                         ),
                         onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
+                          () => _obscurePassword =
+                              !_obscurePassword,
                         ),
                       ),
-                      errorText: _showErrors ? _passwordError : null,
+                      errorText:
+                          _showErrors ? _passwordError : null,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
+
                   const SizedBox(height: AppSpacing.lg),
 
                   TextField(
@@ -252,33 +384,44 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Confirm password',
                       hintText: 'Re-enter your password',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(
+                        Icons.lock_outline,
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirm
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
                         ),
-                        onPressed: () =>
-                            setState(() => _obscureConfirm = !_obscureConfirm),
+                        onPressed: () => setState(
+                          () => _obscureConfirm =
+                              !_obscureConfirm,
+                        ),
                       ),
-                      errorText: _showErrors ? _confirmError : null,
+                      errorText:
+                          _showErrors ? _confirmError : null,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
+
                   const SizedBox(height: AppSpacing.xxl),
 
                   YatraPrimaryButton(
-                    label: 'Create Account',
+                    label: _submitting
+                        ? 'Creating Account...'
+                        : 'Create Account',
                     icon: Icons.person_add_alt,
-                    onPressed: _submitting || _socialSubmitting
-                        ? null
-                        : _createAccount,
+                    onPressed:
+                        _submitting || _socialSubmitting
+                            ? null
+                            : _createAccount,
                   ),
 
                   const SizedBox(height: AppSpacing.xl),
 
-                  const YatraDivider(label: 'or continue with'),
+                  const YatraDivider(
+                    label: 'or continue with',
+                  ),
 
                   const SizedBox(height: AppSpacing.xl),
 
@@ -287,7 +430,10 @@ class _SignupScreenState extends State<SignupScreen> {
                     label: 'Continue with Google',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () => _socialLogin(_auth.signInWithGoogle),
+                    onPressed: () =>
+                        _socialLogin(
+                      _auth.signInWithGoogle,
+                    ),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -297,7 +443,10 @@ class _SignupScreenState extends State<SignupScreen> {
                     label: 'Continue with Facebook',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () => _socialLogin(_auth.signInWithFacebook),
+                    onPressed: () =>
+                        _socialLogin(
+                      _auth.signInWithFacebook,
+                    ),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -307,29 +456,35 @@ class _SignupScreenState extends State<SignupScreen> {
                     label: 'Continue with Apple',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () => _socialLogin(_auth.signInWithApple),
+                    onPressed: () =>
+                        _socialLogin(
+                      _auth.signInWithApple,
+                    ),
                   ),
 
                   const SizedBox(height: AppSpacing.xxl),
 
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Already have an account?",
+                        'Already have an account?',
                         style: textTheme.bodyMedium,
                       ),
                       TextButton(
-                        onPressed: _submitting || _socialSubmitting
-                            ? null
-                            : () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
-                                  ),
-                                );
-                              },
+                        onPressed:
+                            _submitting || _socialSubmitting
+                                ? null
+                                : () {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginScreen(),
+                                      ),
+                                    );
+                                  },
                         child: const Text('Log in'),
                       ),
                     ],
@@ -348,27 +503,41 @@ class _SignupScreenState extends State<SignupScreen> {
 class _BrandLogo extends StatelessWidget {
   final ColorScheme scheme;
 
-  const _BrandLogo({required this.scheme});
+  const _BrandLogo({
+    required this.scheme,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.xl),
+      borderRadius: BorderRadius.circular(
+        AppRadius.xl,
+      ),
       child: Image.asset(
         'assets/images/yatra_logo.jpeg',
         width: 96,
         height: 96,
         fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
+        errorBuilder: (
+          context,
+          error,
+          stackTrace,
+        ) {
           return Container(
             width: 96,
             height: 96,
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(AppRadius.xl),
+              borderRadius: BorderRadius.circular(
+                AppRadius.xl,
+              ),
             ),
             alignment: Alignment.center,
-            child: Icon(Icons.explore, size: 48, color: scheme.primary),
+            child: Icon(
+              Icons.explore,
+              size: 48,
+              color: scheme.primary,
+            ),
           );
         },
       ),

@@ -10,6 +10,7 @@ import '../budget/budget_screen.dart';
 /// Redesigned on the central Yatra design system. All age values, validation
 /// and age categories are unchanged.
 class AgeScreen extends StatefulWidget {
+  final String touristType;
   final String travelType;
   final int adultCount;
   final int childCount;
@@ -19,6 +20,7 @@ class AgeScreen extends StatefulWidget {
 
   const AgeScreen({
     super.key,
+    required this.touristType,
     required this.travelType,
     required this.adultCount,
     required this.childCount,
@@ -90,6 +92,7 @@ class _AgeScreenState extends State<AgeScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => BudgetScreen(
+          touristType: widget.touristType,
           ages: ages,
           travelType: widget.travelType,
           groupSize: widget.adultCount + widget.childCount,
