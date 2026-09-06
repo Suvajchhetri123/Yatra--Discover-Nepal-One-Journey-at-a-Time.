@@ -31,6 +31,37 @@ class RouteTransport {
 }
 
 // ============================================================
+// LOCAL EXPLORATION OPTIONS
+// ============================================================
+
+const TransportationOption kathmanduLocalOption = TransportationOption(
+  name: 'Visit Kathmandu Locally',
+  icon: Icons.location_city,
+  description:
+      'Explore Kathmandu and nearby attractions without travelling outside the city',
+  details:
+      'Visit Kathmandu Durbar Square, Swayambhunath, Pashupatinath, Boudhanath and other local attractions',
+);
+
+const TransportationOption pokharaLocalOption = TransportationOption(
+  name: 'Visit Pokhara Locally',
+  icon: Icons.explore_outlined,
+  description:
+      'Explore Pokhara and nearby attractions without travelling to another city',
+  details:
+      'Visit Phewa Lake, Davis Falls, World Peace Pagoda, Sarangkot and other local attractions',
+);
+
+const TransportationOption chitwanLocalOption = TransportationOption(
+  name: 'Visit Chitwan Locally',
+  icon: Icons.explore_outlined,
+  description:
+      'Explore Chitwan and nearby attractions without travelling to another city',
+  details:
+      'Explore Chitwan National Park, Sauraha, Rapti River, Tharu culture and other local attractions',
+);
+
+// ============================================================
 // DESTINATION-BASED TRANSPORTATION
 // ============================================================
 
@@ -45,31 +76,36 @@ const List<DestinationTransport> destinationTransports = [
         name: 'Flight',
         icon: Icons.flight,
         description: 'Flight to Lukla is the usual starting option',
-        details: 'Available for the Everest trekking route',
+        details:
+            'Fly to Lukla, then continue the Everest journey by trekking',
       ),
       TransportationOption(
         name: 'Jeep',
         icon: Icons.directions_car_filled,
-        description: 'Useful for road sections of the journey',
-        details: 'Available on selected routes toward the Everest region',
+        description: 'Useful for reaching road-accessible trailheads',
+        details:
+            'Travel toward Salleri/Jiri, then continue the journey by trekking',
       ),
       TransportationOption(
         name: 'Bus',
         icon: Icons.directions_bus,
         description: 'Available for road sections',
-        details: 'Usually combined with other transportation',
+        details:
+            'Travel toward Salleri/Jiri, then continue the journey by trekking',
       ),
       TransportationOption(
         name: 'Motorbike',
         icon: Icons.two_wheeler,
         description: 'Possible on accessible road sections',
-        details: 'Not suitable for the trekking sections',
+        details:
+            'Ride toward Salleri/Jiri, then continue the journey by trekking',
       ),
       TransportationOption(
         name: 'Private Vehicle',
         icon: Icons.directions_car,
         description: 'Available for accessible road sections',
-        details: 'Does not replace the trekking portion',
+        details:
+            'Travel toward Salleri/Jiri, then continue the journey by trekking',
       ),
     ],
   ),
@@ -135,7 +171,7 @@ const List<DestinationTransport> destinationTransports = [
         name: 'Private Vehicle',
         icon: Icons.directions_car,
         description: 'Comfortable for road sections',
-        details: 'Suitable for families and groups',
+        details: 'Suitable for reaching trekking starting points',
       ),
       TransportationOption(
         name: 'Motorbike',
@@ -152,6 +188,7 @@ const List<DestinationTransport> destinationTransports = [
   DestinationTransport(
     destination: 'Pokhara',
     options: [
+      pokharaLocalOption,
       TransportationOption(
         name: 'Bus',
         icon: Icons.directions_bus,
@@ -185,6 +222,7 @@ const List<DestinationTransport> destinationTransports = [
   DestinationTransport(
     destination: 'Chitwan',
     options: [
+      chitwanLocalOption,
       TransportationOption(
         name: 'Bus',
         icon: Icons.directions_bus,
@@ -218,12 +256,7 @@ const List<DestinationTransport> destinationTransports = [
   DestinationTransport(
     destination: 'Kathmandu',
     options: [
-      TransportationOption(
-        name: 'Kathmandu',
-        icon: Icons.location_city,
-        description: 'You are already in Kathmandu — explore the city and nearby local spots',
-        details: 'Local exploration around the Kathmandu Valley',
-      ),
+      kathmanduLocalOption,
       TransportationOption(
         name: 'Bus',
         icon: Icons.directions_bus,
@@ -281,6 +314,40 @@ TransportationOption? transportOptionForDestination(
   }
 
   return null;
+}
+
+// ============================================================
+// LOCAL EXPLORATION DETECTION
+// ============================================================
+
+bool isLocalExplorationOption(
+  String destination,
+  String? selectedTransport,
+) {
+  if (selectedTransport == null) {
+    return false;
+  }
+
+  final destinationName = _normalize(destination);
+  final transportName = _normalize(selectedTransport);
+
+  if (destinationName == 'kathmandu') {
+    return transportName == 'visit kathmandu locally' ||
+        transportName == 'visit local places' ||
+        transportName == 'kathmandu';
+  }
+
+  if (destinationName == 'pokhara') {
+    return transportName == 'visit pokhara locally' ||
+        transportName == 'visit local places';
+  }
+
+  if (destinationName == 'chitwan') {
+    return transportName == 'visit chitwan locally' ||
+        transportName == 'visit local places';
+  }
+
+  return false;
 }
 
 // ============================================================
@@ -348,10 +415,6 @@ List<TransportationOption> _roadOnly() => const [
       _motorbikeOption,
     ];
 
-/// Access to Jomsom.
-///
-/// Motorbike is allowed because the road journey can be travelled by
-/// experienced riders.
 List<TransportationOption> _jomsomOptions() => const [
       _flightOption,
       _busOption,
@@ -360,19 +423,11 @@ List<TransportationOption> _jomsomOptions() => const [
       _motorbikeOption,
     ];
 
-/// Mustang road network.
-///
-/// Motorbike is intentionally INCLUDED here.
-/// This allows:
-/// Jomsom -> Mustang
-/// Marpha -> Mustang
-/// Kagbeni -> Mustang
-/// Jomsom -> Kagbeni
-/// etc.
 List<TransportationOption> _mustangRoadOnly() => const [
       _busOption,
       _jeepOption,
       _privateVehicleOption,
+      _motorbikeOption,
     ];
 
 List<TransportationOption> _trekOnly() => const [
@@ -384,13 +439,22 @@ List<TransportationOption> _trekOnly() => const [
 // ============================================================
 
 const String _luklaNote =
-    'No road reaches Lukla: drive to Jiri/Salleri, then trek the rest.';
+    'Travel to Jiri/Salleri by road, then continue the remaining journey by trekking.';
+
+const String _kathmanduEverestFlightNote =
+    'Fly from Kathmandu to Lukla, then continue toward Everest by trekking.';
+
+const String _kathmanduEverestRoadNote =
+    'Travel from Kathmandu toward Salleri/Jiri by road, then continue toward Everest by trekking.';
+
+const String _kathmanduAnnapurnaRoadNote =
+    'Travel from Kathmandu toward Pokhara/Ghandruk or the accessible trailhead, then continue toward Annapurna by trekking.';
+
+const String _pokharaAnnapurnaRoadNote =
+    'Travel from Pokhara to the accessible trekking trailhead, then continue toward Annapurna by trekking.';
 
 const String _viaJomsomNote =
     'Via Jomsom: combine air travel with road transportation.';
-
-const String _trailheadNote =
-    'Road to the trailhead, then trek the remaining section.';
 
 // ============================================================
 // ROUTE WRAPPERS
@@ -469,11 +533,7 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
   // ----------------------------------------------------------
   // Kathmandu/Pokhara -> Kagbeni/Mustang
   // ----------------------------------------------------------
-  //
-  // Road modes reach these destinations directly.
-  //
-  // Flight reaches Jomsom first and therefore requires a transfer.
-  //
+
   final viaJomsom = <RouteTransport>[
     ..._directList(
       _mustangRoadOnly(),
@@ -487,12 +547,7 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
   // ----------------------------------------------------------
   // Kathmandu <-> Lukla
   // ----------------------------------------------------------
-  //
-  // Flight is direct.
-  //
-  // Road modes can be used to reach a trailhead such as
-  // Jiri/Salleri, after which trekking is required.
-  //
+
   final kathmanduLukla = <RouteTransport>[
     _direct(
       _flightOption,
@@ -509,24 +564,85 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
   ];
 
   // ----------------------------------------------------------
-  // Annapurna trail routes
+  // Kathmandu <-> Everest
   // ----------------------------------------------------------
 
-  final trailheadTrek = <RouteTransport>[
-    _direct(
-      trekOption,
+  final kathmanduEverest = <RouteTransport>[
+    _transfer(
+      _flightOption,
+      _kathmanduEverestFlightNote,
     ),
     _transfer(
       _jeepOption,
-      _trailheadNote,
-    ),
-    _transfer(
-      _privateVehicleOption,
-      _trailheadNote,
+      _kathmanduEverestRoadNote,
     ),
     _transfer(
       _busOption,
-      _trailheadNote,
+      _kathmanduEverestRoadNote,
+    ),
+    _transfer(
+      _privateVehicleOption,
+      _kathmanduEverestRoadNote,
+    ),
+    _transfer(
+      _motorbikeOption,
+      _kathmanduEverestRoadNote,
+    ),
+  ];
+
+  // ----------------------------------------------------------
+  // Kathmandu <-> Annapurna
+  // ----------------------------------------------------------
+
+  final kathmanduAnnapurna = <RouteTransport>[
+    _transfer(
+      _busOption,
+      _kathmanduAnnapurnaRoadNote,
+    ),
+    _transfer(
+      _jeepOption,
+      _kathmanduAnnapurnaRoadNote,
+    ),
+    _transfer(
+      _privateVehicleOption,
+      _kathmanduAnnapurnaRoadNote,
+    ),
+    _transfer(
+      _motorbikeOption,
+      _kathmanduAnnapurnaRoadNote,
+    ),
+  ];
+
+  // ----------------------------------------------------------
+  // Pokhara <-> Annapurna
+  // ----------------------------------------------------------
+
+  final pokharaAnnapurna = <RouteTransport>[
+    _transfer(
+      _jeepOption,
+      _pokharaAnnapurnaRoadNote,
+    ),
+    _transfer(
+      _busOption,
+      _pokharaAnnapurnaRoadNote,
+    ),
+    _transfer(
+      _privateVehicleOption,
+      _pokharaAnnapurnaRoadNote,
+    ),
+    _transfer(
+      _motorbikeOption,
+      _pokharaAnnapurnaRoadNote,
+    ),
+  ];
+
+  // ----------------------------------------------------------
+  // Annapurna trekking routes
+  // ----------------------------------------------------------
+
+  final trekOnlyRoutes = <RouteTransport>[
+    _direct(
+      trekOption,
     ),
   ];
 
@@ -539,281 +655,101 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
     // MUSTANG
     // ========================================================
 
-    _routeKey(
-      'Kathmandu',
-      'Pokhara',
-    ): roadAndAir,
+    _routeKey('Kathmandu', 'Pokhara'): roadAndAir,
+    _routeKey('Pokhara', 'Kathmandu'): roadAndAir,
 
-    _routeKey(
-      'Pokhara',
-      'Kathmandu',
-    ): roadAndAir,
+    _routeKey('Kathmandu', 'Jomsom'): jomsom,
+    _routeKey('Pokhara', 'Jomsom'): jomsom,
 
-    _routeKey(
-      'Kathmandu',
-      'Jomsom',
-    ): jomsom,
+    _routeKey('Kathmandu', 'Kagbeni'): viaJomsom,
+    _routeKey('Pokhara', 'Kagbeni'): viaJomsom,
 
-    _routeKey(
-      'Pokhara',
-      'Jomsom',
-    ): jomsom,
+    _routeKey('Kathmandu', 'Mustang'): viaJomsom,
+    _routeKey('Pokhara', 'Mustang'): viaJomsom,
 
-    _routeKey(
-      'Kathmandu',
-      'Kagbeni',
-    ): viaJomsom,
+    _routeKey('Jomsom', 'Kagbeni'): mustangRoadOnly,
+    _routeKey('Kagbeni', 'Jomsom'): mustangRoadOnly,
 
-    _routeKey(
-      'Pokhara',
-      'Kagbeni',
-    ): viaJomsom,
+    _routeKey('Jomsom', 'Marpha'): mustangRoadOnly,
+    _routeKey('Marpha', 'Jomsom'): mustangRoadOnly,
 
-    _routeKey(
-      'Kathmandu',
-      'Mustang',
-    ): viaJomsom,
+    _routeKey('Jomsom', 'Mustang'): mustangRoadOnly,
+    _routeKey('Mustang', 'Jomsom'): mustangRoadOnly,
 
-    _routeKey(
-      'Pokhara',
-      'Mustang',
-    ): viaJomsom,
+    _routeKey('Marpha', 'Kagbeni'): mustangRoadOnly,
+    _routeKey('Kagbeni', 'Marpha'): mustangRoadOnly,
 
-    // Mustang interior.
-    //
-    // IMPORTANT:
-    // Motorbike is INCLUDED here.
-    _routeKey(
-      'Jomsom',
-      'Kagbeni',
-    ): mustangRoadOnly,
+    _routeKey('Marpha', 'Mustang'): mustangRoadOnly,
+    _routeKey('Mustang', 'Marpha'): mustangRoadOnly,
 
-    _routeKey(
-      'Kagbeni',
-      'Jomsom',
-    ): mustangRoadOnly,
+    _routeKey('Kagbeni', 'Muktinath'): mustangRoadOnly,
+    _routeKey('Muktinath', 'Kagbeni'): mustangRoadOnly,
 
-    _routeKey(
-      'Jomsom',
-      'Marpha',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Marpha',
-      'Jomsom',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Jomsom',
-      'Mustang',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Mustang',
-      'Jomsom',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Marpha',
-      'Kagbeni',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Kagbeni',
-      'Marpha',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Marpha',
-      'Mustang',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Mustang',
-      'Marpha',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Kagbeni',
-      'Muktinath',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Muktinath',
-      'Kagbeni',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Kagbeni',
-      'Mustang',
-    ): mustangRoadOnly,
-
-    _routeKey(
-      'Mustang',
-      'Kagbeni',
-    ): mustangRoadOnly,
+    _routeKey('Kagbeni', 'Mustang'): mustangRoadOnly,
+    _routeKey('Mustang', 'Kagbeni'): mustangRoadOnly,
 
     // ========================================================
     // ANNAPURNA
     // ========================================================
 
-    _routeKey(
-      'Pokhara',
-      'Ghandruk',
-    ): roadOnly,
+    _routeKey('Kathmandu', 'Annapurna'): kathmanduAnnapurna,
+    _routeKey('Annapurna', 'Kathmandu'): kathmanduAnnapurna,
 
-    _routeKey(
-      'Ghandruk',
-      'Pokhara',
-    ): roadOnly,
+    _routeKey('Pokhara', 'Ghandruk'): roadOnly,
+    _routeKey('Ghandruk', 'Pokhara'): roadOnly,
 
-    _routeKey(
-      'Pokhara',
-      'Poon Hill',
-    ): trailheadTrek,
+    _routeKey('Pokhara', 'Annapurna'): pokharaAnnapurna,
+    _routeKey('Annapurna', 'Pokhara'): pokharaAnnapurna,
 
-    _routeKey(
-      'Poon Hill',
-      'Pokhara',
-    ): trailheadTrek,
+    _routeKey('Ghandruk', 'Poon Hill'): trekOnlyRoutes,
+    _routeKey('Poon Hill', 'Ghandruk'): trekOnlyRoutes,
 
-    _routeKey(
-      'Ghandruk',
-      'Poon Hill',
-    ): trekOnly,
+    _routeKey('Ghandruk', 'Annapurna'): trekOnlyRoutes,
+    _routeKey('Annapurna', 'Ghandruk'): trekOnlyRoutes,
 
-    _routeKey(
-      'Poon Hill',
-      'Ghandruk',
-    ): trekOnly,
-
-    _routeKey(
-      'Ghandruk',
-      'Annapurna',
-    ): trekOnly,
-
-    _routeKey(
-      'Annapurna',
-      'Ghandruk',
-    ): trekOnly,
-
-    _routeKey(
-      'Poon Hill',
-      'Annapurna',
-    ): trekOnly,
-
-    _routeKey(
-      'Annapurna',
-      'Poon Hill',
-    ): trekOnly,
-
-    _routeKey(
-      'Pokhara',
-      'Annapurna',
-    ): trailheadTrek,
-
-    _routeKey(
-      'Annapurna',
-      'Pokhara',
-    ): trailheadTrek,
+    _routeKey('Poon Hill', 'Annapurna'): trekOnlyRoutes,
+    _routeKey('Annapurna', 'Poon Hill'): trekOnlyRoutes,
 
     // ========================================================
     // EVEREST
     // ========================================================
 
-    _routeKey(
-      'Kathmandu',
-      'Lukla',
-    ): kathmanduLukla,
+    _routeKey('Kathmandu', 'Lukla'): kathmanduLukla,
+    _routeKey('Lukla', 'Kathmandu'): kathmanduLukla,
 
-    _routeKey(
-      'Lukla',
-      'Kathmandu',
-    ): kathmanduLukla,
+    _routeKey('Kathmandu', 'Everest'): kathmanduEverest,
+    _routeKey('Everest', 'Kathmandu'): kathmanduEverest,
 
-    _routeKey(
-      'Lukla',
-      'Namche Bazaar',
-    ): trekOnly,
+    _routeKey('Lukla', 'Everest'): trekOnly,
+    _routeKey('Everest', 'Lukla'): trekOnly,
 
-    _routeKey(
-      'Namche Bazaar',
-      'Lukla',
-    ): trekOnly,
+    _routeKey('Lukla', 'Namche Bazaar'): trekOnly,
+    _routeKey('Namche Bazaar', 'Lukla'): trekOnly,
 
-    _routeKey(
-      'Namche Bazaar',
-      'Everest',
-    ): trekOnly,
-
-    _routeKey(
-      'Everest',
-      'Namche Bazaar',
-    ): trekOnly,
+    _routeKey('Namche Bazaar', 'Everest'): trekOnly,
+    _routeKey('Everest', 'Namche Bazaar'): trekOnly,
 
     // ========================================================
     // LOWLAND / CONNECTING ROUTES
     // ========================================================
 
-    _routeKey(
-      'Kathmandu',
-      'Chitwan',
-    ): roadAndAir,
+    _routeKey('Kathmandu', 'Chitwan'): roadAndAir,
+    _routeKey('Chitwan', 'Kathmandu'): roadAndAir,
 
-    _routeKey(
-      'Chitwan',
-      'Kathmandu',
-    ): roadAndAir,
+    _routeKey('Kathmandu', 'Tansen'): roadOnly,
+    _routeKey('Tansen', 'Kathmandu'): roadOnly,
 
-    _routeKey(
-      'Kathmandu',
-      'Tansen',
-    ): roadOnly,
+    _routeKey('Kathmandu', 'Rasuwa'): roadOnly,
+    _routeKey('Rasuwa', 'Kathmandu'): roadOnly,
 
-    _routeKey(
-      'Tansen',
-      'Kathmandu',
-    ): roadOnly,
+    _routeKey('Chitwan', 'Pokhara'): roadOnly,
+    _routeKey('Pokhara', 'Chitwan'): roadOnly,
 
-    _routeKey(
-      'Kathmandu',
-      'Rasuwa',
-    ): roadOnly,
+    _routeKey('Chitwan', 'Tansen'): roadOnly,
+    _routeKey('Tansen', 'Chitwan'): roadOnly,
 
-    _routeKey(
-      'Rasuwa',
-      'Kathmandu',
-    ): roadOnly,
-
-    _routeKey(
-      'Chitwan',
-      'Pokhara',
-    ): roadOnly,
-
-    _routeKey(
-      'Pokhara',
-      'Chitwan',
-    ): roadOnly,
-
-    _routeKey(
-      'Chitwan',
-      'Tansen',
-    ): roadOnly,
-
-    _routeKey(
-      'Tansen',
-      'Chitwan',
-    ): roadOnly,
-
-    _routeKey(
-      'Tansen',
-      'Pokhara',
-    ): roadOnly,
-
-    _routeKey(
-      'Pokhara',
-      'Tansen',
-    ): roadOnly,
+    _routeKey('Tansen', 'Pokhara'): roadOnly,
+    _routeKey('Pokhara', 'Tansen'): roadOnly,
   };
 }
 
@@ -837,8 +773,7 @@ List<RouteTransport> transportOptionsForRoute(
     return direct;
   }
 
-  // Then try B -> A because most routes have the same transportation
-  // suitability in both directions.
+  // Then try B -> A.
   final reversed = routeTransportOptions[
     _routeKey(
       to,
@@ -851,10 +786,30 @@ List<RouteTransport> transportOptionsForRoute(
   }
 
   // Final fallback to destination-based transportation.
+  //
+  // Local exploration options are intentionally NOT included
+  // here because they are not transportation between two
+  // different locations.
   return [
     for (final option in transportOptionsFor(to))
-      _direct(option),
+      if (!_isLocalExplorationOption(option))
+        _direct(option),
   ];
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+bool _isLocalExplorationOption(
+  TransportationOption option,
+) {
+  final name = _normalize(option.name);
+
+  return name == 'visit kathmandu locally' ||
+      name == 'visit pokhara locally' ||
+      name == 'visit chitwan locally' ||
+      name == 'visit local places';
 }
 
 // ============================================================

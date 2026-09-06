@@ -7,18 +7,11 @@ class DayPlan {
   final int day;
   final List<DayPlanItem> items;
 
-  const DayPlan({
-    required this.day,
-    required this.items,
-  });
+  const DayPlan({required this.day, required this.items});
 }
 
 /// Represents the type of item in a day plan.
-enum DayPlanItemType {
-  travel,
-  attraction,
-  activity,
-}
+enum DayPlanItemType { travel, attraction, activity }
 
 /// Represents one item inside a day.
 class DayPlanItem {
@@ -39,25 +32,23 @@ class DayPlanItem {
     required this.from,
     required this.to,
     required this.transportation,
-  })  : type = DayPlanItemType.travel,
-        place = null,
-        activity = null;
+  }) : type = DayPlanItemType.travel,
+       place = null,
+       activity = null;
 
-  const DayPlanItem.attraction({
-    required this.place,
-  })  : type = DayPlanItemType.attraction,
-        from = null,
-        to = null,
-        transportation = null,
-        activity = null;
+  const DayPlanItem.attraction({required this.place})
+    : type = DayPlanItemType.attraction,
+      from = null,
+      to = null,
+      transportation = null,
+      activity = null;
 
-  const DayPlanItem.activity({
-    required this.activity,
-  })  : type = DayPlanItemType.activity,
-        from = null,
-        to = null,
-        transportation = null,
-        place = null;
+  const DayPlanItem.activity({required this.activity})
+    : type = DayPlanItemType.activity,
+      from = null,
+      to = null,
+      transportation = null,
+      place = null;
 
   /// Text displayed as the main title in RecommendationScreen.
   String get title {
@@ -265,14 +256,11 @@ class RecommendationService {
     //
     // ==========================================================
 
-    final int minimumDays =
-        travelDays + visitDays + returnDays;
+    final int minimumDays = travelDays + visitDays + returnDays;
 
-    final int maximumDays =
-        minimumDays + 1;
+    final int maximumDays = minimumDays + 1;
 
-    final String recommendedTime =
-        '$minimumDays-$maximumDays days';
+    final String recommendedTime = '$minimumDays-$maximumDays days';
 
     // ==========================================================
     // 5. DAY-BY-DAY PLAN
@@ -310,8 +298,9 @@ class RecommendationService {
     // 6. DESTINATION PLACES
     // ==========================================================
 
-    final List<Place> destinationPlaces =
-        _getDestinationPlaces(route.destination);
+    final List<Place> destinationPlaces = _getDestinationPlaces(
+      route.destination,
+    );
 
     final List<String> suggestedPlaces = destinationPlaces
         .map((place) => place.name)
@@ -321,15 +310,13 @@ class RecommendationService {
     // 7. ROUTE DESTINATIONS
     // ==========================================================
 
-    final List<String> routeDestinations =
-        _getRouteDestinations(route);
+    final List<String> routeDestinations = _getRouteDestinations(route);
 
     // ==========================================================
     // 8. GENERAL RECOMMENDATION
     // ==========================================================
 
-    final String title =
-        'Recommended $recommendedTime Trip';
+    final String title = 'Recommended $recommendedTime Trip';
 
     final String summary = _buildSummary(
       destination: route.destination,
@@ -342,8 +329,7 @@ class RecommendationService {
     // 9. SUITABILITY
     // ==========================================================
 
-    final int overallScore =
-        _calculateOverallScore(
+    final int overallScore = _calculateOverallScore(
       season: season,
       suitability: suitability,
       ages: ages,
@@ -352,11 +338,9 @@ class RecommendationService {
       destination: route.destination,
     );
 
-    final String overallSuitability =
-        _getOverallSuitability(overallScore);
+    final String overallSuitability = _getOverallSuitability(overallScore);
 
-    final List<String> suitabilityFactors =
-        _buildSuitabilityFactors(
+    final List<String> suitabilityFactors = _buildSuitabilityFactors(
       season: season,
       suitability: suitability,
       ages: ages,
@@ -381,8 +365,7 @@ class RecommendationService {
       groupSize: groupSize,
     );
 
-    final String budgetMessage =
-        _buildBudgetMessage(
+    final String budgetMessage = _buildBudgetMessage(
       destination: route.destination,
       budget: budget,
       currency: currency,
@@ -395,29 +378,25 @@ class RecommendationService {
     // 11. DURATION STATUS
     // ==========================================================
 
-    final bool durationIsTooShort =
-        duration < minimumDays;
+    final bool durationIsTooShort = duration < minimumDays;
 
-    final bool durationIsTooLong =
-        duration > maximumDays;
+    final bool durationIsTooLong = duration > maximumDays;
 
     final String recommendedDurationMessage =
         'For ${route.destination}, we recommend '
         '$recommendedTime.';
 
-    final String durationMessage =
-        _buildDurationMessage(
+    final String durationMessage = _buildDurationMessage(
       selectedDuration: duration,
       minimumDays: minimumDays,
       maximumDays: maximumDays,
     );
 
-    final String recommendedDurationTitle =
-        durationIsTooShort
-            ? 'Trip Duration Is Too Short'
-            : durationIsTooLong
-                ? 'You Have Extra Days'
-                : 'Recommended Duration';
+    final String recommendedDurationTitle = durationIsTooShort
+        ? 'Trip Duration Is Too Short'
+        : durationIsTooLong
+        ? 'You Have Extra Days'
+        : 'Recommended Duration';
 
     // ==========================================================
     // 12. REMAINING DAYS
@@ -435,20 +414,15 @@ class RecommendationService {
     //
     // ==========================================================
 
-    final int remainingDays =
-        duration > minimumDays
-            ? duration - minimumDays
-            : 0;
+    final int remainingDays = duration > minimumDays
+        ? duration - minimumDays
+        : 0;
 
-    final List<String> additionalDestinations =
-        remainingDays > 0
-            ? _getAdditionalDestinations(
-                destination: route.destination,
-              )
-            : [];
+    final List<String> additionalDestinations = remainingDays > 0
+        ? _getAdditionalDestinations(destination: route.destination)
+        : [];
 
-    final String remainingDaysMessage =
-        _buildRemainingDaysMessage(
+    final String remainingDaysMessage = _buildRemainingDaysMessage(
       selectedDuration: duration,
       minimumDays: minimumDays,
       remainingDays: remainingDays,
@@ -487,17 +461,13 @@ class RecommendationService {
       budgetIsLow: budgetIsLow,
       budgetMessage: budgetMessage,
       routeDestinations: routeDestinations,
-      recommendedDurationTitle:
-          recommendedDurationTitle,
-      recommendedDurationMessage:
-          recommendedDurationMessage,
+      recommendedDurationTitle: recommendedDurationTitle,
+      recommendedDurationMessage: recommendedDurationMessage,
       durationMessage: durationMessage,
       durationIsTooShort: durationIsTooShort,
       durationIsTooLong: durationIsTooLong,
-      remainingDaysMessage:
-          remainingDaysMessage,
-      additionalDestinations:
-          additionalDestinations,
+      remainingDaysMessage: remainingDaysMessage,
+      additionalDestinations: additionalDestinations,
       dayPlans: dayPlans,
       reasons: reasons,
       suggestedPlaces: suggestedPlaces,
@@ -508,9 +478,7 @@ class RecommendationService {
   // OUTBOUND TRAVEL
   // ============================================================
 
-  static int _calculateOutboundTravelDays(
-    TravelRoute route,
-  ) {
+  static int _calculateOutboundTravelDays(TravelRoute route) {
     if (route.segments.isEmpty) {
       return 0;
     }
@@ -532,11 +500,8 @@ class RecommendationService {
   // RETURN TRAVEL
   // ============================================================
 
-  static int _calculateReturnTravelDays(
-    TravelRoute route,
-  ) {
-    if (!route.isRoundTrip ||
-        route.returnSegments.isEmpty) {
+  static int _calculateReturnTravelDays(TravelRoute route) {
+    if (!route.isRoundTrip || route.returnSegments.isEmpty) {
       return 0;
     }
 
@@ -562,15 +527,13 @@ class RecommendationService {
     required String to,
     required String transportation,
   }) {
-    final String transport =
-        transportation.toLowerCase().trim();
+    final String transport = transportation.toLowerCase().trim();
 
     // ----------------------------------------------------------
     // FLIGHT
     // ----------------------------------------------------------
 
-    if (transport.contains('flight') ||
-        transport.contains('air')) {
+    if (transport.contains('flight') || transport.contains('air')) {
       return 1;
     }
 
@@ -588,8 +551,7 @@ class RecommendationService {
     // BICYCLE
     // ----------------------------------------------------------
 
-    if (transport.contains('bike') &&
-        !transport.contains('motorbike')) {
+    if (transport.contains('bike') && !transport.contains('motorbike')) {
       return 2;
     }
 
@@ -613,10 +575,7 @@ class RecommendationService {
         transport.contains('hike') ||
         transport.contains('walking') ||
         transport.contains('walk')) {
-      return _trekkingDays(
-        from: from.toLowerCase(),
-        to: to.toLowerCase(),
-      );
+      return _trekkingDays(from: from.toLowerCase(), to: to.toLowerCase());
     }
 
     // ----------------------------------------------------------
@@ -638,16 +597,12 @@ class RecommendationService {
   // TREKKING DAYS
   // ============================================================
 
-  static int _trekkingDays({
-    required String from,
-    required String to,
-  }) {
+  static int _trekkingDays({required String from, required String to}) {
     // ----------------------------------------------------------
     // EVEREST
     // ----------------------------------------------------------
 
-    if (from.contains('lukla') &&
-        to.contains('namche')) {
+    if (from.contains('lukla') && to.contains('namche')) {
       return 2;
     }
 
@@ -682,8 +637,7 @@ class RecommendationService {
     required String destination,
     required bool isRoundTrip,
   }) {
-    final String destinationLower =
-        destination.toLowerCase();
+    final String destinationLower = destination.toLowerCase();
 
     // ----------------------------------------------------------
     // MUSTANG
@@ -759,8 +713,7 @@ class RecommendationService {
   }) {
     final List<DayPlan> plans = [];
 
-    final List<RouteSegment> outbound =
-        List<RouteSegment>.from(route.segments);
+    final List<RouteSegment> outbound = List<RouteSegment>.from(route.segments);
 
     // ============================================================
     // INVALID / VERY SHORT JOURNEY
@@ -776,12 +729,11 @@ class RecommendationService {
 
     if (outbound.isEmpty) {
       return _createVisitPlans(
-        places: _getDestinationPlaces(
-          route.destination,
-        ),
+        places: _getDestinationPlaces(route.destination),
         numberOfDays: actualJourneyDays,
         startingDay: 1,
         ages: ages,
+        localTransportation: route.localTransportation,
       );
     }
 
@@ -801,30 +753,22 @@ class RecommendationService {
 
     final List<RouteSegment> effectiveOutbound =
         outbound.length > actualJourneyDays
-            ? outbound.sublist(
-                0,
-                actualJourneyDays,
-              )
-            : outbound;
+        ? outbound.sublist(0, actualJourneyDays)
+        : outbound;
 
     // ============================================================
     // RETURN SEGMENTS
     // ============================================================
 
-    final List<RouteSegment> returnLegs =
-        route.isRoundTrip
-            ? List<RouteSegment>.from(
-                route.returnSegments,
-              )
-            : <RouteSegment>[];
+    final List<RouteSegment> returnLegs = route.isRoundTrip
+        ? List<RouteSegment>.from(route.returnSegments)
+        : <RouteSegment>[];
 
     // ============================================================
     // AVAILABLE JOURNEY DAYS
     // ============================================================
 
-    int remainingJourneyDays =
-        actualJourneyDays -
-        effectiveOutbound.length;
+    int remainingJourneyDays = actualJourneyDays - effectiveOutbound.length;
 
     if (remainingJourneyDays < 0) {
       remainingJourneyDays = 0;
@@ -836,8 +780,7 @@ class RecommendationService {
 
     int currentDay = 1;
 
-    for (final RouteSegment segment
-        in effectiveOutbound) {
+    for (final RouteSegment segment in effectiveOutbound) {
       if (currentDay > actualJourneyDays) {
         break;
       }
@@ -849,8 +792,7 @@ class RecommendationService {
             DayPlanItem.travel(
               from: segment.from,
               to: segment.to,
-              transportation:
-                  segment.transportation,
+              transportation: segment.transportation,
             ),
           ],
         ),
@@ -865,31 +807,24 @@ class RecommendationService {
 
     int returnDaysToUse = 0;
 
-    if (route.isRoundTrip &&
-        returnLegs.isNotEmpty) {
-      returnDaysToUse =
-          returnLegs.length <
-                  remainingJourneyDays
-              ? returnLegs.length
-              : remainingJourneyDays;
+    if (route.isRoundTrip && returnLegs.isNotEmpty) {
+      returnDaysToUse = returnLegs.length < remainingJourneyDays
+          ? returnLegs.length
+          : remainingJourneyDays;
     }
 
     // ============================================================
     // DESTINATION EXPLORATION
     // ============================================================
 
-    final int explorationDays =
-        remainingJourneyDays -
-        returnDaysToUse;
+    final int explorationDays = remainingJourneyDays - returnDaysToUse;
 
-    final List<Place> destinationPlaces =
-        _getDestinationPlaces(
+    final List<Place> destinationPlaces = _getDestinationPlaces(
       route.destination,
     );
 
     if (explorationDays > 0) {
-      final List<DayPlan> visitPlans =
-          _createVisitPlans(
+      final List<DayPlan> visitPlans = _createVisitPlans(
         places: destinationPlaces,
         numberOfDays: explorationDays,
         startingDay: currentDay,
@@ -912,12 +847,10 @@ class RecommendationService {
     if (route.isRoundTrip) {
       for (
         int i = 0;
-        i < returnDaysToUse &&
-            currentDay <= actualJourneyDays;
+        i < returnDaysToUse && currentDay <= actualJourneyDays;
         i++
       ) {
-        final RouteSegment segment =
-            returnLegs[i];
+        final RouteSegment segment = returnLegs[i];
 
         plans.add(
           DayPlan(
@@ -926,8 +859,7 @@ class RecommendationService {
               DayPlanItem.travel(
                 from: segment.from,
                 to: segment.to,
-                transportation:
-                    segment.transportation,
+                transportation: segment.transportation,
               ),
             ],
           ),
@@ -948,10 +880,7 @@ class RecommendationService {
     // ============================================================
 
     if (plans.length > actualJourneyDays) {
-      return plans.sublist(
-        0,
-        actualJourneyDays,
-      );
+      return plans.sublist(0, actualJourneyDays);
     }
 
     return plans;
@@ -961,22 +890,15 @@ class RecommendationService {
   // GET DESTINATION PLACES
   // ============================================================
 
-  static List<Place> _getDestinationPlaces(
-    String destination,
-  ) {
-    final String destinationLower =
-        destination.toLowerCase().trim();
+  static List<Place> _getDestinationPlaces(String destination) {
+    final String destinationLower = destination.toLowerCase().trim();
 
     // ----------------------------------------------------------
     // EXACT LOCATION MATCH
     // ----------------------------------------------------------
 
-    final List<Place> exactMatches =
-        nepalPlaces.where((place) {
-      return place.location
-              .toLowerCase()
-              .trim() ==
-          destinationLower;
+    final List<Place> exactMatches = nepalPlaces.where((place) {
+      return place.location.toLowerCase().trim() == destinationLower;
     }).toList();
 
     if (exactMatches.isNotEmpty) {
@@ -988,8 +910,7 @@ class RecommendationService {
     // ----------------------------------------------------------
 
     return nepalPlaces.where((place) {
-      final String location =
-          place.location.toLowerCase();
+      final String location = place.location.toLowerCase();
 
       return destinationLower.contains(location) ||
           location.contains(destinationLower);
@@ -1005,6 +926,7 @@ class RecommendationService {
     required int numberOfDays,
     required int startingDay,
     required List<int> ages,
+    String? localTransportation,
   }) {
     final List<DayPlan> plans = [];
 
@@ -1016,26 +938,17 @@ class RecommendationService {
     // AGE INFORMATION
     // ==========================================================
 
-    final bool hasChild =
-        ages.any((age) => age < 13);
+    final bool hasChild = ages.any((age) => age < 13);
 
-    final bool hasSenior =
-        ages.any((age) => age >= 60);
+    final bool hasSenior = ages.any((age) => age >= 60);
 
     // ==========================================================
     // NO PLACES
     // ==========================================================
 
     if (places.isEmpty) {
-      for (int i = 0;
-          i < numberOfDays;
-          i++) {
-        plans.add(
-          DayPlan(
-            day: startingDay + i,
-            items: const [],
-          ),
-        );
+      for (int i = 0; i < numberOfDays; i++) {
+        plans.add(DayPlan(day: startingDay + i, items: const []));
       }
 
       return plans;
@@ -1046,19 +959,12 @@ class RecommendationService {
     // ==========================================================
 
     final bool isEverest = places.any(
-      (place) =>
-          place.location
-              .toLowerCase()
-              .trim() ==
-          'everest',
+      (place) => place.location.toLowerCase().trim() == 'everest',
     );
 
     if (isEverest) {
-      for (int i = 0;
-          i < numberOfDays;
-          i++) {
-        final int day =
-            startingDay + i;
+      for (int i = 0; i < numberOfDays; i++) {
+        final int day = startingDay + i;
 
         final List<DayPlanItem> items = [];
 
@@ -1071,11 +977,7 @@ class RecommendationService {
 
           if (hasChild || hasSenior) {
             if (i == 0 || i % 2 == 0) {
-              items.add(
-                DayPlanItem.attraction(
-                  place: place,
-                ),
-              );
+              items.add(DayPlanItem.attraction(place: place));
             } else {
               items.add(
                 const DayPlanItem.activity(
@@ -1085,11 +987,7 @@ class RecommendationService {
               );
             }
           } else {
-            items.add(
-              DayPlanItem.attraction(
-                place: place,
-              ),
-            );
+            items.add(DayPlanItem.attraction(place: place));
           }
         } else {
           // ----------------------------------------------------
@@ -1143,12 +1041,7 @@ class RecommendationService {
           }
         }
 
-        plans.add(
-          DayPlan(
-            day: day,
-            items: items,
-          ),
-        );
+        plans.add(DayPlan(day: day, items: items));
       }
 
       return plans;
@@ -1158,22 +1051,17 @@ class RecommendationService {
     // OTHER DESTINATIONS
     // ==========================================================
 
-    final List<List<Place>> placesPerDay =
-        List.generate(
+    final List<List<Place>> placesPerDay = List.generate(
       numberOfDays,
       (_) => <Place>[],
     );
 
-    for (int i = 0;
-        i < places.length;
-        i++) {
-      final int dayIndex =
-          i % numberOfDays;
+    for (int i = 0; i < places.length; i++) {
+      final int dayIndex = i % numberOfDays;
 
       // Maximum 3 attractions per day.
       if (placesPerDay[dayIndex].length < 3) {
-        placesPerDay[dayIndex]
-            .add(places[i]);
+        placesPerDay[dayIndex].add(places[i]);
       }
     }
 
@@ -1181,25 +1069,16 @@ class RecommendationService {
     // CREATE DAY PLANS
     // ==========================================================
 
-    for (int i = 0;
-        i < numberOfDays;
-        i++) {
-      final List<DayPlanItem> items =
-          placesPerDay[i]
-              .map(
-                (place) =>
-                    DayPlanItem.attraction(
-                  place: place,
-                ),
-              )
-              .toList();
+    for (int i = 0; i < numberOfDays; i++) {
+      final List<DayPlanItem> items = placesPerDay[i]
+          .map((place) => DayPlanItem.attraction(place: place))
+          .toList();
 
       // If the group contains a child or senior
       // and the day has no attraction, provide
       // an easy activity.
 
-      if (items.isEmpty &&
-          (hasChild || hasSenior)) {
+      if (items.isEmpty && (hasChild || hasSenior)) {
         plans.add(
           DayPlan(
             day: startingDay + i,
@@ -1212,12 +1091,7 @@ class RecommendationService {
           ),
         );
       } else {
-        plans.add(
-          DayPlan(
-            day: startingDay + i,
-            items: items,
-          ),
-        );
+        plans.add(DayPlan(day: startingDay + i, items: items));
       }
     }
 
@@ -1228,9 +1102,7 @@ class RecommendationService {
   // ROUTE DESTINATIONS
   // ============================================================
 
-  static List<String> _getRouteDestinations(
-    TravelRoute route,
-  ) {
+  static List<String> _getRouteDestinations(TravelRoute route) {
     final List<String> destinations = [];
 
     for (final segment in route.segments) {
@@ -1243,9 +1115,7 @@ class RecommendationService {
       }
     }
 
-    if (!destinations.contains(
-      route.destination,
-    )) {
+    if (!destinations.contains(route.destination)) {
       destinations.add(route.destination);
     }
 
@@ -1262,10 +1132,7 @@ class RecommendationService {
     required int minimumDays,
     required int maximumDays,
   }) {
-    final String direction =
-        route.isRoundTrip
-            ? 'round trip'
-            : 'one-way trip';
+    final String direction = route.isRoundTrip ? 'round trip' : 'one-way trip';
 
     return 'For a $direction to $destination, '
         'the recommended duration is '
@@ -1289,11 +1156,9 @@ class RecommendationService {
   }) {
     int score = 75;
 
-    final String seasonLower =
-        season.toLowerCase();
+    final String seasonLower = season.toLowerCase();
 
-    final String suitabilityLower =
-        suitability.toLowerCase();
+    final String suitabilityLower = suitability.toLowerCase();
 
     // ----------------------------------------------------------
     // SEASON SUITABILITY
@@ -1310,8 +1175,7 @@ class RecommendationService {
       score -= 20;
     }
 
-    if (seasonLower.contains('autumn') ||
-        seasonLower.contains('spring')) {
+    if (seasonLower.contains('autumn') || seasonLower.contains('spring')) {
       score += 5;
     }
 
@@ -1319,9 +1183,7 @@ class RecommendationService {
     // MUSTANG MONSOON
     // ----------------------------------------------------------
 
-    if (destination
-            .toLowerCase()
-            .contains('mustang') &&
+    if (destination.toLowerCase().contains('mustang') &&
         seasonLower.contains('monsoon')) {
       score -= 15;
     }
@@ -1331,18 +1193,13 @@ class RecommendationService {
     // ----------------------------------------------------------
 
     if (ages.isNotEmpty) {
-      final int averageAge =
-          ages.reduce((a, b) => a + b) ~/
-              ages.length;
+      final int averageAge = ages.reduce((a, b) => a + b) ~/ ages.length;
 
-      final bool hasChild =
-          ages.any((age) => age < 13);
+      final bool hasChild = ages.any((age) => age < 13);
 
-      final bool hasSenior =
-          ages.any((age) => age >= 60);
+      final bool hasSenior = ages.any((age) => age >= 60);
 
-      if (averageAge >= 18 &&
-          averageAge <= 55) {
+      if (averageAge >= 18 && averageAge <= 55) {
         score += 5;
       }
 
@@ -1375,8 +1232,7 @@ class RecommendationService {
     // TRAVEL TYPE
     // ----------------------------------------------------------
 
-    final String travelTypeLower =
-        travelType.toLowerCase();
+    final String travelTypeLower = travelType.toLowerCase();
 
     if (travelTypeLower.contains('solo')) {
       score -= 2;
@@ -1395,9 +1251,7 @@ class RecommendationService {
   // SUITABILITY TEXT
   // ============================================================
 
-  static String _getOverallSuitability(
-    int score,
-  ) {
+  static String _getOverallSuitability(int score) {
     if (score >= 90) {
       return 'Excellent';
     }
@@ -1455,28 +1309,20 @@ class RecommendationService {
       );
     }
 
-    if (destination
-        .toLowerCase()
-        .contains('mustang')) {
+    if (destination.toLowerCase().contains('mustang')) {
       factors.add(
         'Mustang travel should account for changing mountain weather and road conditions.',
       );
     }
 
-    if (travelType
-        .toLowerCase()
-        .contains('family')) {
+    if (travelType.toLowerCase().contains('family')) {
       factors.add(
         'Family travel benefits from allowing additional rest and flexible activities.',
       );
     }
 
-    if (season
-            .toLowerCase()
-            .contains('monsoon') &&
-        destination
-            .toLowerCase()
-            .contains('mustang')) {
+    if (season.toLowerCase().contains('monsoon') &&
+        destination.toLowerCase().contains('mustang')) {
       factors.add(
         'Monsoon conditions may affect Mustang road travel and accessibility.',
       );
@@ -1495,11 +1341,9 @@ class RecommendationService {
     required int duration,
     required int groupSize,
   }) {
-    double estimatedPerPersonPerDay =
-        2500;
+    double estimatedPerPersonPerDay = 2500;
 
-    final String destinationLower =
-        destination.toLowerCase();
+    final String destinationLower = destination.toLowerCase();
 
     if (destinationLower.contains('mustang')) {
       estimatedPerPersonPerDay = 3500;
@@ -1512,9 +1356,7 @@ class RecommendationService {
     }
 
     final double estimatedTotal =
-        estimatedPerPersonPerDay *
-            duration *
-            groupSize;
+        estimatedPerPersonPerDay * duration * groupSize;
 
     return budget < estimatedTotal;
   }
@@ -1556,8 +1398,7 @@ class RecommendationService {
     required int maximumDays,
   }) {
     if (selectedDuration < minimumDays) {
-      final int shortage =
-          minimumDays - selectedDuration;
+      final int shortage = minimumDays - selectedDuration;
 
       return 'You have $selectedDuration day(s), '
           'but the recommended trip needs at least '
@@ -1566,8 +1407,7 @@ class RecommendationService {
     }
 
     if (selectedDuration > maximumDays) {
-      final int extra =
-          selectedDuration - minimumDays;
+      final int extra = selectedDuration - minimumDays;
 
       return 'You have $selectedDuration day(s). '
           'The actual journey uses about '
@@ -1610,62 +1450,33 @@ class RecommendationService {
   static List<String> _getAdditionalDestinations({
     required String destination,
   }) {
-    final String destinationLower =
-        destination.toLowerCase();
+    final String destinationLower = destination.toLowerCase();
 
     if (destinationLower.contains('mustang')) {
-      return [
-        'Pokhara',
-        'Chitwan',
-        'Kathmandu',
-      ];
+      return ['Pokhara', 'Chitwan', 'Kathmandu'];
     }
 
     if (destinationLower.contains('pokhara')) {
-      return [
-        'Chitwan',
-        'Kathmandu',
-        'Mustang',
-      ];
+      return ['Chitwan', 'Kathmandu', 'Mustang'];
     }
 
     if (destinationLower.contains('chitwan')) {
-      return [
-        'Pokhara',
-        'Kathmandu',
-        'Mustang',
-      ];
+      return ['Pokhara', 'Kathmandu', 'Mustang'];
     }
 
     if (destinationLower.contains('kathmandu')) {
-      return [
-        'Pokhara',
-        'Chitwan',
-        'Mustang',
-      ];
+      return ['Pokhara', 'Chitwan', 'Mustang'];
     }
 
     if (destinationLower.contains('everest')) {
-      return [
-        'Kathmandu',
-        'Pokhara',
-        'Chitwan',
-      ];
+      return ['Kathmandu', 'Pokhara', 'Chitwan'];
     }
 
     if (destinationLower.contains('annapurna')) {
-      return [
-        'Pokhara',
-        'Mustang',
-        'Chitwan',
-      ];
+      return ['Pokhara', 'Mustang', 'Chitwan'];
     }
 
-    return [
-      'Kathmandu',
-      'Pokhara',
-      'Chitwan',
-    ];
+    return ['Kathmandu', 'Pokhara', 'Chitwan'];
   }
 
   // ============================================================
@@ -1700,25 +1511,19 @@ class RecommendationService {
       );
     }
 
-    if (destination
-        .toLowerCase()
-        .contains('mustang')) {
+    if (destination.toLowerCase().contains('mustang')) {
       reasons.add(
         'Mustang requires additional time to explore attractions such as Jomsom, Kagbeni and Marpha.',
       );
     }
 
-    if (destination
-        .toLowerCase()
-        .contains('everest')) {
+    if (destination.toLowerCase().contains('everest')) {
       reasons.add(
         'Everest trips require additional time for trekking and acclimatization.',
       );
     }
 
-    if (travelType
-        .toLowerCase()
-        .contains('family')) {
+    if (travelType.toLowerCase().contains('family')) {
       reasons.add(
         'Family travel is considered with a more comfortable and flexible itinerary.',
       );
@@ -1735,9 +1540,7 @@ class RecommendationService {
   // CONVENIENCE METHODS
   // ============================================================
 
-  static String getRecommendedTime({
-    required TravelRoute route,
-  }) {
+  static String getRecommendedTime({required TravelRoute route}) {
     return generate(
       destination: route.destination,
       season: '',
@@ -1752,9 +1555,7 @@ class RecommendationService {
     ).recommendedTime;
   }
 
-  static List<DayPlan> getDayPlans({
-    required TravelRoute route,
-  }) {
+  static List<DayPlan> getDayPlans({required TravelRoute route}) {
     return generate(
       destination: route.destination,
       season: '',

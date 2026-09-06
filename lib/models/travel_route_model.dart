@@ -17,11 +17,19 @@ class TravelRoute {
   final String destination;
   final List<RouteSegment> segments;
 
+  /// Transportation used while exploring a destination locally.
+  ///
+  /// Example:
+  /// Walking, Local Bus, Taxi, Motorbike, Private Vehicle.
+  ///
+  /// This is only used when [segments] is empty and the user
+  /// selected local exploration.
+  final String? localTransportation;
+
   /// Optional return-trip segments as chosen by the user.
   ///
   /// When null, return legs are derived by reversing the outgoing
-  /// segments (and reusing their transportation). When provided,
-  /// these exact segments (points, legs and transportation) are used.
+  /// segments and reusing their transportation.
   final List<RouteSegment>? _explicitReturnSegments;
 
   final TripDirection tripDirection;
@@ -30,9 +38,15 @@ class TravelRoute {
     required this.boardingPoint,
     required this.destination,
     required this.segments,
+    this.localTransportation,
     this.tripDirection = TripDirection.oneWay,
     List<RouteSegment>? returnSegments,
   }) : _explicitReturnSegments = returnSegments;
+
+  /// True when this is a local exploration route.
+  bool get isLocalExploration {
+    return segments.isEmpty && localTransportation != null;
+  }
 
   bool get isOneWay {
     return tripDirection == TripDirection.oneWay;
@@ -51,6 +65,11 @@ class TravelRoute {
   }
 
   String get transportationDescription {
+    // Local exploration transportation.
+    if (isLocalExploration) {
+      return 'Local Transportation: $localTransportation';
+    }
+
     if (segments.isEmpty) {
       return 'No transportation selected';
     }
@@ -64,6 +83,11 @@ class TravelRoute {
   }
 
   String get routeDescription {
+    // Local exploration.
+    if (isLocalExploration) {
+      return 'Explore $destination Locally';
+    }
+
     if (segments.isEmpty) {
       return '$boardingPoint → $destination';
     }
@@ -83,6 +107,7 @@ class TravelRoute {
 
     // Use the user's explicitly selected return legs when available.
     final explicit = _explicitReturnSegments;
+
     if (explicit != null && explicit.isNotEmpty) {
       return List<RouteSegment>.from(explicit);
     }
@@ -109,6 +134,11 @@ class TravelRoute {
   }
 
   String get completeRouteDescription {
+    // Local exploration.
+    if (isLocalExploration) {
+      return 'Explore $destination Locally';
+    }
+
     final allSegments = completeSegments;
 
     if (allSegments.isEmpty) {
