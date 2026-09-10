@@ -94,12 +94,15 @@ class _AgeScreenState extends State<AgeScreen> {
         builder: (context) => BudgetScreen(
           touristType: widget.touristType,
           ages: ages,
+          adultCount: widget.adultCount,
+          childCount: widget.childCount,
           travelType: widget.travelType,
           groupSize: widget.adultCount + widget.childCount,
           departureDate: widget.departureDate,
           returnDate: widget.returnDate,
           package: widget.package,
-        ),
+),
+
       ),
     );
   }

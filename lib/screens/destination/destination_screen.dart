@@ -9,6 +9,8 @@ class DestinationScreen extends StatefulWidget {
   final String currency;
   final double budget;
   final List<int> ages;
+  final int adultCount;
+  final int childCount;
   final String travelType;
   final int groupSize;
   final DateTime departureDate;
@@ -20,6 +22,8 @@ class DestinationScreen extends StatefulWidget {
     required this.currency,
     required this.budget,
     required this.ages,
+    required this.adultCount,
+    required this.childCount,
     required this.travelType,
     required this.groupSize,
     required this.departureDate,
@@ -96,6 +100,7 @@ class _DestinationScreenState extends State<DestinationScreen> {
                       LayoutBuilder(
                         builder: (context, constraints) {
                           final columns = constraints.maxWidth > 600 ? 3 : 2;
+
                           return GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -126,12 +131,13 @@ class _DestinationScreenState extends State<DestinationScreen> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: isSelected
-                                      ? Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium?.copyWith(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w700,
-                                        )
+                                      ? Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w700,
+                                          )
                                       : textTheme.titleMedium,
                                 ),
                               );
@@ -183,6 +189,8 @@ class _DestinationScreenState extends State<DestinationScreen> {
                                 currency: widget.currency,
                                 budget: widget.budget,
                                 ages: widget.ages,
+                                adultCount: widget.adultCount,
+                                childCount: widget.childCount,
                                 travelType: widget.travelType,
                                 groupSize: widget.groupSize,
                               ),

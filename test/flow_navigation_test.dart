@@ -8,39 +8,42 @@ import 'package:yatra/theme/app_theme.dart';
 
 void main() {
   testWidgets(
-      'flow order: Destination -> Trip Overview -> Boarding (route builder)',
-      (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: DestinationScreen(
-          touristType: 'Domestic Tourist',
-          currency: 'NPR',
-          budget: 1000,
-          ages: const [30],
-          travelType: 'Solo',
-          groupSize: 1,
-          departureDate: DateTime(2026, 10, 5),
-          returnDate: DateTime(2026, 10, 8),
+    'flow order: Destination -> Trip Overview -> Boarding (route builder)',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: DestinationScreen(
+            adultCount: 1,
+            childCount: 0,
+            touristType: 'Domestic Tourist',
+            currency: 'NPR',
+            budget: 1000,
+            ages: const [30],
+            travelType: 'Solo',
+            groupSize: 1,
+            departureDate: DateTime(2026, 10, 5),
+            returnDate: DateTime(2026, 10, 8),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kathmandu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Continue'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Kathmandu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Continue'));
+      await tester.pumpAndSettle();
 
-    // Step 1: Trip Overview comes after choosing a destination.
-    expect(find.byType(SeasonAnalysisScreen), findsOneWidget);
+      // Step 1: Trip Overview comes after choosing a destination.
+      expect(find.byType(SeasonAnalysisScreen), findsOneWidget);
 
-    await tester.tap(
-      find.widgetWithText(ElevatedButton, 'Continue to Route Builder'),
-    );
-    await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(ElevatedButton, 'Continue to Route Builder'),
+      );
+      await tester.pumpAndSettle();
 
-    // Step 2: Route builder (boarding points/stops/transport) follows.
-    expect(find.byType(BoardingScreen), findsOneWidget);
-  });
+      // Step 2: Route builder (boarding points/stops/transport) follows.
+      expect(find.byType(BoardingScreen), findsOneWidget);
+    },
+  );
 }

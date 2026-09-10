@@ -88,8 +88,9 @@ class PackageDetailsScreen extends StatelessWidget {
             color: Theme.of(context).colorScheme.surface,
             border: Border(
               top: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant
-                    .withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.6),
               ),
             ),
           ),
@@ -98,7 +99,7 @@ class PackageDetailsScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TravelDatesScreen(package: package, touristType: 'Domestic Tourist',),
+                  builder: (context) => TravelDatesScreen(package: package),
                 ),
               );
             },
@@ -260,8 +261,7 @@ class _Hero extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.pill),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -388,11 +388,7 @@ class _FactCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 22,
-            color: valueColor ?? scheme.primary,
-          ),
+          Icon(icon, size: 22, color: valueColor ?? scheme.primary),
           const SizedBox(height: AppSpacing.sm),
           Text(
             value,
@@ -402,10 +398,7 @@ class _FactCard extends StatelessWidget {
             style: AppType.bodyEmphasis.copyWith(fontSize: 14),
           ),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
@@ -436,10 +429,9 @@ class _BulletRow extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(height: 1.45),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(height: 1.45),
             ),
           ),
         ],

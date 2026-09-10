@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../theme/app_theme.dart';
 import '../../models/travel_route_model.dart';
@@ -16,6 +17,8 @@ class BoardingScreen extends StatefulWidget {
   final String currency;
   final double budget;
   final List<int> ages;
+  final int adultCount;
+  final int childCount;
   final String travelType;
   final int groupSize;
   final String seasonMessage;
@@ -35,6 +38,8 @@ class BoardingScreen extends StatefulWidget {
     required this.currency,
     required this.budget,
     required this.ages,
+    required this.adultCount,
+    required this.childCount,
     required this.travelType,
     required this.groupSize,
     required this.seasonMessage,
@@ -45,6 +50,8 @@ class BoardingScreen extends StatefulWidget {
 }
 
 class _BoardingScreenState extends State<BoardingScreen> {
+  Position? currentPosition;
+  bool isLoadingCurrentLOcation = false;
   String? selectedBoardingPoint;
   String? selectedNextPoint;
 
@@ -214,6 +221,22 @@ class _BoardingScreenState extends State<BoardingScreen> {
   String _normalize(String value) {
     return value.trim().toLowerCase();
   }
+  String? _preferredTransportationForRoute(String from, String to) {
+      final preferred = widget.selectedTransport?.trim();
+
+      if (preferred == null || preferred.isEmpty) {
+        return null;
+      }
+
+      final options = transportOptionsForRoute(from, to);
+
+      for (final routeTransport in options) {
+        if (_normalize(routeTransport.option.name) == _normalize(preferred)) {
+          return routeTransport.option.name;
+        }
+      }
+      return null;
+    }
 
   // ============================================================
   // LOCAL EXPLORATION
@@ -618,7 +641,9 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
       // Transportation is selected only after the next
       // destination has been chosen.
-      selectedTransportation = null;
+      selectedTransportation = value == null
+          ? null
+          : _preferredTransportationForRoute(currentLocation!, value);
     });
   }
 

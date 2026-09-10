@@ -77,9 +77,7 @@ class _TouristTypeScreenState extends State<TouristTypeScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => TravelDatesScreen(
-                                touristType: selectedTouristType!,
-                              ),
+                              builder: (context) => TravelDatesScreen(),
                             ),
                           );
                         }

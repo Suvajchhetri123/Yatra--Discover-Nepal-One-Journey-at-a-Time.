@@ -11,6 +11,8 @@ Future<void> _pumpBoarding(
   await tester.pumpWidget(
     MaterialApp(
       home: BoardingScreen(
+        adultCount: 1,
+        childCount: 0,
         touristType: 'Domestic Tourist',
         destination: destination,
         selectedTransport: selectedTransport,
@@ -31,17 +33,15 @@ Future<void> _pumpBoarding(
 }
 
 Finder _boardingDropdown() => find.byWidgetPredicate(
-      (w) =>
-          w is DropdownButtonFormField<String> &&
-          (w.decoration.hintText == 'Choose where you want to start'),
-    );
+  (w) =>
+      w is DropdownButtonFormField<String> &&
+      (w.decoration.hintText == 'Choose where you want to start'),
+);
 
-Finder _continueButton() =>
-    find.widgetWithText(ElevatedButton, 'Continue');
+Finder _continueButton() => find.widgetWithText(ElevatedButton, 'Continue');
 
 void main() {
-  testWidgets(
-      'Kathmandu + transport "Kathmandu" is local exploration: '
+  testWidgets('Kathmandu + transport "Kathmandu" is local exploration: '
       'no intercity boarding route is shown', (tester) async {
     await _pumpBoarding(
       tester,
@@ -59,8 +59,11 @@ void main() {
     expect(find.text('Choose where you want to start'), findsNothing);
     expect(find.text('Boarding Point'), findsNothing);
     for (final origin in ['Chitwan', 'Lukla', 'Rasuwa', 'Tansen']) {
-      expect(find.text(origin), findsNothing,
-          reason: '$origin must not appear in local-exploration mode');
+      expect(
+        find.text(origin),
+        findsNothing,
+        reason: '$origin must not appear in local-exploration mode',
+      );
     }
 
     // Continue is immediately available so the user can move toward the
@@ -69,22 +72,23 @@ void main() {
   });
 
   testWidgets(
-      'Kathmandu + normal transport option still builds an intercity route',
-      (tester) async {
-    await _pumpBoarding(
-      tester,
-      destination: 'Kathmandu',
-      selectedTransport: 'Bus',
-    );
+    'Kathmandu + normal transport option still builds an intercity route',
+    (tester) async {
+      await _pumpBoarding(
+        tester,
+        destination: 'Kathmandu',
+        selectedTransport: 'Bus',
+      );
 
-    expect(_boardingDropdown(), findsOneWidget);
-    expect(find.text('Kathmandu Local Exploration'), findsNothing);
-    expect(find.text('Choose where you want to start'), findsOneWidget);
-  });
+      expect(_boardingDropdown(), findsOneWidget);
+      expect(find.text('Kathmandu Local Exploration'), findsNothing);
+      expect(find.text('Choose where you want to start'), findsOneWidget);
+    },
+  );
 
-  testWidgets(
-      'Other destinations are NOT treated as local exploration',
-      (tester) async {
+  testWidgets('Other destinations are NOT treated as local exploration', (
+    tester,
+  ) async {
     await _pumpBoarding(
       tester,
       destination: 'Pokhara',

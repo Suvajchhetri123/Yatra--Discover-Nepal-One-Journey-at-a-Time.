@@ -87,13 +87,8 @@ class RecommendationResult {
   // DURATION
   // ============================================================
 
-  /// Minimum number of days actually required by the route.
   final int minimumDays;
-
-  /// Maximum recommended duration.
   final int maximumDays;
-
-  /// Text such as "5-6 days".
   final String recommendedTime;
 
   final int travelDays;
@@ -188,6 +183,92 @@ class RecommendationResult {
 
 class RecommendationService {
   // ============================================================
+  // CHILD AGE ANALYSIS
+  // ============================================================
+
+  /// Gets the ages belonging to children.
+  ///
+  /// AgeScreen stores adult ages first and child ages after them.
+  /// Therefore, when childCount is available, the last childCount
+  /// ages are treated as the children's ages.
+  static List<int> _getChildAges(
+    List<int> ages, {
+    int adultCount = 0,
+    int childCount = 0,
+  }) {
+    if (childCount <= 0 || ages.isEmpty) {
+      return const [];
+    }
+
+    final int startIndex = adultCount.clamp(0, ages.length);
+
+    final List<int> possibleChildAges = ages.skip(startIndex).toList();
+
+    if (possibleChildAges.isEmpty) {
+      return const [];
+    }
+
+    final int numberOfChildren = childCount.clamp(0, possibleChildAges.length);
+
+    return possibleChildAges
+        .take(numberOfChildren)
+        .where((age) => age >= 1 && age < 18)
+        .toList();
+  }
+
+  /// Children aged 1-4.
+  static bool _hasVeryYoungChild(
+    List<int> ages, {
+    int adultCount = 0,
+    int childCount = 0,
+  }) {
+    return _getChildAges(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    ).any((age) => age <= 4);
+  }
+
+  /// Children aged 5-8.
+  static bool _hasYoungChild(
+    List<int> ages, {
+    int adultCount = 0,
+    int childCount = 0,
+  }) {
+    return _getChildAges(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    ).any((age) => age >= 5 && age <= 8);
+  }
+
+  /// Children aged 9-12.
+  static bool _hasOlderChild(
+    List<int> ages, {
+    int adultCount = 0,
+    int childCount = 0,
+  }) {
+    return _getChildAges(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    ).any((age) => age >= 9 && age <= 12);
+  }
+
+  /// Teenagers aged 13-17.
+  static bool _hasTeenager(
+    List<int> ages, {
+    int adultCount = 0,
+    int childCount = 0,
+  }) {
+    return _getChildAges(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    ).any((age) => age >= 13 && age < 18);
+  }
+
+  // ============================================================
   // MAIN METHOD
   // ============================================================
 
@@ -202,19 +283,35 @@ class RecommendationService {
     required String travelType,
     required int groupSize,
 
-    /// IMPORTANT:
-    /// This is the user's selected calendar duration.
+    /// Number of adults in the travelling group.
     ///
-    /// Example:
-    /// September 5 -> September 30 = 26 days.
+    /// Defaults are kept for compatibility with older calls.
+    int adultCount = 1,
+
+    /// Number of children in the travelling group.
     ///
-    /// This value is NOT used to generate the main Day-by-Day
-    /// journey. It is only used to determine whether the user
-    /// has extra available days.
+    /// Defaults are kept for compatibility with older calls.
+    int childCount = 0,
+
+    /// User's selected calendar duration.
     required int duration,
 
     required TravelRoute route,
   }) {
+    // ==========================================================
+    // NORMALIZE GROUP COUNTS
+    // ==========================================================
+
+    final int normalizedAdultCount = adultCount < 0 ? 0 : adultCount;
+
+    final int normalizedChildCount = childCount < 0 ? 0 : childCount;
+
+    final List<int> childAges = _getChildAges(
+      ages,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
+    );
+
     // ==========================================================
     // 1. OUTBOUND TRAVEL DAYS
     // ==========================================================
@@ -258,6 +355,8 @@ class RecommendationService {
       visitDays: visitDays,
       returnDays: returnDays,
       ages: ages,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
       actualJourneyDays: minimumDays,
     );
 
@@ -290,6 +389,9 @@ class RecommendationService {
       route: route,
       minimumDays: minimumDays,
       maximumDays: maximumDays,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
+      childAges: childAges,
     );
 
     // ==========================================================
@@ -301,6 +403,8 @@ class RecommendationService {
       season: season,
       suitability: suitability,
       ages: ages,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
       travelType: travelType,
       groupSize: groupSize,
       destination: route.destination,
@@ -313,6 +417,8 @@ class RecommendationService {
       season: season,
       suitability: suitability,
       ages: ages,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
       travelType: travelType,
       groupSize: groupSize,
       destination: route.destination,
@@ -326,7 +432,9 @@ class RecommendationService {
       destination: route.destination,
       budget: budget,
       duration: minimumDays,
-      groupSize: groupSize,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
+      childAges: childAges,
     );
 
     final String budgetMessage = _buildBudgetMessage(
@@ -334,7 +442,9 @@ class RecommendationService {
       budget: budget,
       currency: currency,
       duration: minimumDays,
-      groupSize: groupSize,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
+      childAges: childAges,
       isLow: budgetIsLow,
     );
 
@@ -393,6 +503,10 @@ class RecommendationService {
       maximumDays: maximumDays,
       season: season,
       travelType: travelType,
+      ages: ages,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
+      childAges: childAges,
     );
 
     // ==========================================================
@@ -482,17 +596,9 @@ class RecommendationService {
   }) {
     final String transport = transportation.toLowerCase().trim();
 
-    // ----------------------------------------------------------
-    // FLIGHT
-    // ----------------------------------------------------------
-
     if (transport.contains('flight') || transport.contains('air')) {
       return 1;
     }
-
-    // ----------------------------------------------------------
-    // MOTORBIKE
-    // ----------------------------------------------------------
 
     if (transport.contains('motorbike') ||
         transport.contains('motor bike') ||
@@ -500,17 +606,9 @@ class RecommendationService {
       return 2;
     }
 
-    // ----------------------------------------------------------
-    // BICYCLE
-    // ----------------------------------------------------------
-
     if (transport.contains('bike') && !transport.contains('motorbike')) {
       return 2;
     }
-
-    // ----------------------------------------------------------
-    // BUS / JEEP / CAR / TAXI
-    // ----------------------------------------------------------
 
     if (transport.contains('bus') ||
         transport.contains('jeep') ||
@@ -520,10 +618,6 @@ class RecommendationService {
       return 2;
     }
 
-    // ----------------------------------------------------------
-    // TREKKING / HIKING
-    // ----------------------------------------------------------
-
     if (transport.contains('trek') ||
         transport.contains('hike') ||
         transport.contains('walking') ||
@@ -531,17 +625,9 @@ class RecommendationService {
       return _trekkingDays(from: from.toLowerCase(), to: to.toLowerCase());
     }
 
-    // ----------------------------------------------------------
-    // ROAD
-    // ----------------------------------------------------------
-
     if (transport.contains('road')) {
       return 2;
     }
-
-    // ----------------------------------------------------------
-    // DEFAULT
-    // ----------------------------------------------------------
 
     return 2;
   }
@@ -551,10 +637,6 @@ class RecommendationService {
   // ============================================================
 
   static int _trekkingDays({required String from, required String to}) {
-    // ----------------------------------------------------------
-    // EVEREST
-    // ----------------------------------------------------------
-
     if (from.contains('lukla') && to.contains('namche')) {
       return 2;
     }
@@ -562,10 +644,6 @@ class RecommendationService {
     if (to.contains('everest')) {
       return 3;
     }
-
-    // ----------------------------------------------------------
-    // ANNAPURNA
-    // ----------------------------------------------------------
 
     if (to.contains('annapurna base camp')) {
       return 3;
@@ -592,57 +670,29 @@ class RecommendationService {
   }) {
     final String destinationLower = destination.toLowerCase();
 
-    // ----------------------------------------------------------
-    // MUSTANG
-    // ----------------------------------------------------------
-
     if (destinationLower.contains('mustang')) {
       return isRoundTrip ? 3 : 2;
     }
-
-    // ----------------------------------------------------------
-    // POKHARA
-    // ----------------------------------------------------------
 
     if (destinationLower.contains('pokhara')) {
       return isRoundTrip ? 3 : 2;
     }
 
-    // ----------------------------------------------------------
-    // KATHMANDU
-    // ----------------------------------------------------------
-
     if (destinationLower.contains('kathmandu')) {
       return isRoundTrip ? 3 : 2;
     }
-
-    // ----------------------------------------------------------
-    // CHITWAN
-    // ----------------------------------------------------------
 
     if (destinationLower.contains('chitwan')) {
       return isRoundTrip ? 3 : 2;
     }
 
-    // ----------------------------------------------------------
-    // EVEREST
-    // ----------------------------------------------------------
-
     if (destinationLower.contains('everest')) {
       return isRoundTrip ? 6 : 4;
     }
 
-    // ----------------------------------------------------------
-    // ANNAPURNA
-    // ----------------------------------------------------------
-
     if (destinationLower.contains('annapurna')) {
       return isRoundTrip ? 5 : 3;
     }
-
-    // ----------------------------------------------------------
-    // DEFAULT
-    // ----------------------------------------------------------
 
     return isRoundTrip ? 3 : 2;
   }
@@ -657,28 +707,17 @@ class RecommendationService {
     required int visitDays,
     required int returnDays,
     required List<int> ages,
-
-    /// Actual number of days required to complete the route.
-    ///
-    /// IMPORTANT:
-    /// This is NOT the user's selected calendar duration.
+    required int adultCount,
+    required int childCount,
     required int actualJourneyDays,
   }) {
     final List<DayPlan> plans = [];
 
     final List<RouteSegment> outbound = List<RouteSegment>.from(route.segments);
 
-    // ============================================================
-    // INVALID / VERY SHORT JOURNEY
-    // ============================================================
-
     if (actualJourneyDays <= 0) {
       return plans;
     }
-
-    // ============================================================
-    // LOCAL EXPLORATION / NO TRANSPORT
-    // ============================================================
 
     if (outbound.isEmpty) {
       return _createVisitPlans(
@@ -686,40 +725,26 @@ class RecommendationService {
         numberOfDays: actualJourneyDays,
         startingDay: 1,
         ages: ages,
+        adultCount: adultCount,
+        childCount: childCount,
         localTransportation: route.localTransportation,
       );
     }
-
-    // ============================================================
-    // ONE WAY / ROUND TRIP
-    // ============================================================
 
     final List<RouteSegment> effectiveOutbound =
         outbound.length > actualJourneyDays
         ? outbound.sublist(0, actualJourneyDays)
         : outbound;
 
-    // ============================================================
-    // RETURN SEGMENTS
-    // ============================================================
-
     final List<RouteSegment> returnLegs = route.isRoundTrip
         ? List<RouteSegment>.from(route.returnSegments)
         : <RouteSegment>[];
-
-    // ============================================================
-    // AVAILABLE JOURNEY DAYS
-    // ============================================================
 
     int remainingJourneyDays = actualJourneyDays - effectiveOutbound.length;
 
     if (remainingJourneyDays < 0) {
       remainingJourneyDays = 0;
     }
-
-    // ============================================================
-    // ADD OUTBOUND TRAVEL
-    // ============================================================
 
     int currentDay = 1;
 
@@ -744,10 +769,6 @@ class RecommendationService {
       currentDay++;
     }
 
-    // ============================================================
-    // RETURN JOURNEY DAYS
-    // ============================================================
-
     int returnDaysToUse = 0;
 
     if (route.isRoundTrip && returnLegs.isNotEmpty) {
@@ -755,10 +776,6 @@ class RecommendationService {
           ? returnLegs.length
           : remainingJourneyDays;
     }
-
-    // ============================================================
-    // DESTINATION EXPLORATION
-    // ============================================================
 
     final int explorationDays = remainingJourneyDays - returnDaysToUse;
 
@@ -772,16 +789,14 @@ class RecommendationService {
         numberOfDays: explorationDays,
         startingDay: currentDay,
         ages: ages,
+        adultCount: adultCount,
+        childCount: childCount,
       );
 
       plans.addAll(visitPlans);
 
       currentDay += explorationDays;
     }
-
-    // ============================================================
-    // ADD RETURN JOURNEY
-    // ============================================================
 
     if (route.isRoundTrip) {
       for (
@@ -808,10 +823,6 @@ class RecommendationService {
       }
     }
 
-    // ============================================================
-    // SAFETY CHECK
-    // ============================================================
-
     if (plans.length > actualJourneyDays) {
       return plans.sublist(0, actualJourneyDays);
     }
@@ -826,10 +837,6 @@ class RecommendationService {
   static List<Place> _getDestinationPlaces(String destination) {
     final String destinationLower = destination.toLowerCase().trim();
 
-    // ----------------------------------------------------------
-    // EXACT LOCATION MATCH
-    // ----------------------------------------------------------
-
     final List<Place> exactMatches = nepalPlaces.where((place) {
       return place.location.toLowerCase().trim() == destinationLower;
     }).toList();
@@ -837,10 +844,6 @@ class RecommendationService {
     if (exactMatches.isNotEmpty) {
       return exactMatches;
     }
-
-    // ----------------------------------------------------------
-    // PARTIAL MATCH
-    // ----------------------------------------------------------
 
     return nepalPlaces.where((place) {
       final String location = place.location.toLowerCase();
@@ -859,6 +862,8 @@ class RecommendationService {
     required int numberOfDays,
     required int startingDay,
     required List<int> ages,
+    required int adultCount,
+    required int childCount,
     String? localTransportation,
   }) {
     final List<DayPlan> plans = [];
@@ -871,7 +876,29 @@ class RecommendationService {
     // AGE INFORMATION
     // ==========================================================
 
-    final bool hasChild = ages.any((age) => age < 13);
+    final bool hasVeryYoungChild = _hasVeryYoungChild(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
+
+    final bool hasYoungChild = _hasYoungChild(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
+
+    final bool hasOlderChild = _hasOlderChild(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
+
+    final bool hasTeenager = _hasTeenager(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
 
     final bool hasSenior = ages.any((age) => age >= 60);
 
@@ -902,31 +929,88 @@ class RecommendationService {
         final List<DayPlanItem> items = [];
 
         // ------------------------------------------------------
-        // FIRST DAYS
+        // VERY YOUNG CHILD
         // ------------------------------------------------------
 
-        if (i < places.length) {
-          final Place place = places[i];
+        if (hasVeryYoungChild) {
+          if (i.isEven) {
+            items.add(
+              const DayPlanItem.activity(
+                activity:
+                    'Easy family-friendly exploration with frequent rest breaks',
+              ),
+            );
+          } else {
+            items.add(
+              const DayPlanItem.activity(
+                activity:
+                    'Rest day and light acclimatization suitable for a very young child',
+              ),
+            );
+          }
 
-          if (hasChild || hasSenior) {
-            if (i == 0 || i % 2 == 0) {
-              items.add(DayPlanItem.attraction(place: place));
+          plans.add(DayPlan(day: day, items: items));
+
+          continue;
+        }
+
+        // ------------------------------------------------------
+        // YOUNG CHILD
+        // ------------------------------------------------------
+
+        if (hasYoungChild) {
+          if (i == 0 || i.isEven) {
+            if (i < places.length) {
+              items.add(DayPlanItem.attraction(place: places[i]));
             } else {
               items.add(
                 const DayPlanItem.activity(
-                  activity:
-                      'Easy exploration, rest and acclimatization suitable for the group',
+                  activity: 'Easy sightseeing and family-friendly exploration',
                 ),
               );
             }
           } else {
-            items.add(DayPlanItem.attraction(place: place));
+            items.add(
+              const DayPlanItem.activity(
+                activity:
+                    'Rest, easy exploration and acclimatization suitable for children',
+              ),
+            );
           }
-        } else {
-          // ----------------------------------------------------
-          // REMAINING EVEREST DAYS
-          // ----------------------------------------------------
 
+          plans.add(DayPlan(day: day, items: items));
+
+          continue;
+        }
+
+        // ------------------------------------------------------
+        // OLDER CHILD / TEENAGER / SENIOR
+        // ------------------------------------------------------
+
+        if (hasOlderChild || hasTeenager || hasSenior) {
+          if (i < places.length) {
+            items.add(DayPlanItem.attraction(place: places[i]));
+          } else {
+            items.add(
+              const DayPlanItem.activity(
+                activity:
+                    'Acclimatization, rest and exploration of the Everest region',
+              ),
+            );
+          }
+
+          plans.add(DayPlan(day: day, items: items));
+
+          continue;
+        }
+
+        // ------------------------------------------------------
+        // ADULT-ONLY EVEREST
+        // ------------------------------------------------------
+
+        if (i < places.length) {
+          items.add(DayPlanItem.attraction(place: places[i]));
+        } else {
           switch (i) {
             case 2:
               items.add(
@@ -989,11 +1073,18 @@ class RecommendationService {
       (_) => <Place>[],
     );
 
+    final int maximumPlacesPerDay = hasVeryYoungChild
+        ? 1
+        : hasYoungChild
+        ? 2
+        : hasOlderChild || hasTeenager || hasSenior
+        ? 2
+        : 3;
+
     for (int i = 0; i < places.length; i++) {
       final int dayIndex = i % numberOfDays;
 
-      // Maximum 3 attractions per day.
-      if (placesPerDay[dayIndex].length < 3) {
+      if (placesPerDay[dayIndex].length < maximumPlacesPerDay) {
         placesPerDay[dayIndex].add(places[i]);
       }
     }
@@ -1007,11 +1098,71 @@ class RecommendationService {
           .map((place) => DayPlanItem.attraction(place: place))
           .toList();
 
-      // If the group contains a child or senior
-      // and the day has no attraction, provide
-      // an easy activity.
+      // --------------------------------------------------------
+      // VERY YOUNG CHILD
+      // --------------------------------------------------------
 
-      if (items.isEmpty && (hasChild || hasSenior)) {
+      if (hasVeryYoungChild) {
+        if (i.isOdd) {
+          plans.add(
+            DayPlan(
+              day: startingDay + i,
+              items: const [
+                DayPlanItem.activity(
+                  activity:
+                      'Rest, family-friendly activities and frequent breaks',
+                ),
+              ],
+            ),
+          );
+        } else if (items.isEmpty) {
+          plans.add(
+            DayPlan(
+              day: startingDay + i,
+              items: const [
+                DayPlanItem.activity(
+                  activity:
+                      'Easy local exploration suitable for a very young child',
+                ),
+              ],
+            ),
+          );
+        } else {
+          plans.add(DayPlan(day: startingDay + i, items: items));
+        }
+
+        continue;
+      }
+
+      // --------------------------------------------------------
+      // YOUNG CHILD
+      // --------------------------------------------------------
+
+      if (hasYoungChild) {
+        if (items.isEmpty) {
+          plans.add(
+            DayPlan(
+              day: startingDay + i,
+              items: const [
+                DayPlanItem.activity(
+                  activity:
+                      'Easy sightseeing, family-friendly activities and regular rest breaks',
+                ),
+              ],
+            ),
+          );
+        } else {
+          plans.add(DayPlan(day: startingDay + i, items: items));
+        }
+
+        continue;
+      }
+
+      // --------------------------------------------------------
+      // OLDER CHILD / TEENAGER / SENIOR
+      // --------------------------------------------------------
+
+      if (items.isEmpty && (hasOlderChild || hasTeenager || hasSenior)) {
         plans.add(
           DayPlan(
             day: startingDay + i,
@@ -1064,12 +1215,26 @@ class RecommendationService {
     required TravelRoute route,
     required int minimumDays,
     required int maximumDays,
+    required int adultCount,
+    required int childCount,
+    required List<int> childAges,
   }) {
     final String direction = route.isRoundTrip ? 'round trip' : 'one-way trip';
 
+    String travellerDescription = '$adultCount adult(s)';
+
+    if (childCount > 0) {
+      travellerDescription += ' and $childCount child(ren)';
+
+      if (childAges.isNotEmpty) {
+        travellerDescription += ' aged ${childAges.join(', ')}';
+      }
+    }
+
     return 'For a $direction to $destination, '
         'the recommended duration is '
-        '$minimumDays-$maximumDays days. '
+        '$minimumDays-$maximumDays days for '
+        '$travellerDescription. '
         'This includes the time needed to travel to the '
         'destination, explore important places, and '
         '${route.isRoundTrip ? 'return to your starting point.' : 'complete the destination visit.'}';
@@ -1084,6 +1249,8 @@ class RecommendationService {
     required String season,
     required String suitability,
     required List<int> ages,
+    required int adultCount,
+    required int childCount,
     required String travelType,
     required int groupSize,
     required String destination,
@@ -1123,31 +1290,67 @@ class RecommendationService {
     }
 
     // ----------------------------------------------------------
-    // AGE
+    // CHILD AGE IMPACT
     // ----------------------------------------------------------
 
-    if (ages.isNotEmpty) {
-      final int averageAge = ages.reduce((a, b) => a + b) ~/ ages.length;
+    final List<int> childAges = _getChildAges(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
 
-      final bool hasChild = ages.any((age) => age < 13);
+    final bool hasVeryYoungChild = _hasVeryYoungChild(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
 
-      final bool hasSenior = ages.any((age) => age >= 60);
+    final bool hasYoungChild = _hasYoungChild(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
 
-      if (averageAge >= 18 && averageAge <= 55) {
-        score += 5;
-      }
+    final bool hasOlderChild = _hasOlderChild(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
 
-      if (hasChild) {
-        score -= 3;
-      }
+    final bool hasTeenager = _hasTeenager(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
 
-      if (hasSenior) {
-        score -= 4;
-      }
+    final bool hasSenior = ages.any((age) => age >= 60);
 
-      if (ages.length > 1) {
-        score += 1;
-      }
+    if (adultCount > 0) {
+      score += 2;
+    }
+
+    if (childCount > 0) {
+      // Having children does not automatically make a trip bad.
+      // The score is adjusted according to their age.
+      score += 1;
+    }
+
+    if (hasVeryYoungChild) {
+      score -= 8;
+    } else if (hasYoungChild) {
+      score -= 5;
+    } else if (hasOlderChild) {
+      score -= 3;
+    } else if (hasTeenager) {
+      score -= 1;
+    }
+
+    if (hasSenior) {
+      score -= 4;
+    }
+
+    if (childAges.length > 1) {
+      score += 1;
     }
 
     // ----------------------------------------------------------
@@ -1185,12 +1388,8 @@ class RecommendationService {
     final String touristTypeLower = touristType.toLowerCase();
 
     if (touristTypeLower.contains('international')) {
-      // International travellers may need additional attention
-      // to local transportation and acclimatization.
       score += 1;
     } else if (touristTypeLower.contains('domestic')) {
-      // Domestic travellers are travelling within Nepal and
-      // may already be familiar with local travel conditions.
       score += 2;
     }
 
@@ -1230,6 +1429,8 @@ class RecommendationService {
     required String season,
     required String suitability,
     required List<int> ages,
+    required int adultCount,
+    required int childCount,
     required String travelType,
     required int groupSize,
     required String destination,
@@ -1260,11 +1461,63 @@ class RecommendationService {
       'The selected route and transportation are included in the trip calculation.',
     );
 
-    if (ages.isNotEmpty) {
+    // ----------------------------------------------------------
+    // GROUP COMPOSITION
+    // ----------------------------------------------------------
+
+    factors.add(
+      'The travelling group contains $adultCount adult(s) and $childCount child(ren).',
+    );
+
+    // ----------------------------------------------------------
+    // AGE FACTORS
+    // ----------------------------------------------------------
+
+    final List<int> childAges = _getChildAges(
+      ages,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
+
+    if (childAges.isNotEmpty) {
+      final int youngestChild = childAges.reduce((a, b) => a < b ? a : b);
+
+      if (youngestChild <= 4) {
+        factors.add(
+          'The itinerary is adjusted for a very young child by prioritizing easier activities, shorter sightseeing periods and additional rest.',
+        );
+      } else if (youngestChild <= 8) {
+        factors.add(
+          'The itinerary considers the child age by prioritizing family-friendly activities, moderate sightseeing and regular rest.',
+        );
+      } else if (youngestChild <= 12) {
+        factors.add(
+          'The itinerary considers the child age and allows a wider range of moderate sightseeing activities.',
+        );
+      } else {
+        factors.add(
+          'The itinerary considers the teenager age and allows greater flexibility for activities and sightseeing.',
+        );
+      }
+
       factors.add(
-        'Age information is considered when evaluating general trip suitability.',
+        'The individual child ages considered by the recommendation are: ${childAges.join(', ')}.',
+      );
+    } else if (adultCount > 0 && childCount == 0) {
+      factors.add(
+        'All travellers are adults, so the itinerary can use a more flexible sightseeing schedule.',
       );
     }
+
+    if (ages.any((age) => age >= 60)) {
+      factors.add(
+        'The itinerary considers senior travellers by allowing easier activities and rest periods.',
+      );
+    }
+
+    // ----------------------------------------------------------
+    // GROUP
+    // ----------------------------------------------------------
 
     if (groupSize > 1) {
       factors.add(
@@ -1276,17 +1529,29 @@ class RecommendationService {
       );
     }
 
+    // ----------------------------------------------------------
+    // MUSTANG
+    // ----------------------------------------------------------
+
     if (destination.toLowerCase().contains('mustang')) {
       factors.add(
         'Mustang travel should account for changing mountain weather and road conditions.',
       );
     }
 
+    // ----------------------------------------------------------
+    // FAMILY
+    // ----------------------------------------------------------
+
     if (travelType.toLowerCase().contains('family')) {
       factors.add(
         'Family travel benefits from allowing additional rest and flexible activities.',
       );
     }
+
+    // ----------------------------------------------------------
+    // MONSOON
+    // ----------------------------------------------------------
 
     if (season.toLowerCase().contains('monsoon') &&
         destination.toLowerCase().contains('mustang')) {
@@ -1299,6 +1564,56 @@ class RecommendationService {
   }
 
   // ============================================================
+  // BUDGET ESTIMATION
+  // ============================================================
+
+  static double _calculateEstimatedTotal({
+    required String destination,
+    required int duration,
+    required int adultCount,
+    required int childCount,
+    required List<int> childAges,
+  }) {
+    double estimatedPerAdultPerDay = 2500;
+
+    final String destinationLower = destination.toLowerCase();
+
+    if (destinationLower.contains('mustang')) {
+      estimatedPerAdultPerDay = 3500;
+    } else if (destinationLower.contains('everest')) {
+      estimatedPerAdultPerDay = 4500;
+    } else if (destinationLower.contains('annapurna')) {
+      estimatedPerAdultPerDay = 4000;
+    } else if (destinationLower.contains('chitwan')) {
+      estimatedPerAdultPerDay = 3000;
+    }
+
+    double childCostFactor = 0;
+
+    for (final int age in childAges) {
+      if (age <= 5) {
+        childCostFactor += 0.50;
+      } else if (age <= 12) {
+        childCostFactor += 0.70;
+      } else {
+        childCostFactor += 0.85;
+      }
+    }
+
+    // If the stored child ages are incomplete, use a conservative
+    // 70% estimate for each missing child.
+    if (childAges.length < childCount) {
+      childCostFactor += (childCount - childAges.length) * 0.70;
+    }
+
+    final double adultCost = adultCount * estimatedPerAdultPerDay;
+
+    final double childCost = childCostFactor * estimatedPerAdultPerDay;
+
+    return (adultCost + childCost) * duration;
+  }
+
+  // ============================================================
   // BUDGET CHECK
   // ============================================================
 
@@ -1306,24 +1621,17 @@ class RecommendationService {
     required String destination,
     required double budget,
     required int duration,
-    required int groupSize,
+    required int adultCount,
+    required int childCount,
+    required List<int> childAges,
   }) {
-    double estimatedPerPersonPerDay = 2500;
-
-    final String destinationLower = destination.toLowerCase();
-
-    if (destinationLower.contains('mustang')) {
-      estimatedPerPersonPerDay = 3500;
-    } else if (destinationLower.contains('everest')) {
-      estimatedPerPersonPerDay = 4500;
-    } else if (destinationLower.contains('annapurna')) {
-      estimatedPerPersonPerDay = 4000;
-    } else if (destinationLower.contains('chitwan')) {
-      estimatedPerPersonPerDay = 3000;
-    }
-
-    final double estimatedTotal =
-        estimatedPerPersonPerDay * duration * groupSize;
+    final double estimatedTotal = _calculateEstimatedTotal(
+      destination: destination,
+      duration: duration,
+      adultCount: adultCount,
+      childCount: childCount,
+      childAges: childAges,
+    );
 
     return budget < estimatedTotal;
   }
@@ -1337,22 +1645,28 @@ class RecommendationService {
     required double budget,
     required String currency,
     required int duration,
-    required int groupSize,
+    required int adultCount,
+    required int childCount,
+    required List<int> childAges,
     required bool isLow,
   }) {
     if (isLow) {
       return 'Your selected budget of $currency '
           '${budget.toStringAsFixed(0)} may be low for '
           'the recommended $duration-day trip to '
-          '$destination for $groupSize traveller(s). '
-          'Consider increasing the budget or reducing '
-          'optional expenses.';
+          '$destination for $adultCount adult(s) and '
+          '$childCount child(ren). '
+          'Child ages are considered using reduced estimated '
+          'costs based on age. Consider increasing the budget '
+          'or reducing optional expenses.';
     }
 
     return 'Your selected budget of $currency '
         '${budget.toStringAsFixed(0)} appears reasonable '
         'for the recommended trip duration to '
-        '$destination.';
+        '$destination for $adultCount adult(s) and '
+        '$childCount child(ren). '
+        'The estimate considers the children ages.';
   }
 
   // ============================================================
@@ -1458,6 +1772,10 @@ class RecommendationService {
     required int maximumDays,
     required String season,
     required String travelType,
+    required List<int> ages,
+    required int adultCount,
+    required int childCount,
+    required List<int> childAges,
   }) {
     final List<String> reasons = [];
 
@@ -1477,6 +1795,42 @@ class RecommendationService {
       );
     }
 
+    // ----------------------------------------------------------
+    // GROUP COMPOSITION
+    // ----------------------------------------------------------
+
+    reasons.add(
+      'The trip is planned for $adultCount adult(s) and $childCount child(ren).',
+    );
+
+    // ----------------------------------------------------------
+    // AGE REASON
+    // ----------------------------------------------------------
+
+    if (childAges.isNotEmpty) {
+      final int youngestChild = childAges.reduce((a, b) => a < b ? a : b);
+
+      if (youngestChild <= 4) {
+        reasons.add(
+          'The youngest child is $youngestChild years old, so the itinerary prioritizes easy activities, shorter sightseeing periods and additional rest.',
+        );
+      } else if (youngestChild <= 8) {
+        reasons.add(
+          'The youngest child is $youngestChild years old, so the itinerary prioritizes family-friendly activities and regular rest.',
+        );
+      } else if (youngestChild <= 12) {
+        reasons.add(
+          'The youngest child is $youngestChild years old, allowing a wider range of moderate sightseeing activities.',
+        );
+      } else {
+        reasons.add(
+          'The youngest traveller under 18 is $youngestChild years old, so the itinerary allows greater flexibility for activities.',
+        );
+      }
+
+      reasons.add('Individual child ages considered: ${childAges.join(', ')}.');
+    }
+
     reasons.add(
       'The recommended duration is calculated from your actual travel route.',
     );
@@ -1484,6 +1838,10 @@ class RecommendationService {
     reasons.add(
       'Transportation time and destination exploration time are calculated separately.',
     );
+
+    // ----------------------------------------------------------
+    // TRIP DIRECTION
+    // ----------------------------------------------------------
 
     if (route.isRoundTrip) {
       reasons.add(
@@ -1495,17 +1853,29 @@ class RecommendationService {
       );
     }
 
+    // ----------------------------------------------------------
+    // MUSTANG
+    // ----------------------------------------------------------
+
     if (destination.toLowerCase().contains('mustang')) {
       reasons.add(
         'Mustang requires additional time to explore attractions such as Jomsom, Kagbeni and Marpha.',
       );
     }
 
+    // ----------------------------------------------------------
+    // EVEREST
+    // ----------------------------------------------------------
+
     if (destination.toLowerCase().contains('everest')) {
       reasons.add(
         'Everest trips require additional time for trekking and acclimatization.',
       );
     }
+
+    // ----------------------------------------------------------
+    // FAMILY
+    // ----------------------------------------------------------
 
     if (travelType.toLowerCase().contains('family')) {
       reasons.add(
@@ -1535,6 +1905,8 @@ class RecommendationService {
       ages: const [],
       travelType: 'Solo',
       groupSize: 1,
+      adultCount: 1,
+      childCount: 0,
       duration: 0,
       route: route,
     ).recommendedTime;
@@ -1551,6 +1923,8 @@ class RecommendationService {
       ages: const [],
       travelType: 'Solo',
       groupSize: 1,
+      adultCount: 1,
+      childCount: 0,
       duration: 0,
       route: route,
     ).dayPlans;

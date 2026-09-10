@@ -19,6 +19,8 @@ class SeasonAnalysisScreen extends StatelessWidget {
   final String currency;
   final double budget;
   final List<int> ages;
+  final int adultCount;
+  final int childCount;
   final String travelType;
   final int groupSize;
 
@@ -36,6 +38,8 @@ class SeasonAnalysisScreen extends StatelessWidget {
     required this.currency,
     required this.budget,
     required this.ages,
+    required this.adultCount,
+    required this.childCount,
     required this.travelType,
     required this.groupSize,
     this.selectedTransport,
@@ -109,7 +113,10 @@ class SeasonAnalysisScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Your Trip Overview', style: textTheme.headlineMedium),
+                    Text(
+                      'Your Trip Overview',
+                      style: textTheme.headlineMedium,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Yatra has prepared your trip based on your '
@@ -160,12 +167,26 @@ class SeasonAnalysisScreen extends StatelessWidget {
                                 '$_tripDuration '
                                 '${_tripDuration == 1 ? 'day' : 'days'}',
                           ),
-                          YatraInfoRow(label: 'Travel type', value: travelType),
+                          YatraInfoRow(
+                            label: 'Travel type',
+                            value: travelType,
+                          ),
+                          YatraInfoRow(
+                            label: 'Adults',
+                            value: '$adultCount',
+                          ),
+                          YatraInfoRow(
+                            label: 'Children',
+                            value: '$childCount',
+                          ),
                           YatraInfoRow(
                             label: 'Travellers',
                             value: '$groupSize',
                           ),
-                          YatraInfoRow(label: 'Ages', value: _ageText),
+                          YatraInfoRow(
+                            label: 'Ages',
+                            value: _ageText,
+                          ),
                           YatraInfoRow(
                             label: 'Budget',
                             value: '$currency ${_formatAmount(budget)}',
@@ -188,6 +209,8 @@ class SeasonAnalysisScreen extends StatelessWidget {
                     _TripProfileGrid(
                       departureDate: departureDate,
                       returnDate: returnDate,
+                      adultCount: adultCount,
+                      childCount: childCount,
                       groupSize: groupSize,
                       travelType: travelType,
                       budget: budget,
@@ -233,6 +256,8 @@ class SeasonAnalysisScreen extends StatelessWidget {
                         currency: currency,
                         budget: budget,
                         ages: ages,
+                        adultCount: adultCount,
+                        childCount: childCount,
                         travelType: travelType,
                         groupSize: groupSize,
                         seasonMessage: result.message,
@@ -351,7 +376,11 @@ class _DestinationHero extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: Icon(Icons.landscape, color: scheme.onPrimary, size: 56),
+      child: Icon(
+        Icons.landscape,
+        color: scheme.onPrimary,
+        size: 56,
+      ),
     );
   }
 }
@@ -400,11 +429,17 @@ class _SeasonCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${result.season} Season', style: textTheme.titleMedium),
+                Text(
+                  '${result.season} Season',
+                  style: textTheme.titleMedium,
+                ),
                 const SizedBox(height: 2),
                 Text(
                   result.suitability,
-                  style: AppType.label.copyWith(fontSize: 20, color: color),
+                  style: AppType.label.copyWith(
+                    fontSize: 20,
+                    color: color,
+                  ),
                 ),
               ],
             ),
@@ -472,7 +507,9 @@ class _SeasonAdvisory extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            lessSuitable ? Icons.info_outline : Icons.tips_and_updates_outlined,
+            lessSuitable
+                ? Icons.info_outline
+                : Icons.tips_and_updates_outlined,
             color: accent,
             size: 22,
           ),
@@ -481,7 +518,10 @@ class _SeasonAdvisory extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Season Advisory', style: textTheme.titleMedium),
+                Text(
+                  'Season Advisory',
+                  style: textTheme.titleMedium,
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   result.message,
@@ -503,6 +543,8 @@ class _SeasonAdvisory extends StatelessWidget {
 class _TripProfileGrid extends StatelessWidget {
   final DateTime departureDate;
   final DateTime returnDate;
+  final int adultCount;
+  final int childCount;
   final int groupSize;
   final String travelType;
   final double budget;
@@ -514,6 +556,8 @@ class _TripProfileGrid extends StatelessWidget {
   const _TripProfileGrid({
     required this.departureDate,
     required this.returnDate,
+    required this.adultCount,
+    required this.childCount,
     required this.groupSize,
     required this.travelType,
     required this.budget,
@@ -560,6 +604,16 @@ class _TripProfileGrid extends StatelessWidget {
               label: 'Travelers',
             ),
             _ProfileTile(
+              icon: Icons.person,
+              value: '$adultCount',
+              label: 'Adults',
+            ),
+            _ProfileTile(
+              icon: Icons.child_care,
+              value: '$childCount',
+              label: 'Children',
+            ),
+            _ProfileTile(
               icon: Icons.luggage,
               value: travelType,
               label: 'Travel Type',
@@ -601,11 +655,17 @@ class _ProfileTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.7)),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.7),
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, color: scheme.primary, size: 22),
+          Icon(
+            icon,
+            color: scheme.primary,
+            size: 22,
+          ),
           const SizedBox(width: AppSpacing.sm + 2),
           Expanded(
             child: Column(

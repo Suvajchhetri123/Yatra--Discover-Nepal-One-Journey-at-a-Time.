@@ -13,6 +13,8 @@ import '../season_analysis/season_analysis_screen.dart';
 /// validation, trip profile and both continue branches are unchanged.
 class BudgetScreen extends StatefulWidget {
   final List<int> ages;
+  final int adultCount;
+  final int childCount;
   final String touristType;
   final String travelType;
   final int groupSize;
@@ -23,6 +25,8 @@ class BudgetScreen extends StatefulWidget {
   const BudgetScreen({
     super.key,
     required this.touristType,
+    required this.adultCount,
+    required this.childCount,
     required this.ages,
     required this.travelType,
     required this.groupSize,
@@ -219,6 +223,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 currency: selectedCurrency,
                                 budget: enteredBudget,
                                 ages: widget.ages,
+                                adultCount: widget.adultCount,
+                                childCount: widget.childCount,
                                 travelType: widget.travelType,
                                 groupSize: widget.groupSize,
                               ),
@@ -233,6 +239,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 currency: selectedCurrency,
                                 budget: enteredBudget,
                                 ages: widget.ages,
+                                adultCount: widget.adultCount,
+                                childCount: widget.childCount,
                                 travelType: widget.travelType,
                                 groupSize: widget.groupSize,
                                 departureDate: widget.departureDate,

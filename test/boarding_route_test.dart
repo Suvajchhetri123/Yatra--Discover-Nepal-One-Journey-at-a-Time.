@@ -56,6 +56,8 @@ Future<void> _buildBoardingScreenRoute(
   await tester.pumpWidget(
     MaterialApp(
       home: BoardingScreen(
+        adultCount: 1,
+        childCount: 0,
         touristType: 'Domestic Tourist',
         destination: destination,
         departureDate: DateTime(2026, 9, 1),
