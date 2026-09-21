@@ -101,6 +101,15 @@ class RecommendationScreen extends StatelessWidget {
         route.boardingPoint.toLowerCase().trim() ==
             route.destination.toLowerCase().trim();
 
+    final fullMapDestinations = <String>[
+      if (route.segments.isNotEmpty)
+        ...route.segments.map((segment) => segment.to)
+      else
+        route.destination,
+      if (route.isRoundTrip)
+        ...route.returnSegments.map((segment) => segment.to),
+    ];
+
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
@@ -397,6 +406,29 @@ class RecommendationScreen extends StatelessWidget {
                         style: textTheme.bodyMedium,
                       ),
                     ],
+
+                    const Divider(height: AppSpacing.xxl),
+
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MapScreen(
+                              boardingPoint: route.boardingPoint,
+                              destinations: fullMapDestinations,
+                              travelRoute: route,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.map_outlined),
+                      label: Text(
+                        route.isRoundTrip
+                            ? 'View Full Round-Trip Map'
+                            : 'View Full Route Map',
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -833,6 +865,7 @@ class RecommendationScreen extends StatelessWidget {
                             builder: (context) => MapScreen(
                               boardingPoint: fromText,
                               destinations: [toText],
+                              singleLegTransportation: transportation,
                             ),
                           ),
                         );

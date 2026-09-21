@@ -337,7 +337,11 @@ class _QuickFacts extends StatelessWidget {
         maxCrossAxisExtent: 175,
         mainAxisSpacing: AppSpacing.md,
         crossAxisSpacing: AppSpacing.md,
-        childAspectRatio: 1.5,
+
+        // A fixed vertical extent is more reliable than childAspectRatio here.
+        // On smaller phones the previous 1.5 ratio made the cards too short,
+        // which caused "BOTTOM OVERFLOWED BY 13 PIXELS".
+        mainAxisExtent: 132,
       ),
       children: [
         _FactCard(
@@ -387,18 +391,25 @@ class _FactCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 22, color: valueColor ?? scheme.primary),
           const SizedBox(height: AppSpacing.sm),
           Text(
             value,
             textAlign: TextAlign.center,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppType.bodyEmphasis.copyWith(fontSize: 14),
           ),
-          const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
       ),
     );

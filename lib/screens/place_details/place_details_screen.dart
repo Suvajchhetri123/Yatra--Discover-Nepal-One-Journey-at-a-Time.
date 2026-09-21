@@ -27,7 +27,7 @@ class PlaceDetailsScreen extends StatelessWidget {
                 // ================================================
 
                 SizedBox(
-                  height: 320,
+                  height: 360,
                   width: double.infinity,
                   child: Stack(
                     fit: StackFit.expand,
@@ -48,17 +48,78 @@ class PlaceDetailsScreen extends StatelessWidget {
                         },
                       ),
 
-                      // Dark readable scrim from the bottom up.
+                      // Stronger bottom scrim so the title/location remain
+                      // readable while staying completely inside the image.
                       const DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            begin: Alignment.center,
+                            begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Colors.black54,
+                              Colors.transparent,
+                              Colors.black26,
+                              Colors.black87,
                             ],
+                            stops: [0.0, 0.48, 0.7, 1.0],
                           ),
+                        ),
+                      ),
+
+                      // Keep the title and location INSIDE the hero image.
+                      // Previously these were placed below the image and moved
+                      // upward with Transform.translate, which allowed the
+                      // white location text to fall onto the white page.
+                      Positioned(
+                        left: AppSpacing.screen,
+                        right: AppSpacing.screen,
+                        bottom: 28,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              place.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.headlineMedium?.copyWith(
+                                color: Colors.white,
+                                shadows: const [
+                                  Shadow(
+                                    color: Colors.black54,
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.location_on,
+                                  size: 20,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    place.location,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: textTheme.bodyLarge?.copyWith(
+                                      color: Colors.white,
+                                      shadows: const [
+                                        Shadow(
+                                          color: Colors.black54,
+                                          blurRadius: 4,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -66,61 +127,13 @@ class PlaceDetailsScreen extends StatelessWidget {
                 ),
 
                 // ================================================
-                // TITLE OVERLAY
+                // CONTENT
                 // ================================================
 
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.screen,
                     AppSpacing.xl,
-                    AppSpacing.screen,
-                    0,
-                  ),
-                  child: Transform.translate(
-                    offset: const Offset(0, -64),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          place.name,
-                          style: textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
-                            shadows: const [
-                              Shadow(
-                                color: Colors.black45,
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                place.location,
-                                style: textTheme.bodyLarge?.copyWith(
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screen,
-                    0,
                     AppSpacing.screen,
                     AppSpacing.xxxl,
                   ),
@@ -159,8 +172,7 @@ class PlaceDetailsScreen extends StatelessWidget {
                               label: 'Entry Fee',
                               value: place.entryFee == 0
                                   ? 'Free'
-                                  : 'NPR '
-                                      '${place.entryFee.toStringAsFixed(0)}',
+                                  : 'NPR ${place.entryFee.toStringAsFixed(0)}',
                             ),
                             YatraInfoRow(
                               label: 'Opening Hours',
@@ -194,8 +206,8 @@ class PlaceDetailsScreen extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   place.transportation,
-                                  style: textTheme.bodyMedium
-                                      ?.copyWith(height: 1.5),
+                                  style:
+                                      textTheme.bodyMedium?.copyWith(height: 1.5),
                                 ),
                               ),
                             ],
@@ -227,8 +239,8 @@ class PlaceDetailsScreen extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   place.travelTrip,
-                                  style: textTheme.bodyMedium
-                                      ?.copyWith(height: 1.5),
+                                  style:
+                                      textTheme.bodyMedium?.copyWith(height: 1.5),
                                 ),
                               ),
                             ],

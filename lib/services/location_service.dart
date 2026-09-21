@@ -19,8 +19,16 @@ class LocationService {
       return null;
     }
 
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+    } catch (_) {
+      // A last-known position is preferable to an empty map marker when
+      // the device temporarily cannot obtain a fresh GPS fix.
+      return Geolocator.getLastKnownPosition();
+    }
   }
 }
