@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -177,6 +178,72 @@ class _MapScreenState extends State<MapScreen> {
     return _legs.any((leg) => !_isRoadTransportation(leg.transportation));
   }
 
+  /// The live GPS position, when it should replace the fixed boarding
+  /// coordinate as the real start of the very first outbound road leg.
+  ///
+  /// Returns the GPS point only when:
+  ///   * the first leg is a road mode (Bus/Jeep/Car/Taxi/Motorbike), so
+  ///     Flight and Trek behavior is never changed;
+  ///   * the leg is an actual intercity journey (start != end city);
+  ///   * the tourist is reasonably close to the selected boarding city
+  ///     (within [boardingGpsRadiusMeters]).
+  LatLng? get _gpsBoardStart {
+    final legs = _legs;
+
+    if (legs.isEmpty) {
+      return null;
+    }
+
+    final firstLeg = legs.first;
+
+    if (!_isRoadTransportation(firstLeg.transportation)) {
+      return null;
+    }
+
+    if (firstLeg.from.trim().toLowerCase() ==
+        firstLeg.to.trim().toLowerCase()) {
+      return null;
+    }
+
+    final cityCoordinate = locationCoordinates[firstLeg.from];
+    final gps = _currentLatLng;
+
+    if (cityCoordinate == null || gps == null) {
+      return null;
+    }
+
+    final distanceMeters = Geolocator.distanceBetween(
+      cityCoordinate.latitude,
+      cityCoordinate.longitude,
+      gps.latitude,
+      gps.longitude,
+    );
+
+    if (distanceMeters > boardingGpsRadiusMeters) {
+      return null;
+    }
+
+    return gps;
+  }
+
+  bool get _isStartingFromGps => _gpsBoardStart != null;
+
+  /// Known route points used to frame the whole trip, with the fixed boarding
+  /// point replaced by the real GPS departure when one is being used.
+  List<LatLng> get _fittedRoutePoints {
+    final points = _knownRoutePoints;
+
+    final gpsStart = _gpsBoardStart;
+
+    if (gpsStart == null || points.isEmpty) {
+      return points;
+    }
+
+    final fitted = List<LatLng>.from(points);
+    fitted[0] = gpsStart;
+    return fitted;
+  }
+
   final List<Polyline> _routePolylines = [];
   final List<String> _routeWarnings = [];
 
@@ -188,6 +255,26 @@ class _MapScreenState extends State<MapScreen> {
   Position? _currentPosition;
   bool _isLoadingLocation = false;
   String? _locationMessage;
+
+  /// Radius within which the tourist's real GPS position counts as "at" the
+  /// selected boarding city. Inside this radius the first outbound road leg
+  /// may start from the live GPS point instead of the fixed city coordinate.
+  ///
+  /// A larger distance (e.g. the ~8 km from Balaju to central Kathmandu)
+  /// violates the rule, but a genuinely far-away tourist (e.g. planning a
+  /// Kathmandu trip while physically in Pokhara) keeps the fixed boarding
+  /// point.
+  static const double boardingGpsRadiusMeters = 30000;
+
+  /// Useful navigation zoom used when following the tourist's live movement.
+  static const double _followZoom = 15;
+
+  StreamSubscription<Position>? _positionStreamSubscription;
+
+  /// When true, the camera stays centred on the live blue marker.
+  bool _followMe = false;
+
+  bool _mapReady = false;
 
   LatLng? get _currentLatLng {
     final position = _currentPosition;
@@ -224,9 +311,96 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadRoute();
-      _loadCurrentLocation();
+      _initialiseMap();
     });
+  }
+
+  @override
+  void dispose() {
+    _positionStreamSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Initialisation order matters because the first route leg may need GPS.
+  ///
+  /// 1. Read the current GPS position once (with a short timeout) so it can
+  ///    be used as the real start of the first road leg.
+  /// 2. Start the continuous position stream for the blue live-location
+  ///    marker.
+  /// 3. Load the planned route. It stays stable afterwards while the live
+  ///    marker keeps moving.
+  ///
+  /// If GPS is unavailable the map never waits forever: the planned route
+  /// simply uses the fixed city boarding coordinate, as before.
+  Future<void> _initialiseMap() async {
+    try {
+      await _loadCurrentLocation().timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // GPS did not answer in time; the planned route still loads below.
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (_isLoadingLocation) {
+      setState(() {
+        _isLoadingLocation = false;
+      });
+    }
+
+    unawaited(_startPositionStream());
+
+    await _loadRoute();
+  }
+
+  /// Listens to GPS updates while the map is open so the blue marker moves
+  /// with the tourist without reopening the screen.
+  Future<void> _startPositionStream() async {
+    if (_positionStreamSubscription != null) {
+      return;
+    }
+
+    if (!await LocationService.isLocationAccessAllowed()) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _positionStreamSubscription = LocationService.livePositionStream().listen(
+      (position) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _currentPosition = position;
+          _locationMessage = null;
+        });
+
+        // Follow Me only moves the camera; it never re-requests the route.
+        if (_followMe && _mapReady) {
+          final camera = _mapController.camera;
+          final zoom = camera.zoom < _followZoom ? _followZoom : camera.zoom;
+          _mapController.move(
+            LatLng(position.latitude, position.longitude),
+            zoom,
+          );
+        }
+      },
+      onError: (Object _) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _locationMessage =
+              'Live location tracking is temporarily unavailable.';
+        });
+      },
+    );
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -249,7 +423,8 @@ class _MapScreenState extends State<MapScreen> {
       if (position == null) {
         setState(() {
           _isLoadingLocation = false;
-          _locationMessage = 'Current location is unavailable. Check GPS and location permission.';
+          _locationMessage =
+              'Current location is unavailable. Check GPS and location permission.';
         });
         return;
       }
@@ -417,7 +592,15 @@ class _MapScreenState extends State<MapScreen> {
     double roadDurationSeconds = 0;
     bool allRoadLegsResolved = true;
 
-    for (final leg in legs) {
+    // Only the very first outbound road leg may start from the tourist's
+    // live GPS position (when they are close to the boarding city). Every
+    // later leg -- including all return segments -- keeps its planned
+    // city-to-city coordinates.
+    final gpsBoardStart = _gpsBoardStart;
+
+    for (int i = 0; i < legs.length; i++) {
+      final leg = legs[i];
+      final isFirstLeg = i == 0;
       final start = locationCoordinates[leg.from];
       final end = locationCoordinates[leg.to];
 
@@ -430,8 +613,12 @@ class _MapScreenState extends State<MapScreen> {
       }
 
       if (_isRoadTransportation(leg.transportation)) {
+        final routeStart = isFirstLeg && gpsBoardStart != null
+            ? gpsBoardStart
+            : start;
+
         try {
-          final geometry = await _loadRoadGeometry(start, end);
+          final geometry = await _loadRoadGeometry(routeStart, end);
 
           if (geometry != null) {
             polylines.add(
@@ -489,7 +676,7 @@ class _MapScreenState extends State<MapScreen> {
 
         polylines.add(
           Polyline(
-            points: [start, end],
+            points: [routeStart, end],
             strokeWidth: 6,
             color: Colors.orange,
             borderStrokeWidth: 2,
@@ -613,13 +800,22 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _fitRoute() {
-    final points = _knownRoutePoints;
+    // Fitting the whole route is an explicit "view everything" request, so
+    // the camera stops following the tourist.
+    if (_followMe) {
+      _followMe = false;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+
+    final points = _fittedRoutePoints;
 
     if (points.isEmpty) {
       final current = _currentLatLng;
 
       if (current != null) {
-        _mapController.move(current, 15);
+        _mapController.move(current, _followZoom);
       }
 
       return;
@@ -642,12 +838,22 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _goToCurrentLocation() async {
     if (_currentLatLng == null) {
       await _loadCurrentLocation();
+      unawaited(_startPositionStream());
     }
 
     final current = _currentLatLng;
 
     if (current != null) {
-      _mapController.move(current, 15);
+      if (_mapReady) {
+        _mapController.move(current, _followZoom);
+      }
+
+      if (mounted) {
+        setState(() {
+          _followMe = true;
+        });
+      }
+
       return;
     }
 
@@ -656,6 +862,20 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     await _showLocationHelp();
+  }
+
+  void _toggleFollowMe() {
+    setState(() {
+      _followMe = !_followMe;
+    });
+
+    if (_followMe) {
+      final current = _currentLatLng;
+
+      if (current != null && _mapReady) {
+        _mapController.move(current, _followZoom);
+      }
+    }
   }
 
   Future<void> _showLocationHelp() async {
@@ -885,9 +1105,9 @@ class _MapScreenState extends State<MapScreen> {
                               children: [
                                 Text(
                                   '${leg.from} → ${leg.to}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 3),
                                 Row(
@@ -984,7 +1204,22 @@ class _MapScreenState extends State<MapScreen> {
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all,
               ),
-              onMapReady: _fitRoute,
+              onMapReady: () {
+                _mapReady = true;
+                _fitRoute();
+              },
+              onPositionChanged: (camera, hasGesture) {
+                // A manual drag or pinch means the user is looking around, so
+                // the camera should stop jumping back to the tourist.
+                if (hasGesture && _followMe) {
+                  _followMe = false;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {});
+                    }
+                  });
+                }
+              },
             ),
             children: [
               TileLayer(
@@ -1002,15 +1237,11 @@ class _MapScreenState extends State<MapScreen> {
                   if (currentPoint != null)
                     Marker(
                       point: currentPoint,
-                      width: 58,
-                      height: 58,
+                      width: 64,
+                      height: 64,
                       child: const Tooltip(
-                        message: 'Your current location',
-                        child: Icon(
-                          Icons.my_location,
-                          size: 38,
-                          color: Colors.blue,
-                        ),
+                        message: 'Your live location',
+                        child: _LiveLocationIndicator(),
                       ),
                     ),
                 ],
@@ -1080,6 +1311,12 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 const SizedBox(height: 8),
                 _MapControlButton(
+                  icon: _followMe ? Icons.gps_fixed : Icons.gps_not_fixed,
+                  tooltip: _followMe ? 'Follow me · on' : 'Follow me · off',
+                  onPressed: _toggleFollowMe,
+                ),
+                const SizedBox(height: 8),
+                _MapControlButton(
                   icon: _isLoadingLocation
                       ? Icons.hourglass_top
                       : Icons.my_location,
@@ -1143,6 +1380,30 @@ class _MapScreenState extends State<MapScreen> {
                                 _routeTypeText,
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
+
+                              if (_isStartingFromGps) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.my_location,
+                                      size: 18,
+                                      color: Colors.blue,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        'This trip starts from your current '
+                                        'location.',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -1255,6 +1516,33 @@ class _MapControlButton extends StatelessWidget {
         child: Tooltip(
           message: tooltip,
           child: SizedBox(width: 48, height: 48, child: Icon(icon, size: 25)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Blue "You are here" indicator used for the tourist's live GPS position.
+///
+/// Kept visually distinct from the green boarding, red destination and orange
+/// intermediate markers so the live marker cannot be mistaken for a planned
+/// route stop.
+class _LiveLocationIndicator extends StatelessWidget {
+  const _LiveLocationIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: Colors.blue,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 4, spreadRadius: 1),
+          ],
         ),
       ),
     );
