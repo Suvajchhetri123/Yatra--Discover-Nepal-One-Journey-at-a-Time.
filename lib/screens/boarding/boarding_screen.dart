@@ -64,8 +64,16 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // Transportation for the currently pending outgoing leg.
   String? selectedTransportation;
 
+  // Destination for the currently pending customized return leg.
+  String? selectedReturnNextPoint;
+
   // Transportation for the currently pending return leg.
   String? selectedReturnTransportation;
+
+  /// By default, a round trip automatically mirrors the completed
+  /// outgoing route in reverse order. The user can optionally customize
+  /// the transportation used on each return leg.
+  bool customizeReturnRoute = false;
 
   TripDirection selectedTripDirection = TripDirection.oneWay;
 
@@ -511,14 +519,19 @@ class _BoardingScreenState extends State<BoardingScreen> {
       return true;
     }
 
-    if (!routeComplete) {
+    if (!routeComplete || selectedBoardingPoint == null) {
       return false;
     }
 
-    if (selectedBoardingPoint == null) {
-      return false;
+    // Normal round-trip behavior:
+    // TravelRoute can automatically derive a complete return journey by
+    // reversing the outgoing segments and reusing their transportation.
+    if (!customizeReturnRoute) {
+      return true;
     }
 
+    // When the user chooses to customize the return journey, the explicit
+    // return route must be completed all the way back to the boarding point.
     if (returnSegments.isEmpty) {
       return false;
     }
@@ -545,10 +558,40 @@ class _BoardingScreenState extends State<BoardingScreen> {
   }
 
   // ============================================================
+  // RETURN DESTINATION OPTIONS
+  // ============================================================
+
+  List<String> get returnDestinationOptions {
+    final points = returnLocations;
+    final current = currentReturnLocation;
+
+    if (points.isEmpty || current == null) {
+      return [];
+    }
+
+    final currentIndex = points.indexWhere(
+      (point) => _normalize(point) == _normalize(current),
+    );
+
+    if (currentIndex == -1 || currentIndex >= points.length - 1) {
+      return [];
+    }
+
+    // Allow the user to choose any remaining point toward the original
+    // boarding location. This supports both exact reverse routes and
+    // optional skipped stops, while preventing travel away from the origin.
+    return points.sublist(currentIndex + 1);
+  }
+
+  // ============================================================
   // NEXT RETURN LOCATION
   // ============================================================
 
   String? get nextReturnLocation {
+    if (customizeReturnRoute) {
+      return selectedReturnNextPoint;
+    }
+
     final points = returnLocations;
 
     if (points.isEmpty) {
@@ -580,10 +623,12 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedNextPoint = null;
       selectedLocalTransportation = null;
       selectedTransportation = null;
+      selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
 
       segments.clear();
       returnSegments.clear();
+      customizeReturnRoute = false;
 
       selectedTripDirection = TripDirection.oneWay;
     });
@@ -601,10 +646,12 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedNextPoint = null;
       selectedLocalTransportation = null;
       selectedTransportation = null;
+      selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
 
       segments.clear();
       returnSegments.clear();
+      customizeReturnRoute = false;
 
       selectedTripDirection = TripDirection.oneWay;
     });
@@ -622,12 +669,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedNextPoint = null;
       selectedLocalTransportation = null;
       selectedTransportation = null;
+      selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
 
       selectedTripDirection = TripDirection.oneWay;
 
       segments.clear();
       returnSegments.clear();
+      customizeReturnRoute = false;
     });
   }
 
@@ -670,8 +719,20 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedNextPoint = null;
       selectedTransportation = null;
 
-      // Rebuild return route when outgoing route changes.
+      // Rebuild the automatic return route when the outgoing route changes.
       returnSegments.clear();
+      customizeReturnRoute = false;
+    });
+  }
+
+  // ============================================================
+  // SELECT RETURN DESTINATION
+  // ============================================================
+
+  void _selectReturnNextPoint(String? value) {
+    setState(() {
+      selectedReturnNextPoint = value;
+      selectedReturnTransportation = null;
     });
   }
 
@@ -681,7 +742,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
   void _addReturnLeg() {
     final from = currentReturnLocation;
-    final to = nextReturnLocation;
+    final to = selectedReturnNextPoint;
 
     if (from == null || to == null || selectedReturnTransportation == null) {
       return;
@@ -696,6 +757,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
         ),
       );
 
+      selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
     });
   }
@@ -716,6 +778,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedTransportation = null;
 
       returnSegments.clear();
+      customizeReturnRoute = false;
     });
   }
 
@@ -730,6 +793,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     setState(() {
       returnSegments.removeLast();
+      selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
     });
   }
@@ -741,11 +805,32 @@ class _BoardingScreenState extends State<BoardingScreen> {
   void _selectTripDirection(TripDirection direction) {
     setState(() {
       selectedTripDirection = direction;
+      returnSegments.clear();
+      selectedReturnNextPoint = null;
+      selectedReturnTransportation = null;
+      customizeReturnRoute = false;
+    });
+  }
 
-      if (direction == TripDirection.oneWay) {
-        returnSegments.clear();
-        selectedReturnTransportation = null;
-      }
+  // ============================================================
+  // CUSTOMIZE RETURN ROUTE
+  // ============================================================
+
+  void _startReturnCustomization() {
+    setState(() {
+      customizeReturnRoute = true;
+      returnSegments.clear();
+      selectedReturnNextPoint = null;
+      selectedReturnTransportation = null;
+    });
+  }
+
+  void _useAutomaticReturnRoute() {
+    setState(() {
+      customizeReturnRoute = false;
+      returnSegments.clear();
+      selectedReturnNextPoint = null;
+      selectedReturnTransportation = null;
     });
   }
 
@@ -786,7 +871,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
         destination: widget.destination,
         segments: List<RouteSegment>.from(segments),
         tripDirection: selectedTripDirection,
-        returnSegments: selectedTripDirection == TripDirection.roundTrip
+        returnSegments:
+            selectedTripDirection == TripDirection.roundTrip &&
+                customizeReturnRoute &&
+                returnSegments.isNotEmpty
             ? List<RouteSegment>.from(returnSegments)
             : null,
       );
@@ -805,6 +893,8 @@ class _BoardingScreenState extends State<BoardingScreen> {
           currency: widget.currency,
           budget: widget.budget,
           ages: widget.ages,
+          adultCount: widget.adultCount,
+          childCount: widget.childCount,
           travelType: widget.travelType,
           groupSize: widget.groupSize,
           seasonMessage: widget.seasonMessage,
@@ -845,17 +935,22 @@ class _BoardingScreenState extends State<BoardingScreen> {
       return '';
     }
 
-    if (returnSegments.isEmpty) {
-      return '${widget.destination} → ... → '
-          '$selectedBoardingPoint';
+    if (returnSegments.isNotEmpty) {
+      final points = <String>[
+        returnSegments.first.from,
+        ...returnSegments.map((segment) => segment.to),
+      ];
+
+      return points.join(' → ');
     }
 
-    final points = <String>[
-      returnSegments.first.from,
-      ...returnSegments.map((segment) => segment.to),
+    // Automatic round trip: reverse the exact route the user built.
+    final outgoingPoints = <String>[
+      segments.first.from,
+      ...segments.map((segment) => segment.to),
     ];
 
-    return points.join(' → ');
+    return outgoingPoints.reversed.join(' → ');
   }
 
   // ============================================================
@@ -1769,12 +1864,11 @@ class _BoardingScreenState extends State<BoardingScreen> {
                             Expanded(
                               child: Text(
                                 selectedTripDirection == TripDirection.roundTrip
-                                    ? 'The return journey is '
-                                          'planned separately, '
-                                          'so you can choose '
-                                          'different '
-                                          'transportation for '
-                                          'the return trip.'
+                                    ? 'Your return journey will '
+                                          'automatically follow the '
+                                          'same route in reverse. You '
+                                          'can customize transportation '
+                                          'for the return trip if needed.'
                                     : 'The itinerary will end '
                                           'at ${widget.destination}.',
                                 style: textTheme.bodyMedium,
@@ -1817,25 +1911,90 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         ),
                       ),
 
-                      if (!returnRouteComplete) ...[
+                      if (!customizeReturnRoute) ...[
                         const SizedBox(height: AppSpacing.lg),
+
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            'The return route is automatically created by '
+                            'reversing your outgoing route. You can also '
+                            'customize the return destinations and transportation '
+                            'for each return leg.',
+                            style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                          ),
+                        ),
+
+                        const SizedBox(height: AppSpacing.md),
+
+                        YatraSecondaryButton(
+                          label: 'Customize Return Route',
+                          icon: Icons.tune,
+                          expanded: false,
+                          onPressed: _startReturnCustomization,
+                        ),
+                      ],
+
+                      if (customizeReturnRoute && !returnRouteComplete) ...[
+                        const SizedBox(height: AppSpacing.lg),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Customize Return Journey',
+                                style: textTheme.titleLarge,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _useAutomaticReturnRoute,
+                              child: const Text('Use Automatic'),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: AppSpacing.sm),
 
                         Text(
                           'From ${currentReturnLocation!}',
                           style: textTheme.titleLarge,
                         ),
 
+                        const SizedBox(height: AppSpacing.md),
+
+                        Text('Return destination', style: textTheme.titleLarge),
+
                         const SizedBox(height: AppSpacing.sm),
 
-                        Text(
-                          'Returning to '
-                          '${nextReturnLocation ?? selectedBoardingPoint}',
-                          style: AppType.caption,
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedReturnNextPoint,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            hintText: 'Choose next return destination',
+                            prefixIcon: Icon(Icons.place_outlined),
+                          ),
+                          items: returnDestinationOptions
+                              .map(
+                                (place) => DropdownMenuItem<String>(
+                                  value: place,
+                                  child: Text(place),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _selectReturnNextPoint,
                         ),
 
                         const SizedBox(height: AppSpacing.md),
 
-                        if (nextReturnLocation != null) ...[
+                        if (selectedReturnNextPoint != null) ...[
                           Text('Transportation', style: textTheme.titleLarge),
 
                           const SizedBox(height: AppSpacing.sm),
@@ -1843,7 +2002,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                           _transportSelectionHint(
                             selected: selectedReturnTransportation,
                             from: currentReturnLocation!,
-                            to: nextReturnLocation!,
+                            to: selectedReturnNextPoint!,
                           ),
 
                           const SizedBox(height: AppSpacing.md),
@@ -1858,7 +2017,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                             items: _transportItems(
                               transportOptionsForRoute(
                                 currentReturnLocation!,
-                                nextReturnLocation!,
+                                selectedReturnNextPoint!,
                               ),
                             ),
                             onChanged: (value) {
@@ -1871,7 +2030,8 @@ class _BoardingScreenState extends State<BoardingScreen> {
                           const SizedBox(height: AppSpacing.md),
                         ],
 
-                        if (selectedReturnTransportation != null)
+                        if (selectedReturnNextPoint != null &&
+                            selectedReturnTransportation != null)
                           YatraSecondaryButton(
                             label: 'Add Return Leg',
                             icon: Icons.add,
@@ -1888,6 +2048,15 @@ class _BoardingScreenState extends State<BoardingScreen> {
                               label: const Text('Remove Last Leg'),
                             ),
                           ),
+                      ],
+
+                      if (customizeReturnRoute && returnRouteComplete) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        TextButton.icon(
+                          onPressed: _useAutomaticReturnRoute,
+                          icon: const Icon(Icons.restart_alt),
+                          label: const Text('Use Automatic Return Route'),
+                        ),
                       ],
                     ],
 

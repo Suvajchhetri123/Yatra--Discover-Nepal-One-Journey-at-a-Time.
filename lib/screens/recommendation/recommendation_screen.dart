@@ -19,6 +19,8 @@ class RecommendationScreen extends StatelessWidget {
   final String currency;
   final double budget;
   final List<int> ages;
+  final int adultCount;
+  final int childCount;
   final String travelType;
   final int groupSize;
   final String seasonMessage;
@@ -35,6 +37,8 @@ class RecommendationScreen extends StatelessWidget {
     required this.currency,
     required this.budget,
     required this.ages,
+    this.adultCount = 1,
+    this.childCount = 0,
     required this.travelType,
     required this.groupSize,
     required this.seasonMessage,
@@ -66,7 +70,8 @@ class RecommendationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final duration = returnDate.difference(departureDate).inDays + 1;
+    final rawDuration = returnDate.difference(departureDate).inDays + 1;
+    final duration = rawDuration > 0 ? rawDuration : 1;
 
     final recommendation = RecommendationService.generate(
       touristType: touristType,
@@ -76,6 +81,8 @@ class RecommendationScreen extends StatelessWidget {
       budget: budget,
       currency: currency,
       ages: ages,
+      adultCount: adultCount,
+      childCount: childCount,
       travelType: travelType,
       groupSize: groupSize,
       duration: duration,
@@ -144,6 +151,8 @@ class RecommendationScreen extends StatelessWidget {
                     ),
                     YatraInfoRow(label: 'Duration', value: '$duration days'),
                     YatraInfoRow(label: 'Travelers', value: '$groupSize'),
+                    YatraInfoRow(label: 'Adults', value: '$adultCount'),
+                    YatraInfoRow(label: 'Children', value: '$childCount'),
                     YatraInfoRow(label: 'Travel Type', value: travelType),
                     YatraInfoRow(
                       label: 'Budget',
@@ -398,6 +407,8 @@ class RecommendationScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     YatraInfoRow(label: 'Travelers', value: '$groupSize'),
+                    YatraInfoRow(label: 'Adults', value: '$adultCount'),
+                    YatraInfoRow(label: 'Children', value: '$childCount'),
                     YatraInfoRow(label: 'Age', value: ageDisplay),
                     YatraInfoRow(
                       label: 'Selected Duration',

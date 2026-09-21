@@ -349,6 +349,11 @@ class RecommendationService {
     // 5. DAY-BY-DAY PLAN
     // ==========================================================
 
+    // The detailed itinerary should cover the recommended core journey only.
+    // The user's full selected date range is handled separately by the
+    // duration/remaining-days logic below. For example, if the user has
+    // 38 available days but this route needs only 3 days, dayPlans should
+    // contain 3 days and the other 35 days should appear as extra days.
     final List<DayPlan> dayPlans = _generateDayPlans(
       route: route,
       travelDays: travelDays,
@@ -603,11 +608,11 @@ class RecommendationService {
     if (transport.contains('motorbike') ||
         transport.contains('motor bike') ||
         transport.contains('motorcycle')) {
-      return 2;
+      return 1;
     }
 
     if (transport.contains('bike') && !transport.contains('motorbike')) {
-      return 2;
+      return 1;
     }
 
     if (transport.contains('bus') ||
@@ -615,7 +620,7 @@ class RecommendationService {
         transport.contains('car') ||
         transport.contains('taxi') ||
         transport.contains('vehicle')) {
-      return 2;
+      return 1;
     }
 
     if (transport.contains('trek') ||
@@ -626,10 +631,12 @@ class RecommendationService {
     }
 
     if (transport.contains('road')) {
-      return 2;
+      return 1;
     }
 
-    return 2;
+    // A normal intercity route leg is treated as one travel day unless
+    // the selected mode is a trekking route with an explicit multi-day rule.
+    return 1;
   }
 
   // ============================================================
@@ -713,16 +720,22 @@ class RecommendationService {
   }) {
     final List<DayPlan> plans = [];
 
-    final List<RouteSegment> outbound = List<RouteSegment>.from(route.segments);
+    // Use the user's selected calendar duration whenever it is available.
+    // Older helper calls may pass 0, so fall back to the calculated
+    // minimum journey duration in that case.
+    final int fallbackDays = travelDays + visitDays + returnDays;
+    final int totalPlanDays =
+        actualJourneyDays > 0 ? actualJourneyDays : fallbackDays;
 
-    if (actualJourneyDays <= 0) {
+    if (totalPlanDays <= 0) {
       return plans;
     }
 
-    if (outbound.isEmpty) {
+    // Local exploration has no intercity route segments.
+    if (route.segments.isEmpty) {
       return _createVisitPlans(
         places: _getDestinationPlaces(route.destination),
-        numberOfDays: actualJourneyDays,
+        numberOfDays: totalPlanDays,
         startingDay: 1,
         ages: ages,
         adultCount: adultCount,
@@ -731,61 +744,75 @@ class RecommendationService {
       );
     }
 
-    final List<RouteSegment> effectiveOutbound =
-        outbound.length > actualJourneyDays
-        ? outbound.sublist(0, actualJourneyDays)
-        : outbound;
+    List<DayPlanItem> expandTravelDays(List<RouteSegment> routeSegments) {
+      final List<DayPlanItem> items = [];
 
-    final List<RouteSegment> returnLegs = route.isRoundTrip
-        ? List<RouteSegment>.from(route.returnSegments)
-        : <RouteSegment>[];
+      for (final segment in routeSegments) {
+        final int days = _daysForTransport(
+          from: segment.from,
+          to: segment.to,
+          transportation: segment.transportation,
+        );
 
-    int remainingJourneyDays = actualJourneyDays - effectiveOutbound.length;
+        final int safeDays = days > 0 ? days : 1;
 
-    if (remainingJourneyDays < 0) {
-      remainingJourneyDays = 0;
-    }
-
-    int currentDay = 1;
-
-    for (final RouteSegment segment in effectiveOutbound) {
-      if (currentDay > actualJourneyDays) {
-        break;
-      }
-
-      plans.add(
-        DayPlan(
-          day: currentDay,
-          items: [
+        for (int i = 0; i < safeDays; i++) {
+          items.add(
             DayPlanItem.travel(
               from: segment.from,
               to: segment.to,
               transportation: segment.transportation,
             ),
-          ],
+          );
+        }
+      }
+
+      return items;
+    }
+
+    final List<DayPlanItem> outboundTravelItems =
+        expandTravelDays(route.segments);
+
+    final List<DayPlanItem> returnTravelItems = route.isRoundTrip
+        ? expandTravelDays(route.returnSegments)
+        : <DayPlanItem>[];
+
+    final int outboundDaysToUse = outboundTravelItems.length < totalPlanDays
+        ? outboundTravelItems.length
+        : totalPlanDays;
+
+    int currentDay = 1;
+
+    // OUTBOUND JOURNEY
+    for (int i = 0; i < outboundDaysToUse; i++) {
+      plans.add(
+        DayPlan(
+          day: currentDay,
+          items: [outboundTravelItems[i]],
         ),
       );
-
       currentDay++;
     }
 
+    final int remainingDays = totalPlanDays - outboundDaysToUse;
+
+    // Reserve the end of a round trip for the user's actual return route.
     int returnDaysToUse = 0;
 
-    if (route.isRoundTrip && returnLegs.isNotEmpty) {
-      returnDaysToUse = returnLegs.length < remainingJourneyDays
-          ? returnLegs.length
-          : remainingJourneyDays;
+    if (route.isRoundTrip &&
+        returnTravelItems.isNotEmpty &&
+        remainingDays > 0) {
+      returnDaysToUse = returnTravelItems.length < remainingDays
+          ? returnTravelItems.length
+          : remainingDays;
     }
 
-    final int explorationDays = remainingJourneyDays - returnDaysToUse;
+    final int explorationDays = remainingDays - returnDaysToUse;
 
-    final List<Place> destinationPlaces = _getDestinationPlaces(
-      route.destination,
-    );
-
+    // DESTINATION / EXTRA-DAY EXPLORATION
     if (explorationDays > 0) {
       final List<DayPlan> visitPlans = _createVisitPlans(
-        places: destinationPlaces,
+        places: _getDestinationPlaces(route.destination),
         numberOfDays: explorationDays,
         startingDay: currentDay,
         ages: ages,
@@ -794,28 +821,22 @@ class RecommendationService {
       );
 
       plans.addAll(visitPlans);
-
       currentDay += explorationDays;
     }
 
-    if (route.isRoundTrip) {
-      for (
-        int i = 0;
-        i < returnDaysToUse && currentDay <= actualJourneyDays;
-        i++
-      ) {
-        final RouteSegment segment = returnLegs[i];
+    // RETURN JOURNEY
+    if (route.isRoundTrip && returnDaysToUse > 0) {
+      // If the selected duration is too short, begin the return from the
+      // destination and include as many correctly ordered return legs as fit.
+      for (int i = 0; i < returnDaysToUse; i++) {
+        if (currentDay > totalPlanDays) {
+          break;
+        }
 
         plans.add(
           DayPlan(
             day: currentDay,
-            items: [
-              DayPlanItem.travel(
-                from: segment.from,
-                to: segment.to,
-                transportation: segment.transportation,
-              ),
-            ],
+            items: [returnTravelItems[i]],
           ),
         );
 
@@ -823,8 +844,8 @@ class RecommendationService {
       }
     }
 
-    if (plans.length > actualJourneyDays) {
-      return plans.sublist(0, actualJourneyDays);
+    if (plans.length > totalPlanDays) {
+      return plans.sublist(0, totalPlanDays);
     }
 
     return plans;
