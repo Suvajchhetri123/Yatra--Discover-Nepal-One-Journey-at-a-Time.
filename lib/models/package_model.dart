@@ -1,3 +1,5 @@
+import 'tourist_pricing.dart';
+
 /// A curated, bookable tour package: a bundled multi-day trip with a price,
 /// duration, difficulty and the places it covers.
 class TourPackage {
@@ -7,7 +9,14 @@ class TourPackage {
   final String summary;
   final String description;
   final int durationDays;
-  final double price; // in NPR
+
+  /// Universal package price in NPR shared by all tourists.
+  final double price;
+
+  /// Optional domestic/international price overrides. When null the universal
+  /// [price] applies to every tourist segment.
+  final TouristPricing? touristPrice;
+
   final String difficulty; // 'Easy' | 'Moderate' | 'Challenging'
   final double rating;
   final String imageUrl;
@@ -22,12 +31,22 @@ class TourPackage {
     required this.description,
     required this.durationDays,
     required this.price,
+    this.touristPrice,
     required this.difficulty,
     required this.rating,
     required this.imageUrl,
     required this.highlights,
     required this.includedPlaces,
   });
+
+  /// Resolve the package price that applies to [touristType].
+  double priceFor(String touristType) {
+    return priceForTouristType(
+      touristType: touristType,
+      universalPrice: price,
+      pricing: touristPrice,
+    );
+  }
 }
 
 /// Formats an NPR amount with thousands separators, e.g. 95000 -> "NPR 95,000".

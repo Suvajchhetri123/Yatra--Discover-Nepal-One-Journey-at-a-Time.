@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../data/packages_data.dart';
+import '../../models/travel_route_model.dart';
 import '../../services/season_service.dart';
+import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import '../boarding/boarding_screen.dart';
@@ -99,6 +101,33 @@ class SeasonAnalysisScreen extends StatelessWidget {
       departureDate: departureDate,
     );
 
+    // ==========================================
+    // COST ESTIMATE
+    // ==========================================
+    final estimate = TripCostEstimator.estimate(
+      touristType: touristType,
+      destination: destination,
+      durationDays: _tripDuration,
+      adultCount: adultCount,
+      childCount: childCount,
+      childAges: TripCostEstimator.childAgesFrom(
+        ages: ages,
+        adultCount: adultCount,
+        childCount: childCount,
+      ),
+      route: TravelRoute(
+        boardingPoint: destination,
+        destination: destination,
+        segments: const [],
+      ),
+    );
+
+    final budgetNpr = TripCostEstimator.toNpr(budget, currency);
+    final verdict = TripCostEstimator.evaluateBudget(
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+    );
+
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -113,10 +142,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Your Trip Overview',
-                      style: textTheme.headlineMedium,
-                    ),
+                    Text('Your Trip Overview', style: textTheme.headlineMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Yatra has prepared your trip based on your '
@@ -167,26 +193,14 @@ class SeasonAnalysisScreen extends StatelessWidget {
                                 '$_tripDuration '
                                 '${_tripDuration == 1 ? 'day' : 'days'}',
                           ),
-                          YatraInfoRow(
-                            label: 'Travel type',
-                            value: travelType,
-                          ),
-                          YatraInfoRow(
-                            label: 'Adults',
-                            value: '$adultCount',
-                          ),
-                          YatraInfoRow(
-                            label: 'Children',
-                            value: '$childCount',
-                          ),
+                          YatraInfoRow(label: 'Travel type', value: travelType),
+                          YatraInfoRow(label: 'Adults', value: '$adultCount'),
+                          YatraInfoRow(label: 'Children', value: '$childCount'),
                           YatraInfoRow(
                             label: 'Travellers',
                             value: '$groupSize',
                           ),
-                          YatraInfoRow(
-                            label: 'Ages',
-                            value: _ageText,
-                          ),
+                          YatraInfoRow(label: 'Ages', value: _ageText),
                           YatraInfoRow(
                             label: 'Budget',
                             value: '$currency ${_formatAmount(budget)}',
@@ -202,6 +216,22 @@ class SeasonAnalysisScreen extends StatelessWidget {
                     _SeasonCard(result: result),
                     const SizedBox(height: AppSpacing.lg),
                     _SeasonAdvisory(result: result),
+                    const SizedBox(height: AppSpacing.xxl),
+
+                    // ==========================================
+                    // COST OVERVIEW
+                    // ==========================================
+                    const YatraSectionTitle(title: 'Cost Overview'),
+                    const SizedBox(height: AppSpacing.md),
+                    _TripCostCard(
+                      estimate: estimate,
+                      verdict: verdict,
+                      budgetNpr: budgetNpr,
+                      currency: currency,
+                      tripDuration: _tripDuration,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    _SeasonCostNote(season: result.season),
                     const SizedBox(height: AppSpacing.xxl),
 
                     const YatraSectionTitle(title: 'Trip Profile'),
@@ -376,11 +406,7 @@ class _DestinationHero extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: Icon(
-        Icons.landscape,
-        color: scheme.onPrimary,
-        size: 56,
-      ),
+      child: Icon(Icons.landscape, color: scheme.onPrimary, size: 56),
     );
   }
 }
@@ -429,17 +455,11 @@ class _SeasonCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${result.season} Season',
-                  style: textTheme.titleMedium,
-                ),
+                Text('${result.season} Season', style: textTheme.titleMedium),
                 const SizedBox(height: 2),
                 Text(
                   result.suitability,
-                  style: AppType.label.copyWith(
-                    fontSize: 20,
-                    color: color,
-                  ),
+                  style: AppType.label.copyWith(fontSize: 20, color: color),
                 ),
               ],
             ),
@@ -507,9 +527,7 @@ class _SeasonAdvisory extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            lessSuitable
-                ? Icons.info_outline
-                : Icons.tips_and_updates_outlined,
+            lessSuitable ? Icons.info_outline : Icons.tips_and_updates_outlined,
             color: accent,
             size: 22,
           ),
@@ -518,10 +536,7 @@ class _SeasonAdvisory extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Season Advisory',
-                  style: textTheme.titleMedium,
-                ),
+                Text('Season Advisory', style: textTheme.titleMedium),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   result.message,
@@ -537,8 +552,162 @@ class _SeasonAdvisory extends StatelessWidget {
 }
 
 // ==================================================
-// TRIP PROFILE GRID
+// COST OVERVIEW
 // ==================================================
+
+class _TripCostCard extends StatelessWidget {
+  final TripCostEstimate estimate;
+  final BudgetVerdict verdict;
+  final double budgetNpr;
+  final String currency;
+  final int tripDuration;
+
+  const _TripCostCard({
+    required this.estimate,
+    required this.verdict,
+    required this.budgetNpr,
+    required this.currency,
+    required this.tripDuration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    final isInsufficient = verdict == BudgetVerdict.insufficient;
+    final accent = isInsufficient ? AppColors.danger : AppColors.success;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: accent.withValues(alpha: isInsufficient ? 0.5 : 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Estimated Trip Cost', style: textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.lg),
+          YatraInfoRow(
+            label: 'Estimated total',
+            value: TripCostEstimator.formatNprAmount(estimate.total),
+            emphasized: true,
+          ),
+          YatraInfoRow(
+            label: 'Transport',
+            value: TripCostEstimator.formatNprAmount(estimate.transport),
+          ),
+          YatraInfoRow(
+            label:
+                'Stay ($tripDuration '
+                '${tripDuration == 1 ? 'night' : 'nights'})',
+            value: TripCostEstimator.formatNprAmount(estimate.stay),
+          ),
+          YatraInfoRow(
+            label: 'Activities',
+            value: TripCostEstimator.formatNprAmount(estimate.activity),
+          ),
+          const Divider(height: AppSpacing.xl * 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                isInsufficient
+                    ? Icons.warning_amber_rounded
+                    : Icons.check_circle,
+                color: accent,
+                size: 22,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      TripCostEstimator.verdictTitle(verdict),
+                      style: textTheme.titleSmall?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      TripCostEstimator.verdictMessage(
+                        verdict: verdict,
+                        budgetNpr: budgetNpr,
+                        estimate: estimate,
+                        currency: currency,
+                        adultCount: 0,
+                        childCount: 0,
+                      ),
+                      style: textTheme.bodyMedium?.copyWith(height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SeasonCostNote extends StatelessWidget {
+  final String season;
+
+  const _SeasonCostNote({required this.season});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final peak = season == 'Peak' || season == 'Monsoon';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.tips_and_updates_outlined,
+            color: AppColors.primary,
+            size: 22,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Seasonal pricing', style: textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  peak
+                      ? '$season season: rooms, permits and transport '
+                            'typically cost the most. The estimate above is '
+                            'an average — actual prices may be higher.'
+                      : '$season season: prices for stays and activities are '
+                            'generally easier on the budget. The estimate '
+                            'above is an average for reference.',
+                  style: textTheme.bodyMedium?.copyWith(height: 1.5),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _TripProfileGrid extends StatelessWidget {
   final DateTime departureDate;
@@ -655,17 +824,11 @@ class _ProfileTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.7),
-        ),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.7)),
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: scheme.primary,
-            size: 22,
-          ),
+          Icon(icon, color: scheme.primary, size: 22),
           const SizedBox(width: AppSpacing.sm + 2),
           Expanded(
             child: Column(

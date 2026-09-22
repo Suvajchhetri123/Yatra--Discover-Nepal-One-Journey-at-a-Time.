@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../theme/app_theme.dart';
+import '../../models/journey_stop_plan.dart';
 import '../../models/travel_route_model.dart';
 import '../../data/transportation_data.dart';
+import '../../services/trip_cost_estimator.dart';
 import '../../widgets/yatra_components.dart';
 import '../recommendation/recommendation_screen.dart';
 
@@ -76,6 +78,11 @@ class _BoardingScreenState extends State<BoardingScreen> {
   bool customizeReturnRoute = false;
 
   TripDirection selectedTripDirection = TripDirection.oneWay;
+
+  /// Extra exploration days requested per intermediate stop, keyed by the
+  /// stop's display name. Fed into TravelRoute.stopPlans so the day planner
+  /// reserves time slots and the minimum-days check accounts for them.
+  final Map<String, int> stopExplorationDays = {};
 
   // ============================================================
   // LOCAL TRANSPORTATION
@@ -229,22 +236,23 @@ class _BoardingScreenState extends State<BoardingScreen> {
   String _normalize(String value) {
     return value.trim().toLowerCase();
   }
+
   String? _preferredTransportationForRoute(String from, String to) {
-      final preferred = widget.selectedTransport?.trim();
+    final preferred = widget.selectedTransport?.trim();
 
-      if (preferred == null || preferred.isEmpty) {
-        return null;
-      }
-
-      final options = transportOptionsForRoute(from, to);
-
-      for (final routeTransport in options) {
-        if (_normalize(routeTransport.option.name) == _normalize(preferred)) {
-          return routeTransport.option.name;
-        }
-      }
+    if (preferred == null || preferred.isEmpty) {
       return null;
     }
+
+    final options = transportOptionsForRoute(from, to);
+
+    for (final routeTransport in options) {
+      if (_normalize(routeTransport.option.name) == _normalize(preferred)) {
+        return routeTransport.option.name;
+      }
+    }
+    return null;
+  }
 
   // ============================================================
   // LOCAL EXPLORATION
@@ -838,6 +846,102 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // CONTINUE
   // ============================================================
 
+  // ============================================================
+  // RELATED: Build Route
+  // ============================================================
+
+  /// Intermediate stops visited along the completed outgoing route, excluding
+  /// the final destination (whose visit days are handled by the planner).
+  List<String> get _waypointStops {
+    if (isLocalExploration || segments.isEmpty) {
+      return const [];
+    }
+
+    final points = <String>[
+      segments.first.from,
+      ...segments.map((segment) => segment.to),
+    ];
+
+    points.removeLast();
+
+    return points;
+  }
+
+  List<JourneyStopPlan> get _stopPlans {
+    return _waypointStops
+        .map(
+          (stop) => JourneyStopPlan(
+            location: stop,
+            explorationDays: stopExplorationDays[stop] ?? 1,
+          ),
+        )
+        .toList();
+  }
+
+  TravelRoute buildRoute() {
+    if (isLocalExploration) {
+      return TravelRoute(
+        boardingPoint: localDestinationName,
+        destination: localDestinationName,
+        segments: const [],
+        localTransportation: selectedLocalTransportation,
+        tripDirection: TripDirection.oneWay,
+      );
+    }
+
+    return TravelRoute(
+      boardingPoint: segments.first.from,
+      destination: widget.destination,
+      segments: List<RouteSegment>.from(segments),
+      tripDirection: selectedTripDirection,
+      returnSegments:
+          selectedTripDirection == TripDirection.roundTrip &&
+              customizeReturnRoute &&
+              returnSegments.isNotEmpty
+          ? List<RouteSegment>.from(returnSegments)
+          : null,
+      stopPlans: _stopPlans,
+    );
+  }
+
+  // ============================================================
+  // LIVE ROUTE COST SUMMARY
+  // ============================================================
+
+  int get _tripDuration {
+    final days = widget.returnDate.difference(widget.departureDate).inDays + 1;
+    return days > 0 ? days : 1;
+  }
+
+  TripCostEstimate? get _routeEstimate {
+    if (!routeComplete) {
+      return null;
+    }
+
+    return TripCostEstimator.estimate(
+      touristType: widget.touristType,
+      destination: widget.destination,
+      durationDays: _tripDuration,
+      adultCount: widget.adultCount,
+      childCount: widget.childCount,
+      childAges: TripCostEstimator.childAgesFrom(
+        ages: widget.ages,
+        adultCount: widget.adultCount,
+        childCount: widget.childCount,
+      ),
+      route: buildRoute(),
+    );
+  }
+
+  BudgetVerdict _routeVerdict(TripCostEstimate estimate) {
+    final budgetNpr = TripCostEstimator.toNpr(widget.budget, widget.currency);
+
+    return TripCostEstimator.evaluateBudget(
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+    );
+  }
+
   void _continue() {
     if (!routeComplete) {
       return;
@@ -848,37 +952,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
       return;
     }
 
-    final TravelRoute route;
-
-    if (isLocalExploration) {
-      /*
-   * Local exploration has no fake destination -> destination
-   * route segment.
-   *
-   * The selected local transportation is stored directly
-   * in TravelRoute.
-   */
-      route = TravelRoute(
-        boardingPoint: localDestinationName,
-        destination: localDestinationName,
-        segments: const [],
-        localTransportation: selectedLocalTransportation,
-        tripDirection: TripDirection.oneWay,
-      );
-    } else {
-      route = TravelRoute(
-        boardingPoint: segments.first.from,
-        destination: widget.destination,
-        segments: List<RouteSegment>.from(segments),
-        tripDirection: selectedTripDirection,
-        returnSegments:
-            selectedTripDirection == TripDirection.roundTrip &&
-                customizeReturnRoute &&
-                returnSegments.isNotEmpty
-            ? List<RouteSegment>.from(returnSegments)
-            : null,
-      );
-    }
+    final TravelRoute route = buildRoute();
 
     Navigator.push(
       context,
@@ -2177,6 +2251,63 @@ class _BoardingScreenState extends State<BoardingScreen> {
                       ),
                     ],
 
+                    // ==========================================
+                    // EXPLORATION DAYS AT STOPS
+                    // ==========================================
+                    if (routeComplete &&
+                        !isLocalExploration &&
+                        _waypointStops.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xl),
+
+                      _journeyHeader(
+                        title: 'Exploration Days',
+                        subtitle:
+                            'How many days will you spend exploring '
+                            'each stop along the way?',
+                        icon: Icons.hotel_outlined,
+                      ),
+
+                      const SizedBox(height: AppSpacing.md),
+
+                      YatraCard(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          children: _waypointStops
+                              .map(
+                                (stop) => _ExplorationDayStepper(
+                                  stop: stop,
+                                  days: stopExplorationDays[stop] ?? 1,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      stopExplorationDays[stop] = value.clamp(
+                                        1,
+                                        14,
+                                      );
+                                    });
+                                  },
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ],
+
+                    // ==========================================
+                    // ROUTE COST SUMMARY
+                    // ==========================================
+                    if (routeComplete && _routeEstimate != null) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      _RouteCostSummaryCard(
+                        estimate: _routeEstimate!,
+                        verdict: _routeVerdict(_routeEstimate!),
+                        route: buildRoute(),
+                        budget: widget.budget,
+                        currency: widget.currency,
+                        adultCount: widget.adultCount,
+                        childCount: widget.childCount,
+                      ),
+                    ],
+
                     const SizedBox(height: AppSpacing.xxxl),
                   ],
                 ),
@@ -2210,4 +2341,232 @@ class _LocalTransportationOption {
     required this.description,
     required this.details,
   });
+}
+
+// ============================================================
+// EXPLORATION DAYS STEPPER
+// ============================================================
+
+class _ExplorationDayStepper extends StatelessWidget {
+  final String stop;
+  final int days;
+  final ValueChanged<int> onChanged;
+
+  const _ExplorationDayStepper({
+    required this.stop,
+    required this.days,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(stop, style: textTheme.titleSmall),
+                Text(
+                  days == 1
+                      ? '1 day of exploration'
+                      : '$days days of exploration',
+                  style: AppType.caption,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: days <= 1 ? null : () => onChanged(days - 1),
+            icon: Icon(
+              Icons.remove_circle_outline,
+              color: days <= 1 ? scheme.outlineVariant : scheme.primary,
+            ),
+          ),
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$days',
+              textAlign: TextAlign.center,
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: days >= 14 ? null : () => onChanged(days + 1),
+            icon: Icon(
+              Icons.add_circle_outline,
+              color: days >= 14 ? scheme.outlineVariant : scheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ROUTE COST SUMMARY
+// ============================================================
+
+class _RouteCostSummaryCard extends StatelessWidget {
+  final TripCostEstimate estimate;
+  final BudgetVerdict verdict;
+  final TravelRoute route;
+  final double budget;
+  final String currency;
+  final int adultCount;
+  final int childCount;
+
+  const _RouteCostSummaryCard({
+    required this.estimate,
+    required this.verdict,
+    required this.route,
+    required this.budget,
+    required this.currency,
+    required this.adultCount,
+    required this.childCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    final isInsufficient = verdict == BudgetVerdict.insufficient;
+    final accent = isInsufficient ? AppColors.danger : AppColors.success;
+
+    final segments = route.completeSegments;
+
+    final budgetNpr = TripCostEstimator.toNpr(budget, currency);
+
+    final message = TripCostEstimator.verdictMessage(
+      verdict: verdict,
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+      currency: currency,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: accent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Route Cost Summary', style: textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.md),
+          if (segments.isNotEmpty) ...[
+            ...segments.map(
+              (segment) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${segment.from} → ${segment.to} '
+                        '(${segment.transportation})',
+                        style: textTheme.bodySmall,
+                      ),
+                    ),
+                    Text(
+                      TripCostEstimator.formatNprAmount(
+                        TripCostEstimator.transportCostForMode(
+                          segment.transportation,
+                        ),
+                      ),
+                      style: AppType.bodyEmphasis.copyWith(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Transport total',
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                TripCostEstimator.formatNprAmount(estimate.transport),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Estimated trip total',
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                TripCostEstimator.formatNprAmount(estimate.total),
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: AppSpacing.xl * 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                isInsufficient
+                    ? Icons.warning_amber_rounded
+                    : Icons.check_circle,
+                color: accent,
+                size: 22,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      TripCostEstimator.verdictTitle(verdict),
+                      style: textTheme.titleSmall?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      message,
+                      style: textTheme.bodyMedium?.copyWith(height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

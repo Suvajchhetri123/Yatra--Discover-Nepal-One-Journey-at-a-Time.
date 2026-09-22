@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/package_model.dart';
+import '../../models/travel_route_model.dart';
+import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/yatra_components.dart';
@@ -50,6 +52,64 @@ class _BudgetScreenState extends State<BudgetScreen> {
     super.dispose();
   }
 
+  // ============================================================
+  // GUARDS
+  // ============================================================
+
+  /// Domestic/Nepalese travellers always plan and pay in NPR.
+  bool get _isDomestic {
+    return widget.touristType.toLowerCase().contains('domestic');
+  }
+
+  int get _tripDuration {
+    final days = widget.returnDate.difference(widget.departureDate).inDays + 1;
+    return days > 0 ? days : 1;
+  }
+
+  /// For the package flow this builds the estimated total trip cost used by
+  /// the gate that blocks continue until the budget fits the estimate.
+  TripCostEstimate? _packageEstimate(double? enteredBudget) {
+    final package = widget.package;
+
+    if (package == null || enteredBudget == null || enteredBudget <= 0) {
+      return null;
+    }
+
+    return TripCostEstimator.estimate(
+      touristType: widget.touristType,
+      destination: package.region,
+      durationDays: _tripDuration,
+      adultCount: widget.adultCount,
+      childCount: widget.childCount,
+      childAges: TripCostEstimator.childAgesFrom(
+        ages: widget.ages,
+        adultCount: widget.adultCount,
+        childCount: widget.childCount,
+      ),
+      route: TravelRoute(
+        boardingPoint: package.region,
+        destination: package.region,
+        segments: const [],
+      ),
+      package: package,
+    );
+  }
+
+  BudgetVerdict? _packageVerdictCache(double? enteredBudget) {
+    final estimate = _packageEstimate(enteredBudget);
+
+    if (estimate == null || enteredBudget == null) {
+      return null;
+    }
+
+    final budgetNpr = TripCostEstimator.toNpr(enteredBudget, selectedCurrency);
+
+    return TripCostEstimator.evaluateBudget(
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+    );
+  }
+
   String _ageText() {
     if (widget.ages.isEmpty) {
       return 'Not provided';
@@ -67,6 +127,16 @@ class _BudgetScreenState extends State<BudgetScreen> {
     final enteredBudget = double.tryParse(budgetController.text.trim());
 
     final isValidBudget = enteredBudget != null && enteredBudget > 0;
+
+    final packageVerdict = _packageVerdictCache(enteredBudget);
+
+    // The package flow blocks continue until the budget fits the estimate.
+    // The custom (destination) flow validates the budget on the next screen.
+    final budgetPasses =
+        widget.package == null ||
+        packageVerdict == null ||
+        packageVerdict == BudgetVerdict.suitable ||
+        packageVerdict == BudgetVerdict.excessive;
 
     final textTheme = Theme.of(context).textTheme;
 
@@ -117,14 +187,23 @@ class _BudgetScreenState extends State<BudgetScreen> {
                           child: Text('GBP - British Pound'),
                         ),
                       ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            selectedCurrency = value;
-                          });
-                        }
-                      },
+                      onChanged: _isDomestic
+                          ? null
+                          : (value) {
+                              if (value != null) {
+                                setState(() {
+                                  selectedCurrency = value;
+                                });
+                              }
+                            },
                     ),
+                    if (_isDomestic) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'Domestic tourists plan and pay in NPR.',
+                        style: AppType.caption,
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.xl),
 
                     Text('Total Budget', style: textTheme.titleMedium),
@@ -153,6 +232,26 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         setState(() {});
                       },
                     ),
+
+                    // ==========================================
+                    // PACKAGE FLOW BUDGET CHECK
+                    // ==========================================
+                    if (widget.package != null &&
+                        isValidBudget &&
+                        packageVerdict != null) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      _BudgetGateInfoBox(
+                        verdict: packageVerdict,
+                        package: widget.package!,
+                        estimate: _packageEstimate(enteredBudget)!,
+                        budget: enteredBudget,
+                        currency: selectedCurrency,
+                        touristType: widget.touristType,
+                        adultCount: widget.adultCount,
+                        childCount: widget.childCount,
+                      ),
+                    ],
+
                     const SizedBox(height: AppSpacing.xl),
 
                     InfoBox(
@@ -208,7 +307,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
               ),
               child: YatraPrimaryButton(
                 label: 'Continue',
-                onPressed: !isValidBudget
+                onPressed: !isValidBudget || !budgetPasses
                     ? null
                     : () {
                         if (widget.package != null) {
@@ -281,6 +380,95 @@ class _ProfileRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ============================================================
+// PACKAGE FLOW BUDGET GATE
+// ============================================================
+
+class _BudgetGateInfoBox extends StatelessWidget {
+  final BudgetVerdict verdict;
+  final TourPackage package;
+  final TripCostEstimate estimate;
+  final double budget;
+  final String currency;
+  final String touristType;
+  final int adultCount;
+  final int childCount;
+
+  const _BudgetGateInfoBox({
+    required this.verdict,
+    required this.package,
+    required this.estimate,
+    required this.budget,
+    required this.currency,
+    required this.touristType,
+    required this.adultCount,
+    required this.childCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    final isInsufficient = verdict == BudgetVerdict.insufficient;
+    final accent = isInsufficient ? AppColors.danger : AppColors.success;
+
+    final budgetNpr = TripCostEstimator.toNpr(budget, currency);
+    final message = TripCostEstimator.verdictMessage(
+      verdict: verdict,
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+      currency: currency,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: accent.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isInsufficient
+                    ? Icons.warning_amber_rounded
+                    : Icons.check_circle,
+                color: accent,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  TripCostEstimator.verdictTitle(verdict),
+                  style: textTheme.titleMedium?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Estimated total for ${package.title}: '
+            '${TripCostEstimator.formatNprAmount(estimate.total)} '
+            '(package NPR ${package.priceFor(touristType).toStringAsFixed(0)} + '
+            'transport + activities).',
+            style: textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(message, style: textTheme.bodyMedium?.copyWith(height: 1.5)),
+        ],
+      ),
     );
   }
 }

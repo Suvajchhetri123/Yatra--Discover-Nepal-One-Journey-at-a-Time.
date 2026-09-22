@@ -1,4 +1,5 @@
 import '../models/place_model.dart';
+import '../models/tourist_pricing.dart';
 
 const List<Place> nepalPlaces = [
   // ==================================================
@@ -83,7 +84,6 @@ const List<Place> nepalPlaces = [
   // ==================================================
   // POKHARA
   // ==================================================
-
   Place(
     name: 'Phewa Lake',
     location: 'Pokhara',
@@ -107,8 +107,7 @@ const List<Place> nepalPlaces = [
     imageUrl: 'assets/images/places/WorldPeacePagoda.jpg',
     entryFee: 0,
     openingHours: '6:00 AM - 6:00 PM',
-    transportation:
-        'Reach the area by road or hike from the Phewa Lake side.',
+    transportation: 'Reach the area by road or hike from the Phewa Lake side.',
     travelTrip:
         'The hill route can require walking, so allow sufficient time for the visit.',
     recommendedHours: 2.5,
@@ -121,6 +120,7 @@ const List<Place> nepalPlaces = [
         'A popular waterfall and natural attraction located in the southern part of Pokhara.',
     imageUrl: 'assets/images/places/DavisFalls.jpg',
     entryFee: 100,
+    touristEntryFee: TouristPricing(domestic: 50, international: 100),
     openingHours: '6:00 AM - 6:00 PM',
     transportation:
         'Accessible by taxi, local bus or private vehicle from central Pokhara.',
@@ -136,18 +136,17 @@ const List<Place> nepalPlaces = [
         'A museum documenting mountain cultures, mountaineering history and the Himalayan environment.',
     imageUrl: 'assets/images/places/InternationalMountainMuseum.jpg',
     entryFee: 500,
+    touristEntryFee: TouristPricing(domestic: 200, international: 500),
     openingHours: '9:00 AM - 5:00 PM',
     transportation:
         'Accessible by taxi, local bus or private vehicle from central Pokhara.',
-    travelTrip:
-        'Allow enough time to explore the museum exhibits.',
+    travelTrip: 'Allow enough time to explore the museum exhibits.',
     recommendedHours: 2.0,
   ),
 
   // ==================================================
   // KATHMANDU
   // ==================================================
-
   Place(
     name: 'Swayambhunath',
     location: 'Kathmandu',
@@ -155,6 +154,7 @@ const List<Place> nepalPlaces = [
         'A historic hilltop stupa offering panoramic views of Kathmandu Valley.',
     imageUrl: 'assets/images/places/Swayambhunath.jpg',
     entryFee: 200,
+    touristEntryFee: TouristPricing(domestic: 50, international: 200),
     openingHours: '6:00 AM - 6:00 PM',
     transportation:
         'Swayambhunath is accessible from central Kathmandu by taxi, local bus, or on foot.',
@@ -170,11 +170,11 @@ const List<Place> nepalPlaces = [
         'One of the most important Hindu temples in Nepal located beside the Bagmati River.',
     imageUrl: 'assets/images/places/Pashupatinath.jpg',
     entryFee: 1000,
+    touristEntryFee: TouristPricing(domestic: 100, international: 1000),
     openingHours: '4:00 AM - 9:00 PM',
     transportation:
         'Accessible by taxi, local bus or private vehicle from central Kathmandu.',
-    travelTrip:
-        'Respect local religious customs and follow visitor rules.',
+    travelTrip: 'Respect local religious customs and follow visitor rules.',
     recommendedHours: 2.5,
   ),
 
@@ -185,9 +185,9 @@ const List<Place> nepalPlaces = [
         'A large Buddhist stupa and an important cultural and religious landmark of Kathmandu.',
     imageUrl: 'assets/images/places/Boudhanath.jpg',
     entryFee: 400,
+    touristEntryFee: TouristPricing(domestic: 50, international: 400),
     openingHours: '6:00 AM - 8:00 PM',
-    transportation:
-        'Accessible by taxi, local bus or private vehicle.',
+    transportation: 'Accessible by taxi, local bus or private vehicle.',
     travelTrip:
         'The surrounding area has many monasteries, shops and restaurants.',
     recommendedHours: 2.0,
@@ -200,9 +200,9 @@ const List<Place> nepalPlaces = [
         'A historic palace square containing temples, courtyards and traditional Newari architecture.',
     imageUrl: 'assets/images/places/KathmanduDurbarSquare.jpg',
     entryFee: 1000,
+    touristEntryFee: TouristPricing(domestic: 150, international: 1000),
     openingHours: '7:00 AM - 7:00 PM',
-    transportation:
-        'Accessible by taxi, local bus or on foot.',
+    transportation: 'Accessible by taxi, local bus or on foot.',
     travelTrip:
         'Allow extra time to explore the surrounding historical streets.',
     recommendedHours: 3.0,
@@ -211,7 +211,6 @@ const List<Place> nepalPlaces = [
   // ==================================================
   // CHITWAN
   // ==================================================
-
   Place(
     name: 'Chitwan National Park',
     location: 'Chitwan',
@@ -219,6 +218,7 @@ const List<Place> nepalPlaces = [
         'A protected area famous for wildlife, jungle activities and rich biodiversity.',
     imageUrl: 'assets/images/places/ChitwanNationalPark.jpg',
     entryFee: 2000,
+    touristEntryFee: TouristPricing(domestic: 1000, international: 2000),
     openingHours: '6:00 AM - 6:00 PM',
     transportation:
         'Accessible from Sauraha and nearby areas by local vehicle, jeep or tourist bus.',
@@ -245,7 +245,6 @@ const List<Place> nepalPlaces = [
   // ==================================================
   // EVEREST
   // ==================================================
-
   Place(
     name: 'Namche Bazaar',
     location: 'Everest',
@@ -256,8 +255,7 @@ const List<Place> nepalPlaces = [
     openingHours: 'Open throughout the day',
     transportation:
         'Usually reached through the Everest trekking route after flying to Lukla.',
-    travelTrip:
-        'Acclimatization and gradual altitude gain are important.',
+    travelTrip: 'Acclimatization and gradual altitude gain are important.',
     recommendedHours: 5.0,
   ),
 
@@ -269,8 +267,7 @@ const List<Place> nepalPlaces = [
     imageUrl: 'assets/images/places/EverestViewHotel.jpg',
     entryFee: 0,
     openingHours: 'Open during daylight hours',
-    transportation:
-        'Reached on foot from Namche Bazaar.',
+    transportation: 'Reached on foot from Namche Bazaar.',
     travelTrip:
         'The walk involves altitude gain, so maintain a comfortable pace.',
     recommendedHours: 4.0,
@@ -279,7 +276,6 @@ const List<Place> nepalPlaces = [
   // ==================================================
   // ANNAPURNA
   // ==================================================
-
   Place(
     name: 'Annapurna Base Camp',
     location: 'Annapurna',
@@ -305,8 +301,7 @@ const List<Place> nepalPlaces = [
     openingHours: 'Open throughout the day',
     transportation:
         'Accessible by road from Pokhara followed by local transportation or walking.',
-    travelTrip:
-        'Allow additional time for walking and exploring the village.',
+    travelTrip: 'Allow additional time for walking and exploring the village.',
     recommendedHours: 4.0,
   ),
 
@@ -318,10 +313,8 @@ const List<Place> nepalPlaces = [
     imageUrl: 'assets/images/places/PoonHill.jpg',
     entryFee: 0,
     openingHours: 'Open throughout the day',
-    transportation:
-        'Reached through trekking routes from nearby villages.',
-    travelTrip:
-        'The early morning climb can be physically demanding.',
+    transportation: 'Reached through trekking routes from nearby villages.',
+    travelTrip: 'The early morning climb can be physically demanding.',
     recommendedHours: 4.0,
   ),
 ];

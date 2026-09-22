@@ -18,7 +18,7 @@ void main() {
             childCount: 0,
             touristType: 'Domestic Tourist',
             currency: 'NPR',
-            budget: 1000,
+            budget: 500000,
             ages: const [30],
             travelType: 'Solo',
             groupSize: 1,

@@ -1,3 +1,5 @@
+import 'journey_stop_plan.dart';
+
 enum TripDirection { oneWay, roundTrip }
 
 class RouteSegment {
@@ -34,12 +36,20 @@ class TravelRoute {
 
   final TripDirection tripDirection;
 
+  /// Optional per-stop exploration plans chosen by the traveller (e.g.
+  /// spending two extra days exploring Jomsom before continuing on).
+  ///
+  /// These are used to shape the recommended itinerary when the traveller
+  /// allocates extra stay time at specific route locations.
+  final List<JourneyStopPlan> stopPlans;
+
   const TravelRoute({
     required this.boardingPoint,
     required this.destination,
     required this.segments,
     this.localTransportation,
     this.tripDirection = TripDirection.oneWay,
+    this.stopPlans = const [],
     List<RouteSegment>? returnSegments,
   }) : _explicitReturnSegments = returnSegments;
 
@@ -62,6 +72,18 @@ class TravelRoute {
     }
 
     return 'One Way';
+  }
+
+  /// Total number of extra exploration/stay days allocated across the route
+  /// stops. Zero when the traveller did not allocate any extra stay time.
+  int get explorationDays {
+    int total = 0;
+
+    for (final plan in stopPlans) {
+      total += plan.explorationDays;
+    }
+
+    return total;
   }
 
   String get transportationDescription {

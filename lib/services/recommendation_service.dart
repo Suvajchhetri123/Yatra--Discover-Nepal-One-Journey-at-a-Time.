@@ -1,6 +1,7 @@
 import '../data/places_data.dart';
 import '../models/place_model.dart';
 import '../models/travel_route_model.dart';
+import 'trip_cost_estimator.dart';
 
 /// Represents one day in the recommended itinerary.
 class DayPlan {
@@ -117,6 +118,12 @@ class RecommendationResult {
   final bool budgetIsLow;
   final String budgetMessage;
 
+  /// Three-tier budget verdict computed by [TripCostEstimator].
+  final BudgetVerdict budgetVerdict;
+
+  /// Detailed per-component trip cost estimate.
+  final TripCostEstimate tripCostEstimate;
+
   // ============================================================
   // ROUTE
   // ============================================================
@@ -167,6 +174,8 @@ class RecommendationResult {
     required this.suitabilityFactors,
     required this.budgetIsLow,
     required this.budgetMessage,
+    required this.budgetVerdict,
+    required this.tripCostEstimate,
     required this.routeDestinations,
     required this.recommendedDurationTitle,
     required this.recommendedDurationMessage,
@@ -339,7 +348,8 @@ class RecommendationService {
     // 4. ACTUAL ROUTE DURATION
     // ==========================================================
 
-    final int minimumDays = travelDays + visitDays + returnDays;
+    final int minimumDays =
+        travelDays + visitDays + returnDays + route.explorationDays;
 
     final int maximumDays = minimumDays + 1;
 
@@ -433,24 +443,36 @@ class RecommendationService {
     // 10. BUDGET
     // ==========================================================
 
-    final bool budgetIsLow = _isBudgetLow(
+    // Base journey days exclude the extra per-stop exploration days; those are
+    // priced separately from route.stopPlans so they are not double counted.
+    final int baseJourneyDays = travelDays + visitDays + returnDays;
+
+    final TripCostEstimate tripCostEstimate = TripCostEstimator.estimate(
+      touristType: touristType,
       destination: route.destination,
-      budget: budget,
-      duration: minimumDays,
+      durationDays: baseJourneyDays,
       adultCount: normalizedAdultCount,
       childCount: normalizedChildCount,
       childAges: childAges,
+      route: route,
     );
 
-    final String budgetMessage = _buildBudgetMessage(
-      destination: route.destination,
-      budget: budget,
+    final double budgetNpr = TripCostEstimator.toNpr(budget, currency);
+
+    final BudgetVerdict budgetVerdict = TripCostEstimator.evaluateBudget(
+      budgetNpr: budgetNpr,
+      estimate: tripCostEstimate,
+    );
+
+    final bool budgetIsLow = budgetVerdict == BudgetVerdict.insufficient;
+
+    final String budgetMessage = TripCostEstimator.verdictMessage(
+      verdict: budgetVerdict,
+      budgetNpr: budgetNpr,
+      estimate: tripCostEstimate,
       currency: currency,
-      duration: minimumDays,
       adultCount: normalizedAdultCount,
       childCount: normalizedChildCount,
-      childAges: childAges,
-      isLow: budgetIsLow,
     );
 
     // ==========================================================
@@ -532,6 +554,8 @@ class RecommendationService {
       suitabilityFactors: suitabilityFactors,
       budgetIsLow: budgetIsLow,
       budgetMessage: budgetMessage,
+      budgetVerdict: budgetVerdict,
+      tripCostEstimate: tripCostEstimate,
       routeDestinations: routeDestinations,
       recommendedDurationTitle: recommendedDurationTitle,
       recommendedDurationMessage: recommendedDurationMessage,
@@ -724,8 +748,9 @@ class RecommendationService {
     // Older helper calls may pass 0, so fall back to the calculated
     // minimum journey duration in that case.
     final int fallbackDays = travelDays + visitDays + returnDays;
-    final int totalPlanDays =
-        actualJourneyDays > 0 ? actualJourneyDays : fallbackDays;
+    final int totalPlanDays = actualJourneyDays > 0
+        ? actualJourneyDays
+        : fallbackDays;
 
     if (totalPlanDays <= 0) {
       return plans;
@@ -770,8 +795,9 @@ class RecommendationService {
       return items;
     }
 
-    final List<DayPlanItem> outboundTravelItems =
-        expandTravelDays(route.segments);
+    final List<DayPlanItem> outboundTravelItems = expandTravelDays(
+      route.segments,
+    );
 
     final List<DayPlanItem> returnTravelItems = route.isRoundTrip
         ? expandTravelDays(route.returnSegments)
@@ -785,12 +811,7 @@ class RecommendationService {
 
     // OUTBOUND JOURNEY
     for (int i = 0; i < outboundDaysToUse; i++) {
-      plans.add(
-        DayPlan(
-          day: currentDay,
-          items: [outboundTravelItems[i]],
-        ),
-      );
+      plans.add(DayPlan(day: currentDay, items: [outboundTravelItems[i]]));
       currentDay++;
     }
 
@@ -809,11 +830,45 @@ class RecommendationService {
 
     final int explorationDays = remainingDays - returnDaysToUse;
 
+    // EXTRA STOP EXPLORATION DAYS
+    // When the traveller allocated extra stay time at specific stops,
+    // those days are placed right after the outbound journey, before the
+    // remaining destination days.
+    int stopPlanDaysToUse = 0;
+
+    if (route.stopPlans.isNotEmpty && explorationDays > 0) {
+      final int requestedStopDays = route.stopPlans.fold(
+        0,
+        (total, plan) =>
+            total + (plan.explorationDays > 0 ? plan.explorationDays : 0),
+      );
+
+      stopPlanDaysToUse = requestedStopDays < explorationDays
+          ? requestedStopDays
+          : explorationDays;
+
+      if (stopPlanDaysToUse > 0) {
+        final List<DayPlan> stopPlans = _createStopPlanPlans(
+          route: route,
+          numberOfDays: stopPlanDaysToUse,
+          startingDay: currentDay,
+          ages: ages,
+          adultCount: adultCount,
+          childCount: childCount,
+        );
+
+        plans.addAll(stopPlans);
+        currentDay += stopPlanDaysToUse;
+      }
+    }
+
     // DESTINATION / EXTRA-DAY EXPLORATION
-    if (explorationDays > 0) {
+    final int destinationDays = explorationDays - stopPlanDaysToUse;
+
+    if (destinationDays > 0) {
       final List<DayPlan> visitPlans = _createVisitPlans(
         places: _getDestinationPlaces(route.destination),
-        numberOfDays: explorationDays,
+        numberOfDays: destinationDays,
         startingDay: currentDay,
         ages: ages,
         adultCount: adultCount,
@@ -821,7 +876,7 @@ class RecommendationService {
       );
 
       plans.addAll(visitPlans);
-      currentDay += explorationDays;
+      currentDay += destinationDays;
     }
 
     // RETURN JOURNEY
@@ -833,12 +888,7 @@ class RecommendationService {
           break;
         }
 
-        plans.add(
-          DayPlan(
-            day: currentDay,
-            items: [returnTravelItems[i]],
-          ),
-        );
+        plans.add(DayPlan(day: currentDay, items: [returnTravelItems[i]]));
 
         currentDay++;
       }
@@ -846,6 +896,67 @@ class RecommendationService {
 
     if (plans.length > totalPlanDays) {
       return plans.sublist(0, totalPlanDays);
+    }
+
+    return plans;
+  }
+
+  // ============================================================
+  // STOP-PLAN DAYS
+  // ============================================================
+
+  /// Builds the day plans for the traveller's extra stay days at specific
+  /// route stops. Each selected stop contributes its exploration days in
+  /// order, using matching places when available and a friendly free-text
+  /// activity otherwise.
+  static List<DayPlan> _createStopPlanPlans({
+    required TravelRoute route,
+    required int numberOfDays,
+    required int startingDay,
+    required List<int> ages,
+    required int adultCount,
+    required int childCount,
+  }) {
+    final List<DayPlan> plans = [];
+
+    int allocated = 0;
+    int day = startingDay;
+
+    for (final plan in route.stopPlans) {
+      if (allocated >= numberOfDays) {
+        break;
+      }
+
+      if (plan.explorationDays <= 0) {
+        continue;
+      }
+
+      final int daysToUse = plan.explorationDays < numberOfDays - allocated
+          ? plan.explorationDays
+          : numberOfDays - allocated;
+
+      final places = _getDestinationPlaces(plan.location);
+
+      for (int i = 0; i < daysToUse; i++) {
+        final List<DayPlanItem> items = [];
+
+        if (i < places.length) {
+          items.add(DayPlanItem.attraction(place: places[i]));
+        } else {
+          items.add(
+            DayPlanItem.activity(
+              activity:
+                  'Spend extra time exploring ${plan.location} and its '
+                  'surroundings at your own pace',
+            ),
+          );
+        }
+
+        plans.add(DayPlan(day: day, items: items));
+        day++;
+      }
+
+      allocated += daysToUse;
     }
 
     return plans;
@@ -1588,107 +1699,8 @@ class RecommendationService {
   // BUDGET ESTIMATION
   // ============================================================
 
-  static double _calculateEstimatedTotal({
-    required String destination,
-    required int duration,
-    required int adultCount,
-    required int childCount,
-    required List<int> childAges,
-  }) {
-    double estimatedPerAdultPerDay = 2500;
-
-    final String destinationLower = destination.toLowerCase();
-
-    if (destinationLower.contains('mustang')) {
-      estimatedPerAdultPerDay = 3500;
-    } else if (destinationLower.contains('everest')) {
-      estimatedPerAdultPerDay = 4500;
-    } else if (destinationLower.contains('annapurna')) {
-      estimatedPerAdultPerDay = 4000;
-    } else if (destinationLower.contains('chitwan')) {
-      estimatedPerAdultPerDay = 3000;
-    }
-
-    double childCostFactor = 0;
-
-    for (final int age in childAges) {
-      if (age <= 5) {
-        childCostFactor += 0.50;
-      } else if (age <= 12) {
-        childCostFactor += 0.70;
-      } else {
-        childCostFactor += 0.85;
-      }
-    }
-
-    // If the stored child ages are incomplete, use a conservative
-    // 70% estimate for each missing child.
-    if (childAges.length < childCount) {
-      childCostFactor += (childCount - childAges.length) * 0.70;
-    }
-
-    final double adultCost = adultCount * estimatedPerAdultPerDay;
-
-    final double childCost = childCostFactor * estimatedPerAdultPerDay;
-
-    return (adultCost + childCost) * duration;
-  }
-
-  // ============================================================
-  // BUDGET CHECK
-  // ============================================================
-
-  static bool _isBudgetLow({
-    required String destination,
-    required double budget,
-    required int duration,
-    required int adultCount,
-    required int childCount,
-    required List<int> childAges,
-  }) {
-    final double estimatedTotal = _calculateEstimatedTotal(
-      destination: destination,
-      duration: duration,
-      adultCount: adultCount,
-      childCount: childCount,
-      childAges: childAges,
-    );
-
-    return budget < estimatedTotal;
-  }
-
-  // ============================================================
-  // BUDGET MESSAGE
-  // ============================================================
-
-  static String _buildBudgetMessage({
-    required String destination,
-    required double budget,
-    required String currency,
-    required int duration,
-    required int adultCount,
-    required int childCount,
-    required List<int> childAges,
-    required bool isLow,
-  }) {
-    if (isLow) {
-      return 'Your selected budget of $currency '
-          '${budget.toStringAsFixed(0)} may be low for '
-          'the recommended $duration-day trip to '
-          '$destination for $adultCount adult(s) and '
-          '$childCount child(ren). '
-          'Child ages are considered using reduced estimated '
-          'costs based on age. Consider increasing the budget '
-          'or reducing optional expenses.';
-    }
-
-    return 'Your selected budget of $currency '
-        '${budget.toStringAsFixed(0)} appears reasonable '
-        'for the recommended trip duration to '
-        '$destination for $adultCount adult(s) and '
-        '$childCount child(ren). '
-        'The estimate considers the children ages.';
-  }
+  // Budget estimation (per-component estimate + three-tier verdict) is now
+  // delegated to TripCostEstimator. See generate() above.
 
   // ============================================================
   // DURATION MESSAGE
@@ -1931,6 +1943,27 @@ class RecommendationService {
       duration: 0,
       route: route,
     ).recommendedTime;
+  }
+
+  /// Minimum number of days this route needs, including any extra
+  /// exploration/stay days chosen by the traveller on top of the core
+  /// journey. Used for date validation before the itinerary is generated.
+  static int minimumDaysFor({required TravelRoute route}) {
+    return generate(
+      touristType: 'Domestic Tourist',
+      destination: route.destination,
+      season: '',
+      suitability: '',
+      budget: 0,
+      currency: '',
+      ages: const [],
+      travelType: 'Solo',
+      groupSize: 1,
+      adultCount: 1,
+      childCount: 0,
+      duration: 0,
+      route: route,
+    ).minimumDays;
   }
 
   static List<DayPlan> getDayPlans({required TravelRoute route}) {

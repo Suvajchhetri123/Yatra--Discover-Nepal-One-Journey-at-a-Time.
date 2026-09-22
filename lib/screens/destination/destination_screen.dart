@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../models/travel_route_model.dart';
+import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import '../season_analysis/season_analysis_screen.dart';
@@ -45,6 +47,64 @@ class _DestinationScreenState extends State<DestinationScreen> {
     'Everest',
     'Annapurna',
   ];
+
+  // ============================================================
+  // BUDGET GATE
+  // ============================================================
+
+  int get _tripDuration {
+    final days = widget.returnDate.difference(widget.departureDate).inDays + 1;
+    return days > 0 ? days : 1;
+  }
+
+  TripCostEstimate? get _selectedEstimate {
+    final destination = selectedDestination;
+
+    if (destination == null) {
+      return null;
+    }
+
+    return TripCostEstimator.estimate(
+      touristType: widget.touristType,
+      destination: destination,
+      durationDays: _tripDuration,
+      adultCount: widget.adultCount,
+      childCount: widget.childCount,
+      childAges: TripCostEstimator.childAgesFrom(
+        ages: widget.ages,
+        adultCount: widget.adultCount,
+        childCount: widget.childCount,
+      ),
+      route: TravelRoute(
+        boardingPoint: destination,
+        destination: destination,
+        segments: const [],
+      ),
+    );
+  }
+
+  BudgetVerdict? get _budgetVerdict {
+    final estimate = _selectedEstimate;
+
+    if (estimate == null) {
+      return null;
+    }
+
+    final budgetNpr = TripCostEstimator.toNpr(widget.budget, widget.currency);
+
+    return TripCostEstimator.evaluateBudget(
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+    );
+  }
+
+  bool get _budgetPasses {
+    final verdict = _budgetVerdict;
+
+    return verdict == null ||
+        verdict == BudgetVerdict.suitable ||
+        verdict == BudgetVerdict.excessive;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,13 +191,12 @@ class _DestinationScreenState extends State<DestinationScreen> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: isSelected
-                                      ? Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: AppColors.primary,
-                                            fontWeight: FontWeight.w700,
-                                          )
+                                      ? Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium?.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w700,
+                                        )
                                       : textTheme.titleMedium,
                                 ),
                               );
@@ -145,6 +204,19 @@ class _DestinationScreenState extends State<DestinationScreen> {
                           );
                         },
                       ),
+
+                    if (selectedDestination != null &&
+                        _budgetVerdict != null) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      _BudgetStatusCard(
+                        verdict: _budgetVerdict!,
+                        estimate: _selectedEstimate!,
+                        budget: widget.budget,
+                        currency: widget.currency,
+                        adultCount: widget.adultCount,
+                        childCount: widget.childCount,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -175,7 +247,7 @@ class _DestinationScreenState extends State<DestinationScreen> {
                 child: YatraPrimaryButton(
                   label: 'Continue',
                   icon: Icons.arrow_forward,
-                  onPressed: selectedDestination == null
+                  onPressed: selectedDestination == null || !_budgetPasses
                       ? null
                       : () {
                           Navigator.push(
@@ -202,6 +274,95 @@ class _DestinationScreenState extends State<DestinationScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// BUDGET STATUS CARD
+// ============================================================
+
+class _BudgetStatusCard extends StatelessWidget {
+  final BudgetVerdict verdict;
+  final TripCostEstimate estimate;
+  final double budget;
+  final String currency;
+  final int adultCount;
+  final int childCount;
+
+  const _BudgetStatusCard({
+    required this.verdict,
+    required this.estimate,
+    required this.budget,
+    required this.currency,
+    required this.adultCount,
+    required this.childCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    final isInsufficient = verdict == BudgetVerdict.insufficient;
+    final accent = isInsufficient ? AppColors.danger : AppColors.success;
+    final icon = isInsufficient
+        ? Icons.warning_amber_rounded
+        : Icons.check_circle;
+
+    final budgetNpr = TripCostEstimator.toNpr(budget, currency);
+
+    final message = TripCostEstimator.verdictMessage(
+      verdict: verdict,
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+      currency: currency,
+      adultCount: adultCount,
+      childCount: childCount,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: accent.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: accent, size: 24),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  TripCostEstimator.verdictTitle(verdict),
+                  style: textTheme.titleMedium?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Estimated total for this trip: '
+            '${TripCostEstimator.formatNprAmount(estimate.total)}.',
+            style: textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(message, style: textTheme.bodyMedium?.copyWith(height: 1.5)),
+          if (isInsufficient) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Increase the budget above or choose a shorter trip.',
+              style: textTheme.bodySmall?.copyWith(color: accent),
+            ),
+          ],
+        ],
       ),
     );
   }

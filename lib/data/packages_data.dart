@@ -1,4 +1,5 @@
 import '../models/package_model.dart';
+import '../models/tourist_pricing.dart';
 
 /// Curated tour packages shown on the home page.
 ///
@@ -10,14 +11,14 @@ const List<TourPackage> tourPackages = [
     id: 'kathmandu-heritage',
     title: 'Kathmandu Heritage Tour',
     region: 'Kathmandu',
-    summary:
-        'Temples, stupas and living history across the Kathmandu Valley.',
+    summary: 'Temples, stupas and living history across the Kathmandu Valley.',
     description:
         'A relaxed cultural journey through the Kathmandu Valley, taking in its '
         'most important temples, stupas and palace squares. Perfect for a short '
         'trip focused on heritage, architecture and everyday city life.',
     durationDays: 2,
     price: 12000,
+    touristPrice: TouristPricing(domestic: 10000, international: 12000),
     difficulty: 'Easy',
     rating: 4.6,
     imageUrl: 'assets/images/places/Swayambhunath.jpg',
@@ -38,8 +39,7 @@ const List<TourPackage> tourPackages = [
     id: 'pokhara-lakeside',
     title: 'Pokhara Lakeside Getaway',
     region: 'Pokhara',
-    summary:
-        'Boating, waterfalls and Annapurna views from Nepal\'s lake city.',
+    summary: 'Boating, waterfalls and Annapurna views from Nepal\'s lake city.',
     description:
         'An easy-going escape to Pokhara, built around Phewa Lake and the '
         'gentle attractions nearby. A great mix of relaxation and light '
@@ -74,6 +74,7 @@ const List<TourPackage> tourPackages = [
         'of stone houses. A journey of striking scenery and deep culture.',
     durationDays: 5,
     price: 42000,
+    touristPrice: TouristPricing(domestic: 42000, international: 52000),
     difficulty: 'Moderate',
     rating: 4.8,
     imageUrl: 'assets/images/places/Muktinath.jpg',
@@ -95,8 +96,7 @@ const List<TourPackage> tourPackages = [
     id: 'annapurna-base-camp',
     title: 'Annapurna Base Camp Trek',
     region: 'Annapurna',
-    summary:
-        'A classic trek into the heart of the Annapurna sanctuary.',
+    summary: 'A classic trek into the heart of the Annapurna sanctuary.',
     description:
         'One of Nepal\'s most loved treks, winding through Gurung villages, '
         'rhododendron forests and terraced hills before opening into the '
@@ -111,19 +111,14 @@ const List<TourPackage> tourPackages = [
       'Traditional Gurung village of Ghandruk',
       'Panorama from Poon Hill',
     ],
-    includedPlaces: [
-      'Annapurna Base Camp',
-      'Ghandruk',
-      'Poon Hill',
-    ],
+    includedPlaces: ['Annapurna Base Camp', 'Ghandruk', 'Poon Hill'],
   ),
 
   TourPackage(
     id: 'everest-base-camp',
     title: 'Everest Base Camp Trek',
     region: 'Everest',
-    summary:
-        'The legendary trek to the foot of the world\'s highest mountain.',
+    summary: 'The legendary trek to the foot of the world\'s highest mountain.',
     description:
         'A bucket-list adventure through the Khumbu region, following Sherpa '
         'trails past Namche Bazaar and towering peaks all the way to Everest '
@@ -138,10 +133,7 @@ const List<TourPackage> tourPackages = [
       'First views of Everest from the Everest View Hotel',
       'Reach Everest Base Camp',
     ],
-    includedPlaces: [
-      'Namche Bazaar',
-      'Everest View Hotel',
-    ],
+    includedPlaces: ['Namche Bazaar', 'Everest View Hotel'],
   ),
 
   TourPackage(
@@ -164,10 +156,7 @@ const List<TourPackage> tourPackages = [
       'Canoe ride and jungle walk',
       'Sunset over the river at Sauraha',
     ],
-    includedPlaces: [
-      'Chitwan National Park',
-      'Sauraha',
-    ],
+    includedPlaces: ['Chitwan National Park', 'Sauraha'],
   ),
 ];
 
