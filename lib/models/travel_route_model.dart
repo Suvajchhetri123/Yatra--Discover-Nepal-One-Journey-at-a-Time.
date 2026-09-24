@@ -43,6 +43,14 @@ class TravelRoute {
   /// allocates extra stay time at specific route locations.
   final List<JourneyStopPlan> stopPlans;
 
+  /// Optional exploration/stay plans for stops that only exist on the
+  /// custom return route (never on the outbound route).
+  ///
+  /// Return stop plans are consumed by the same cost and itinerary logic as
+  /// [stopPlans], but placed chronologically between the return legs instead
+  /// of before the destination stay.
+  final List<JourneyStopPlan> returnStopPlans;
+
   const TravelRoute({
     required this.boardingPoint,
     required this.destination,
@@ -50,6 +58,7 @@ class TravelRoute {
     this.localTransportation,
     this.tripDirection = TripDirection.oneWay,
     this.stopPlans = const [],
+    this.returnStopPlans = const [],
     List<RouteSegment>? returnSegments,
   }) : _explicitReturnSegments = returnSegments;
 
@@ -75,11 +84,16 @@ class TravelRoute {
   }
 
   /// Total number of extra exploration/stay days allocated across the route
-  /// stops. Zero when the traveller did not allocate any extra stay time.
+  /// stops (outbound stops and return-only stops). Zero when the traveller
+  /// did not allocate any extra stay time.
   int get explorationDays {
     int total = 0;
 
     for (final plan in stopPlans) {
+      total += plan.explorationDays;
+    }
+
+    for (final plan in returnStopPlans) {
       total += plan.explorationDays;
     }
 

@@ -283,12 +283,15 @@ class TripCostEstimator {
 
     // --- Extra exploration / stay days at route stops ---
     // Each stop uses its own daily rates so a Jomsom visit costs less than an
-    // Everest stop, and stays/activities are priced per tourist type.
+    // Everest stop, and stays/activities are priced per tourist type. Both
+    // outbound stops and stops introduced during a custom return contribute.
+    final allStopPlans = [...route.stopPlans, ...route.returnStopPlans];
+
     double explorationStay = 0;
     double explorationMinimumStay = 0;
     double explorationActivity = 0;
 
-    for (final plan in route.stopPlans) {
+    for (final plan in allStopPlans) {
       final stopRate = stayPerDayFor(
         touristType: touristType,
         location: plan.location,

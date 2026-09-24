@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../models/journey_stop_plan.dart';
 import '../../models/travel_route_model.dart';
 import '../../data/transportation_data.dart';
+import '../../services/recommendation_service.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../widgets/yatra_components.dart';
 import '../recommendation/recommendation_screen.dart';
@@ -83,6 +84,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
   /// stop's display name. Fed into TravelRoute.stopPlans so the day planner
   /// reserves time slots and the minimum-days check accounts for them.
   final Map<String, int> stopExplorationDays = {};
+
+  /// Extra exploration days chosen for stops on the return journey, keyed by
+  /// the stop's display name. Fed into TravelRoute.returnStopPlans so the
+  /// estimator and day planner treat them like any other stay, but placed
+  /// chronologically between the return legs. Works for BOTH an automatic
+  /// (reversed) return and a customized one: the value is taken from the
+  /// resolved return route, never from a hard-coded destination list.
+  final Map<String, int> returnStopExplorationDays = {};
 
   // ============================================================
   // LOCAL TRANSPORTATION
@@ -367,6 +376,88 @@ class _BoardingScreenState extends State<BoardingScreen> {
     return returnSegments.last.to;
   }
 
+  /// Stops reached on the return journey (every `segment.to` of the actual
+  /// return route, excluding the original boarding point / final endpoint).
+  ///
+  /// The return route is derived from the user's real route data: the custom
+  /// legs while a custom return is being built, otherwise the automatic
+  /// reversed outgoing route. No destination names are hard-coded here.
+  List<String> get _returnArrivalStops {
+    if (isLocalExploration ||
+        selectedTripDirection != TripDirection.roundTrip ||
+        segments.isEmpty) {
+      return const [];
+    }
+
+    final boarding = selectedBoardingPoint;
+
+    final List<String> arrivals;
+    if (customizeReturnRoute) {
+      arrivals = [for (final segment in returnSegments) segment.to];
+    } else {
+      // Automatic return reverses the outgoing route, so the arrivals are the
+      // outbound points (excluding the boarding point) in reverse order.
+      final points = <String>[
+        segments.first.from,
+        ...segments.map((segment) => segment.to),
+      ];
+      arrivals = points.reversed.skip(1).toList();
+    }
+
+    return [
+      for (final stop in arrivals)
+        if (boarding != null && _normalize(stop) != _normalize(boarding)) stop,
+    ];
+  }
+
+  /// Exploration plans for stops reached on the return journey, in the order
+  /// the route visits them. The return route is the actual one being planned:
+  /// the explicit custom legs when the traveller is building a custom return,
+  /// otherwise the automatic reversed outbound route. Return stops default to
+  /// zero days and only count once the traveller raises the stepper; the
+  /// boarding point is never a stop plan.
+  List<JourneyStopPlan> get _returnStopPlans {
+    final result = <JourneyStopPlan>[];
+
+    for (final stop in _returnArrivalStops) {
+      final days = returnStopExplorationDays[stop] ?? 0;
+      if (days <= 0) {
+        continue;
+      }
+
+      result.add(JourneyStopPlan(location: stop, explorationDays: days));
+    }
+
+    return result;
+  }
+
+  /// Minimum days the selected round trip requires, or null when the duration
+  /// check does not apply (one-way trips and local exploration).
+  ///
+  /// The minimum counts outbound travel, outbound exploration, the destination
+  /// stay, return travel and return-stop exploration. It applies to BOTH the
+  /// automatic (reversed) return route and a customized one, so a round trip
+  /// never starts with a calendar too short to cover the return journey.
+  int? get _minimumNeedDays {
+    if (selectedTripDirection != TripDirection.roundTrip ||
+        !routeComplete ||
+        !returnRouteComplete) {
+      return null;
+    }
+
+    return RecommendationService.minimumDaysFor(route: buildRoute());
+  }
+
+  /// True when the user's selected calendar dates are shorter than what the
+  /// round trip (including return-stop stays) needs.
+  bool get _durationTooShort {
+    final minimum = _minimumNeedDays;
+    if (minimum == null) {
+      return false;
+    }
+    return _tripDuration < minimum;
+  }
+
   // ============================================================
   // ACTIVE ROUTE MAP
   // ============================================================
@@ -549,74 +640,49 @@ class _BoardingScreenState extends State<BoardingScreen> {
   }
 
   // ============================================================
-  // RETURN ROUTE LOCATIONS
-  // ============================================================
-
-  List<String> get returnLocations {
-    if (!routeComplete || selectedBoardingPoint == null) {
-      return [];
-    }
-
-    final outgoingPoints = <String>[
-      segments.first.from,
-      ...segments.map((segment) => segment.to),
-    ];
-
-    return outgoingPoints.reversed.toList();
-  }
-
-  // ============================================================
   // RETURN DESTINATION OPTIONS
   // ============================================================
 
+  /// Next return destinations available from the current return location.
+  ///
+  /// Choices come from the actual route transportation database (places
+  /// directly connected to the current stop) rather than from the reversed
+  /// outgoing route. This lets the user add stops — like Kagbeni or Jomsom
+  /// on the Mustang route — that were never part of the outbound journey,
+  /// and it matches how every return leg is validated when the leg is built.
   List<String> get returnDestinationOptions {
-    final points = returnLocations;
     final current = currentReturnLocation;
+    final boarding = selectedBoardingPoint;
 
-    if (points.isEmpty || current == null) {
+    if (!customizeReturnRoute || current == null || boarding == null) {
       return [];
     }
 
-    final currentIndex = points.indexWhere(
-      (point) => _normalize(point) == _normalize(current),
-    );
-
-    if (currentIndex == -1 || currentIndex >= points.length - 1) {
-      return [];
+    // Locations already visited on the return journey, plus the current
+    // stop itself, are not offered again to avoid looping.
+    final used = <String>{};
+    for (final segment in returnSegments) {
+      used.add(segment.from);
+      used.add(segment.to);
     }
 
-    // Allow the user to choose any remaining point toward the original
-    // boarding location. This supports both exact reverse routes and
-    // optional skipped stops, while preventing travel away from the origin.
-    return points.sublist(currentIndex + 1);
-  }
+    final result = <String>[];
 
-  // ============================================================
-  // NEXT RETURN LOCATION
-  // ============================================================
+    for (final place in connectedDestinationsFrom(current)) {
+      if (_normalize(place) == _normalize(current)) {
+        continue;
+      }
 
-  String? get nextReturnLocation {
-    if (customizeReturnRoute) {
-      return selectedReturnNextPoint;
+      if (used.any((entry) => _normalize(entry) == _normalize(place))) {
+        continue;
+      }
+
+      result.add(place);
     }
 
-    final points = returnLocations;
+    result.sort();
 
-    if (points.isEmpty) {
-      return null;
-    }
-
-    final current = currentReturnLocation;
-
-    final currentIndex = points.indexWhere(
-      (point) => _normalize(point) == _normalize(current ?? ''),
-    );
-
-    if (currentIndex == -1 || currentIndex >= points.length - 1) {
-      return null;
-    }
-
-    return points[currentIndex + 1];
+    return result;
   }
 
   // ============================================================
@@ -636,6 +702,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
       segments.clear();
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       customizeReturnRoute = false;
 
       selectedTripDirection = TripDirection.oneWay;
@@ -659,6 +726,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
       segments.clear();
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       customizeReturnRoute = false;
 
       selectedTripDirection = TripDirection.oneWay;
@@ -680,10 +748,13 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
 
-      selectedTripDirection = TripDirection.oneWay;
+      // The trip type is intentionally NOT reset here: choosing a boarding
+      // point rebuilds the route but must preserve the traveller's One Way /
+      // Round Trip decision made earlier on the screen.
 
       segments.clear();
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       customizeReturnRoute = false;
     });
   }
@@ -729,6 +800,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
       // Rebuild the automatic return route when the outgoing route changes.
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       customizeReturnRoute = false;
     });
   }
@@ -786,6 +858,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
       selectedTransportation = null;
 
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       customizeReturnRoute = false;
     });
   }
@@ -794,13 +867,24 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // REMOVE RETURN LEG
   // ============================================================
 
-  void _removeLastReturnLeg() {
-    if (returnSegments.isEmpty) {
+  /// Removes the return leg at [index] together with every downstream leg.
+  ///
+  /// Removing an earlier stop makes all later return segments invalid (they
+  /// branch from the removed stop), so the whole tail of the return route is
+  /// reset cleanly instead of leaving a dangling route behind.
+  void _removeReturnStop(int index) {
+    if (index < 0 || index >= returnSegments.length) {
       return;
     }
 
     setState(() {
-      returnSegments.removeLast();
+      final removed = returnSegments.sublist(index);
+
+      for (final leg in removed) {
+        returnStopExplorationDays.remove(leg.to);
+      }
+
+      returnSegments.removeRange(index, returnSegments.length);
       selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
     });
@@ -814,6 +898,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
     setState(() {
       selectedTripDirection = direction;
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
       customizeReturnRoute = false;
@@ -828,6 +913,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
     setState(() {
       customizeReturnRoute = true;
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
     });
@@ -837,6 +923,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
     setState(() {
       customizeReturnRoute = false;
       returnSegments.clear();
+      returnStopExplorationDays.clear();
       selectedReturnNextPoint = null;
       selectedReturnTransportation = null;
     });
@@ -850,29 +937,39 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // RELATED: Build Route
   // ============================================================
 
-  /// Intermediate stops visited along the completed outgoing route, excluding
-  /// the final destination (whose visit days are handled by the planner).
-  List<String> get _waypointStops {
+  /// All destinations arrived at along the completed outgoing route — every
+  /// `segment.to`, excluding the original boarding point. The final
+  /// destination is included because it is a stay/arrival like any other.
+  ///
+  /// The list is derived purely from the actual route segments, so it works
+  /// generically for every destination Yatra supports. Outbound exploration
+  /// is independent of the trip direction: the same stops are offered for
+  /// both one-way and round trips.
+  List<String> get _goingStops {
     if (isLocalExploration || segments.isEmpty) {
       return const [];
     }
 
-    final points = <String>[
-      segments.first.from,
-      ...segments.map((segment) => segment.to),
+    final boarding = selectedBoardingPoint;
+
+    return [
+      for (final segment in segments)
+        if (boarding != null && _normalize(segment.to) != _normalize(boarding))
+          segment.to,
     ];
-
-    points.removeLast();
-
-    return points;
   }
 
+  /// Exploration plans for outbound arrivals, in the order the route reaches
+  /// them. EVERY arrival — including the final destination — becomes a stop
+  /// plan, so a stay at any point of the journey is possible and existing
+  /// cost / duration logic applies unchanged. Stops default to zero days
+  /// (pass-through) and are ignored until the traveller raises the stepper.
   List<JourneyStopPlan> get _stopPlans {
-    return _waypointStops
+    return _goingStops
         .map(
           (stop) => JourneyStopPlan(
             location: stop,
-            explorationDays: stopExplorationDays[stop] ?? 1,
+            explorationDays: stopExplorationDays[stop] ?? 0,
           ),
         )
         .toList();
@@ -901,6 +998,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
           ? List<RouteSegment>.from(returnSegments)
           : null,
       stopPlans: _stopPlans,
+      returnStopPlans: _returnStopPlans,
     );
   }
 
@@ -949,6 +1047,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     if (selectedTripDirection == TripDirection.roundTrip &&
         !returnRouteComplete) {
+      return;
+    }
+
+    if (_durationTooShort) {
       return;
     }
 
@@ -1001,30 +1103,438 @@ class _BoardingScreenState extends State<BoardingScreen> {
   }
 
   // ============================================================
-  // RETURN ROUTE PREVIEW
+  // TRIP TYPE SELECTOR
   // ============================================================
 
-  String _returnRoutePreview() {
-    if (!routeComplete || selectedBoardingPoint == null) {
-      return '';
+  /// The first planning choice on the screen: One Way or Round Trip.
+  ///
+  /// Choosing a direction never touches the outbound journey. Moving from a
+  /// round trip to a one way trip only discards return-specific state, while
+  /// switching to a round trip keeps the outbound route intact.
+  Widget _tripTypeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _journeyHeader(
+          title: 'Trip Type',
+          subtitle: 'Choose how you want to go and come back.',
+          icon: Icons.sync_alt,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _tripTypeCard(
+                direction: TripDirection.oneWay,
+                title: 'One Way',
+                subtitle: 'Travel to your destination only',
+                icon: Icons.arrow_forward,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _tripTypeCard(
+                direction: TripDirection.roundTrip,
+                title: 'Round Trip',
+                subtitle: 'Plan your return journey too',
+                icon: Icons.sync_alt,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _tripTypeCard({
+    required TripDirection direction,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    final selected = selectedTripDirection == direction;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: () => _selectTripDirection(direction),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: selected ? scheme.primary : scheme.outlineVariant,
+              width: selected ? 2 : 1,
+            ),
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.06)
+                : AppColors.surface,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: selected ? scheme.primary : AppColors.onSurfaceMuted,
+                    size: 22,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: selected ? AppColors.primary : null,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    selected
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: selected ? scheme.primary : scheme.outline,
+                    size: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(subtitle, style: AppType.caption.copyWith(height: 1.4)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // RETURN JOURNEY
+  // ============================================================
+
+  /// Automatic / Custom picker for the return journey.
+  Widget _returnTypeCard({required bool automatic, required bool selected}) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    final title = automatic ? 'Automatic Return' : 'Custom Return';
+    final subtitle = automatic
+        ? 'Return using the reverse of your outgoing route.'
+        : 'Choose different places to visit on your way back.';
+    final icon = automatic ? Icons.sync_alt : Icons.tune;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: () {
+          if (automatic) {
+            _useAutomaticReturnRoute();
+          } else {
+            _startReturnCustomization();
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: selected ? scheme.primary : scheme.outlineVariant,
+              width: selected ? 2 : 1,
+            ),
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.06)
+                : AppColors.surface,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: selected ? scheme.primary : AppColors.onSurfaceMuted,
+                    size: 20,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: selected ? AppColors.primary : null,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    selected
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: selected ? scheme.primary : scheme.outline,
+                    size: 18,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(subtitle, style: AppType.caption.copyWith(height: 1.35)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Read-only summary of the automatic return: the outgoing route reversed,
+  /// without any dropdowns or editing controls.
+  Widget _automaticReturnSummary() {
+    final textTheme = Theme.of(context).textTheme;
+
+    if (segments.isEmpty) {
+      return const SizedBox.shrink();
     }
 
-    if (returnSegments.isNotEmpty) {
-      final points = <String>[
-        returnSegments.first.from,
-        ...returnSegments.map((segment) => segment.to),
-      ];
-
-      return points.join(' → ');
-    }
-
-    // Automatic round trip: reverse the exact route the user built.
-    final outgoingPoints = <String>[
+    final points = <String>[
       segments.first.from,
       ...segments.map((segment) => segment.to),
-    ];
+    ].reversed.toList();
 
-    return outgoingPoints.reversed.join(' → ');
+    return YatraCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < points.length; i++) ...[
+            Row(
+              children: [
+                Icon(Icons.place_outlined, size: 18, color: AppColors.accent),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: Text(points[i], style: textTheme.titleSmall)),
+              ],
+            ),
+            if (i < points.length - 1)
+              Padding(
+                padding: const EdgeInsets.only(left: 7),
+                child: Icon(
+                  Icons.arrow_drop_down,
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Automatic return uses your outgoing route in reverse.',
+            style: AppType.caption.copyWith(height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Step-by-step builder for a custom return journey.
+  Widget _customReturnSection() {
+    final textTheme = Theme.of(context).textTheme;
+
+    final boarding = selectedBoardingPoint ?? widget.destination;
+    final from = currentReturnLocation ?? widget.destination;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Custom Return Journey', style: textTheme.titleLarge),
+            ),
+            TextButton(
+              onPressed: _useAutomaticReturnRoute,
+              child: const Text('Use Automatic'),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Returning from: ${widget.destination}',
+          style: textTheme.bodyMedium,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text('Returning to: $boarding', style: textTheme.bodyMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text('Current location: $from', style: textTheme.bodyMedium),
+
+        const SizedBox(height: AppSpacing.lg),
+
+        Text('Where do you want to go next?', style: textTheme.titleLarge),
+
+        const SizedBox(height: AppSpacing.sm),
+
+        DropdownButtonFormField<String>(
+          initialValue: selectedReturnNextPoint,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            hintText: 'Choose next return destination',
+            prefixIcon: Icon(Icons.place_outlined),
+          ),
+          items: returnDestinationOptions
+              .map(
+                (place) =>
+                    DropdownMenuItem<String>(value: place, child: Text(place)),
+              )
+              .toList(),
+          onChanged: _selectReturnNextPoint,
+        ),
+
+        if (selectedReturnNextPoint != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Text('How will you travel?', style: textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          _transportSelectionHint(
+            selected: selectedReturnTransportation,
+            from: from,
+            to: selectedReturnNextPoint!,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<String>(
+            initialValue: selectedReturnTransportation,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              hintText: 'Choose transportation',
+              prefixIcon: Icon(Icons.directions_bus_outlined),
+            ),
+            items: _transportItems(
+              transportOptionsForRoute(from, selectedReturnNextPoint!),
+            ),
+            onChanged: (value) {
+              setState(() {
+                selectedReturnTransportation = value;
+              });
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+
+        if (selectedReturnNextPoint != null &&
+            selectedReturnTransportation != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          YatraSecondaryButton(
+            label: 'Add to Return Journey',
+            icon: Icons.add,
+            expanded: false,
+            onPressed: _addReturnLeg,
+          ),
+        ],
+
+        if (returnSegments.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _returnJourneyPreview(),
+        ],
+
+        if (!returnRouteComplete) ...[
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Text(
+              'Continue planning your return until you reach $boarding.',
+              style: textTheme.bodySmall?.copyWith(height: 1.4),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Vertical preview of the return journey that has been built so far. Each
+  /// stop shows its transportation and stay days, with a remove control whose
+  /// removal resets every downstream return leg.
+  Widget _returnJourneyPreview() {
+    final textTheme = Theme.of(context).textTheme;
+
+    return YatraCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Your Return Journey', style: textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.md),
+          for (var i = 0; i < returnSegments.length; i++) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${returnSegments[i].from} → '
+                        '${returnSegments[i].to}',
+                        style: textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        '${returnSegments[i].transportation} '
+                        '• Stay: '
+                        '${returnStopExplorationDays[returnSegments[i].to] ?? 0} '
+                        'day(s)',
+                        style: AppType.caption.copyWith(height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _removeReturnStop(i),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: AppColors.danger,
+                  ),
+                  tooltip: 'Remove',
+                ),
+              ],
+            ),
+            if (i < returnSegments.length - 1)
+              const Divider(height: AppSpacing.xl),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Friendly notice shown when the selected calendar dates are shorter than
+  /// the round trip (outbound + return) actually needs.
+  Widget _durationWarning() {
+    final textTheme = Theme.of(context).textTheme;
+
+    final minimum = _minimumNeedDays ?? _tripDuration;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        'This plan needs at least $minimum days, but your selected '
+        'dates provide $_tripDuration days.',
+        style: textTheme.bodySmall?.copyWith(height: 1.4),
+      ),
+    );
   }
 
   // ============================================================
@@ -1617,7 +2127,8 @@ class _BoardingScreenState extends State<BoardingScreen> {
         !isLocalExploration &&
         selectedTripDirection == TripDirection.roundTrip;
 
-    final canContinue = routeComplete && returnRouteComplete;
+    final canContinue =
+        routeComplete && returnRouteComplete && !_durationTooShort;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Choose Transportation')),
@@ -1653,6 +2164,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
                     ),
 
                     const SizedBox(height: AppSpacing.xl),
+
+                    // ==========================================
+                    // TRIP TYPE — the first planning choice
+                    // ==========================================
+                    if (!isLocalExploration) ...[
+                      _tripTypeSection(),
+                      const SizedBox(height: AppSpacing.xl),
+                    ],
 
                     // ==========================================
                     // LOCAL DESTINATION FLOW
@@ -1868,86 +2387,52 @@ class _BoardingScreenState extends State<BoardingScreen> {
                       ),
 
                     // ==========================================
-                    // TRIP DIRECTION
+                    // GOING — STAY / EXPLORATION DAYS
                     // ==========================================
-                    if (routeComplete && !isLocalExploration) ...[
+                    // Every destination arrived at on the outgoing route
+                    // (each segment.to, excluding the boarding point) gets a
+                    // stay control the moment its leg exists, even before the
+                    // route is complete. The final destination is included
+                    // and stays adjustable like any other arrival. The list
+                    // is derived purely from route data.
+                    if (!isLocalExploration && segments.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.xl),
 
-                      Text('Trip Direction', style: textTheme.titleLarge),
-
-                      const SizedBox(height: AppSpacing.md),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ChoiceChip(
-                              label: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.arrow_forward, size: 19),
-                                  SizedBox(width: 7),
-                                  Text('One Way'),
-                                ],
-                              ),
-                              selected:
-                                  selectedTripDirection == TripDirection.oneWay,
-                              onSelected: (_) {
-                                _selectTripDirection(TripDirection.oneWay);
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: ChoiceChip(
-                              label: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.sync_alt, size: 19),
-                                  SizedBox(width: 7),
-                                  Text('Round Trip'),
-                                ],
-                              ),
-                              selected:
-                                  selectedTripDirection ==
-                                  TripDirection.roundTrip,
-                              onSelected: (_) {
-                                _selectTripDirection(TripDirection.roundTrip);
-                              },
-                            ),
-                          ),
-                        ],
+                      _journeyHeader(
+                        title: 'Stay / Exploration Days',
+                        subtitle:
+                            'How many days will you spend staying at '
+                            'each arrival on your route?',
+                        icon: Icons.hotel_outlined,
                       ),
 
                       const SizedBox(height: AppSpacing.md),
 
                       YatraCard(
                         padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Row(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              selectedTripDirection == TripDirection.roundTrip
-                                  ? Icons.sync_alt
-                                  : Icons.info_outline,
-                              size: 20,
-                              color: AppColors.onSurfaceMuted,
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Text(
-                                selectedTripDirection == TripDirection.roundTrip
-                                    ? 'Your return journey will '
-                                          'automatically follow the '
-                                          'same route in reverse. You '
-                                          'can customize transportation '
-                                          'for the return trip if needed.'
-                                    : 'The itinerary will end '
-                                          'at ${widget.destination}.',
-                                style: textTheme.bodyMedium,
+                            Text(
+                              'Going',
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
+                            const SizedBox(height: AppSpacing.sm),
+                            for (final stop in _goingStops)
+                              _ExplorationDayStepper(
+                                stop: stop,
+                                days: stopExplorationDays[stop] ?? 0,
+                                onChanged: (value) {
+                                  setState(() {
+                                    stopExplorationDays[stop] = value.clamp(
+                                      0,
+                                      14,
+                                    );
+                                  });
+                                },
+                              ),
                           ],
                         ),
                       ),
@@ -1960,7 +2445,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                       const SizedBox(height: AppSpacing.xl),
 
                       _journeyHeader(
-                        title: 'Return',
+                        title: 'Return Journey',
                         subtitle:
                             '${widget.destination} → '
                             '$selectedBoardingPoint.',
@@ -1969,167 +2454,77 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
                       const SizedBox(height: AppSpacing.md),
 
-                      YatraCard(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Row(
-                          children: [
-                            Icon(Icons.route_outlined, color: AppColors.accent),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Text(
-                                _returnRoutePreview(),
-                                style: textTheme.titleMedium,
-                              ),
+                      // Choose how to come back: automatic (reversed route)
+                      // or a fully custom return journey.
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _returnTypeCard(
+                              automatic: true,
+                              selected: !customizeReturnRoute,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: _returnTypeCard(
+                              automatic: false,
+                              selected: customizeReturnRoute,
+                            ),
+                          ),
+                        ],
                       ),
 
-                      if (!customizeReturnRoute) ...[
-                        const SizedBox(height: AppSpacing.lg),
+                      const SizedBox(height: AppSpacing.md),
 
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Text(
-                            'The return route is automatically created by '
-                            'reversing your outgoing route. You can also '
-                            'customize the return destinations and transportation '
-                            'for each return leg.',
-                            style: textTheme.bodyMedium?.copyWith(height: 1.4),
-                          ),
-                        ),
+                      if (!customizeReturnRoute)
+                        _automaticReturnSummary()
+                      else
+                        _customReturnSection(),
 
+                      // The duration check applies to the automatic AND the
+                      // custom return once the return journey is ready.
+                      if (_durationTooShort) ...[
                         const SizedBox(height: AppSpacing.md),
-
-                        YatraSecondaryButton(
-                          label: 'Customize Return Route',
-                          icon: Icons.tune,
-                          expanded: false,
-                          onPressed: _startReturnCustomization,
-                        ),
+                        _durationWarning(),
                       ],
 
-                      if (customizeReturnRoute && !returnRouteComplete) ...[
-                        const SizedBox(height: AppSpacing.lg),
+                      // ==========================================
+                      // COMING BACK — STAY / EXPLORATION DAYS
+                      // ==========================================
+                      // Every arrival on the actual return route (automatic
+                      // reversed or custom) gets its own stay control. The
+                      // list appears as soon as a return leg exists — a
+                      // partial custom return still shows the stops already
+                      // added — and never includes the original boarding
+                      // point. Derived purely from route data.
+                      if (_returnArrivalStops.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.xl),
 
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Customize Return Journey',
-                                style: textTheme.titleLarge,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: _useAutomaticReturnRoute,
-                              child: const Text('Use Automatic'),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: AppSpacing.sm),
-
-                        Text(
-                          'From ${currentReturnLocation!}',
-                          style: textTheme.titleLarge,
-                        ),
-
-                        const SizedBox(height: AppSpacing.md),
-
-                        Text('Return destination', style: textTheme.titleLarge),
-
-                        const SizedBox(height: AppSpacing.sm),
-
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedReturnNextPoint,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            hintText: 'Choose next return destination',
-                            prefixIcon: Icon(Icons.place_outlined),
-                          ),
-                          items: returnDestinationOptions
-                              .map(
-                                (place) => DropdownMenuItem<String>(
-                                  value: place,
-                                  child: Text(place),
+                        YatraCard(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Coming Back',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
                                 ),
-                              )
-                              .toList(),
-                          onChanged: _selectReturnNextPoint,
-                        ),
-
-                        const SizedBox(height: AppSpacing.md),
-
-                        if (selectedReturnNextPoint != null) ...[
-                          Text('Transportation', style: textTheme.titleLarge),
-
-                          const SizedBox(height: AppSpacing.sm),
-
-                          _transportSelectionHint(
-                            selected: selectedReturnTransportation,
-                            from: currentReturnLocation!,
-                            to: selectedReturnNextPoint!,
-                          ),
-
-                          const SizedBox(height: AppSpacing.md),
-
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedReturnTransportation,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              hintText: 'Choose transportation',
-                              prefixIcon: Icon(Icons.directions_bus_outlined),
-                            ),
-                            items: _transportItems(
-                              transportOptionsForRoute(
-                                currentReturnLocation!,
-                                selectedReturnNextPoint!,
                               ),
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-                                selectedReturnTransportation = value;
-                              });
-                            },
+                              const SizedBox(height: AppSpacing.sm),
+                              for (final stop in _returnArrivalStops)
+                                _ExplorationDayStepper(
+                                  stop: stop,
+                                  days: returnStopExplorationDays[stop] ?? 0,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      returnStopExplorationDays[stop] = value
+                                          .clamp(0, 14);
+                                    });
+                                  },
+                                ),
+                            ],
                           ),
-
-                          const SizedBox(height: AppSpacing.md),
-                        ],
-
-                        if (selectedReturnNextPoint != null &&
-                            selectedReturnTransportation != null)
-                          YatraSecondaryButton(
-                            label: 'Add Return Leg',
-                            icon: Icons.add,
-                            expanded: false,
-                            onPressed: _addReturnLeg,
-                          ),
-
-                        if (returnSegments.isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: _removeLastReturnLeg,
-                              icon: const Icon(Icons.undo),
-                              label: const Text('Remove Last Leg'),
-                            ),
-                          ),
-                      ],
-
-                      if (customizeReturnRoute && returnRouteComplete) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        TextButton.icon(
-                          onPressed: _useAutomaticReturnRoute,
-                          icon: const Icon(Icons.restart_alt),
-                          label: const Text('Use Automatic Return Route'),
                         ),
                       ],
                     ],
@@ -2239,7 +2634,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                             const SizedBox(width: AppSpacing.md),
                             Expanded(
                               child: Text(
-                                'Round trip route completed.',
+                                'Return journey complete.',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.onSurface,
@@ -2247,47 +2642,6 @@ class _BoardingScreenState extends State<BoardingScreen> {
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                    ],
-
-                    // ==========================================
-                    // EXPLORATION DAYS AT STOPS
-                    // ==========================================
-                    if (routeComplete &&
-                        !isLocalExploration &&
-                        _waypointStops.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xl),
-
-                      _journeyHeader(
-                        title: 'Exploration Days',
-                        subtitle:
-                            'How many days will you spend exploring '
-                            'each stop along the way?',
-                        icon: Icons.hotel_outlined,
-                      ),
-
-                      const SizedBox(height: AppSpacing.md),
-
-                      YatraCard(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          children: _waypointStops
-                              .map(
-                                (stop) => _ExplorationDayStepper(
-                                  stop: stop,
-                                  days: stopExplorationDays[stop] ?? 1,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      stopExplorationDays[stop] = value.clamp(
-                                        1,
-                                        14,
-                                      );
-                                    });
-                                  },
-                                ),
-                              )
-                              .toList(),
                         ),
                       ),
                     ],
@@ -2363,6 +2717,8 @@ class _ExplorationDayStepper extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
+    final canDecrease = days > 0;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
@@ -2382,10 +2738,10 @@ class _ExplorationDayStepper extends StatelessWidget {
             ),
           ),
           IconButton(
-            onPressed: days <= 1 ? null : () => onChanged(days - 1),
+            onPressed: canDecrease ? () => onChanged(days - 1) : null,
             icon: Icon(
               Icons.remove_circle_outline,
-              color: days <= 1 ? scheme.outlineVariant : scheme.primary,
+              color: canDecrease ? scheme.primary : scheme.outlineVariant,
             ),
           ),
           SizedBox(

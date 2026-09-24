@@ -76,8 +76,7 @@ const List<DestinationTransport> destinationTransports = [
         name: 'Flight',
         icon: Icons.flight,
         description: 'Flight to Lukla is the usual starting option',
-        details:
-            'Fly to Lukla, then continue the Everest journey by trekking',
+        details: 'Fly to Lukla, then continue the Everest journey by trekking',
       ),
       TransportationOption(
         name: 'Jeep',
@@ -320,10 +319,7 @@ TransportationOption? transportOptionForDestination(
 // LOCAL EXPLORATION DETECTION
 // ============================================================
 
-bool isLocalExplorationOption(
-  String destination,
-  String? selectedTransport,
-) {
+bool isLocalExplorationOption(String destination, String? selectedTransport) {
   if (selectedTransport == null) {
     return false;
   }
@@ -401,38 +397,36 @@ const TransportationOption _motorbikeOption = TransportationOption(
 // ============================================================
 
 List<TransportationOption> _roadAndAir() => const [
-      _busOption,
-      _flightOption,
-      _privateVehicleOption,
-      _jeepOption,
-      _motorbikeOption,
-    ];
+  _busOption,
+  _flightOption,
+  _privateVehicleOption,
+  _jeepOption,
+  _motorbikeOption,
+];
 
 List<TransportationOption> _roadOnly() => const [
-      _busOption,
-      _privateVehicleOption,
-      _jeepOption,
-      _motorbikeOption,
-    ];
+  _busOption,
+  _privateVehicleOption,
+  _jeepOption,
+  _motorbikeOption,
+];
 
 List<TransportationOption> _jomsomOptions() => const [
-      _flightOption,
-      _busOption,
-      _jeepOption,
-      _privateVehicleOption,
-      _motorbikeOption,
-    ];
+  _flightOption,
+  _busOption,
+  _jeepOption,
+  _privateVehicleOption,
+  _motorbikeOption,
+];
 
 List<TransportationOption> _mustangRoadOnly() => const [
-      _busOption,
-      _jeepOption,
-      _privateVehicleOption,
-      _motorbikeOption,
-    ];
+  _busOption,
+  _jeepOption,
+  _privateVehicleOption,
+  _motorbikeOption,
+];
 
-List<TransportationOption> _trekOnly() => const [
-      trekOption,
-    ];
+List<TransportationOption> _trekOnly() => const [trekOption];
 
 // ============================================================
 // TRANSFER NOTES
@@ -461,15 +455,10 @@ const String _viaJomsomNote =
 // ============================================================
 
 RouteTransport _direct(TransportationOption option) {
-  return RouteTransport(
-    option: option,
-  );
+  return RouteTransport(option: option);
 }
 
-RouteTransport _transfer(
-  TransportationOption option,
-  String note,
-) {
+RouteTransport _transfer(TransportationOption option, String note) {
   return RouteTransport(
     option: option,
     requiresTransfer: true,
@@ -477,31 +466,22 @@ RouteTransport _transfer(
   );
 }
 
-List<RouteTransport> _directList(
-  List<TransportationOption> options,
-) {
-  return [
-    for (final option in options) _direct(option),
-  ];
+List<RouteTransport> _directList(List<TransportationOption> options) {
+  return [for (final option in options) _direct(option)];
 }
 
 List<RouteTransport> _transferList(
   List<TransportationOption> options,
   String note,
 ) {
-  return [
-    for (final option in options) _transfer(option, note),
-  ];
+  return [for (final option in options) _transfer(option, note)];
 }
 
 // ============================================================
 // ROUTE KEY
 // ============================================================
 
-String _routeKey(
-  String from,
-  String to,
-) {
+String _routeKey(String from, String to) {
   return '${_normalize(from)}->${_normalize(to)}';
 }
 
@@ -510,38 +490,23 @@ String _routeKey(
 // ============================================================
 
 Map<String, List<RouteTransport>> get routeTransportOptions {
-  final roadAndAir = _directList(
-    _roadAndAir(),
-  );
+  final roadAndAir = _directList(_roadAndAir());
 
-  final roadOnly = _directList(
-    _roadOnly(),
-  );
+  final roadOnly = _directList(_roadOnly());
 
-  final mustangRoadOnly = _directList(
-    _mustangRoadOnly(),
-  );
+  final mustangRoadOnly = _directList(_mustangRoadOnly());
 
-  final jomsom = _directList(
-    _jomsomOptions(),
-  );
+  final jomsom = _directList(_jomsomOptions());
 
-  final trekOnly = _directList(
-    _trekOnly(),
-  );
+  final trekOnly = _directList(_trekOnly());
 
   // ----------------------------------------------------------
   // Kathmandu/Pokhara -> Kagbeni/Mustang
   // ----------------------------------------------------------
 
   final viaJomsom = <RouteTransport>[
-    ..._directList(
-      _mustangRoadOnly(),
-    ),
-    _transfer(
-      _flightOption,
-      _viaJomsomNote,
-    ),
+    ..._directList(_mustangRoadOnly()),
+    _transfer(_flightOption, _viaJomsomNote),
   ];
 
   // ----------------------------------------------------------
@@ -549,18 +514,13 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
   // ----------------------------------------------------------
 
   final kathmanduLukla = <RouteTransport>[
-    _direct(
-      _flightOption,
-    ),
-    ..._transferList(
-      const [
-        _busOption,
-        _privateVehicleOption,
-        _jeepOption,
-        _motorbikeOption,
-      ],
-      _luklaNote,
-    ),
+    _direct(_flightOption),
+    ..._transferList(const [
+      _busOption,
+      _privateVehicleOption,
+      _jeepOption,
+      _motorbikeOption,
+    ], _luklaNote),
   ];
 
   // ----------------------------------------------------------
@@ -568,26 +528,11 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
   // ----------------------------------------------------------
 
   final kathmanduEverest = <RouteTransport>[
-    _transfer(
-      _flightOption,
-      _kathmanduEverestFlightNote,
-    ),
-    _transfer(
-      _jeepOption,
-      _kathmanduEverestRoadNote,
-    ),
-    _transfer(
-      _busOption,
-      _kathmanduEverestRoadNote,
-    ),
-    _transfer(
-      _privateVehicleOption,
-      _kathmanduEverestRoadNote,
-    ),
-    _transfer(
-      _motorbikeOption,
-      _kathmanduEverestRoadNote,
-    ),
+    _transfer(_flightOption, _kathmanduEverestFlightNote),
+    _transfer(_jeepOption, _kathmanduEverestRoadNote),
+    _transfer(_busOption, _kathmanduEverestRoadNote),
+    _transfer(_privateVehicleOption, _kathmanduEverestRoadNote),
+    _transfer(_motorbikeOption, _kathmanduEverestRoadNote),
   ];
 
   // ----------------------------------------------------------
@@ -595,22 +540,10 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
   // ----------------------------------------------------------
 
   final kathmanduAnnapurna = <RouteTransport>[
-    _transfer(
-      _busOption,
-      _kathmanduAnnapurnaRoadNote,
-    ),
-    _transfer(
-      _jeepOption,
-      _kathmanduAnnapurnaRoadNote,
-    ),
-    _transfer(
-      _privateVehicleOption,
-      _kathmanduAnnapurnaRoadNote,
-    ),
-    _transfer(
-      _motorbikeOption,
-      _kathmanduAnnapurnaRoadNote,
-    ),
+    _transfer(_busOption, _kathmanduAnnapurnaRoadNote),
+    _transfer(_jeepOption, _kathmanduAnnapurnaRoadNote),
+    _transfer(_privateVehicleOption, _kathmanduAnnapurnaRoadNote),
+    _transfer(_motorbikeOption, _kathmanduAnnapurnaRoadNote),
   ];
 
   // ----------------------------------------------------------
@@ -618,33 +551,17 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
   // ----------------------------------------------------------
 
   final pokharaAnnapurna = <RouteTransport>[
-    _transfer(
-      _jeepOption,
-      _pokharaAnnapurnaRoadNote,
-    ),
-    _transfer(
-      _busOption,
-      _pokharaAnnapurnaRoadNote,
-    ),
-    _transfer(
-      _privateVehicleOption,
-      _pokharaAnnapurnaRoadNote,
-    ),
-    _transfer(
-      _motorbikeOption,
-      _pokharaAnnapurnaRoadNote,
-    ),
+    _transfer(_jeepOption, _pokharaAnnapurnaRoadNote),
+    _transfer(_busOption, _pokharaAnnapurnaRoadNote),
+    _transfer(_privateVehicleOption, _pokharaAnnapurnaRoadNote),
+    _transfer(_motorbikeOption, _pokharaAnnapurnaRoadNote),
   ];
 
   // ----------------------------------------------------------
   // Annapurna trekking routes
   // ----------------------------------------------------------
 
-  final trekOnlyRoutes = <RouteTransport>[
-    _direct(
-      trekOption,
-    ),
-  ];
+  final trekOnlyRoutes = <RouteTransport>[_direct(trekOption)];
 
   // ==========================================================
   // RETURN ROUTE MAP
@@ -691,7 +608,6 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
     // ========================================================
     // ANNAPURNA
     // ========================================================
-
     _routeKey('Kathmandu', 'Annapurna'): kathmanduAnnapurna,
     _routeKey('Annapurna', 'Kathmandu'): kathmanduAnnapurna,
 
@@ -713,7 +629,6 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
     // ========================================================
     // EVEREST
     // ========================================================
-
     _routeKey('Kathmandu', 'Lukla'): kathmanduLukla,
     _routeKey('Lukla', 'Kathmandu'): kathmanduLukla,
 
@@ -732,7 +647,6 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
     // ========================================================
     // LOWLAND / CONNECTING ROUTES
     // ========================================================
-
     _routeKey('Kathmandu', 'Chitwan'): roadAndAir,
     _routeKey('Chitwan', 'Kathmandu'): roadAndAir,
 
@@ -754,32 +668,92 @@ Map<String, List<RouteTransport>> get routeTransportOptions {
 }
 
 // ============================================================
+// CONNECTED DESTINATIONS
+// ============================================================
+
+/// Canonical display names for every destination that appears in the
+/// route transportation database ([routeTransportOptions]).
+const List<String> routeMapDestinations = [
+  'Kathmandu',
+  'Pokhara',
+  'Chitwan',
+  'Jomsom',
+  'Marpha',
+  'Kagbeni',
+  'Muktinath',
+  'Mustang',
+  'Lukla',
+  'Namche Bazaar',
+  'Ghandruk',
+  'Poon Hill',
+  'Annapurna',
+  'Everest',
+  'Tansen',
+  'Rasuwa',
+];
+
+/// Every destination directly connected to [from] according to the route
+/// transportation database.
+///
+/// Routes are treated as bidirectional, so a route defined for `X -> Y`
+/// also connects `Y -> X`. This is the canonical connectivity source used
+/// to build custom return legs: only places that actually share a route
+/// with the current stop are offered, never the full destination list.
+List<String> connectedDestinationsFrom(String from) {
+  final normalizedFrom = _normalize(from);
+
+  final neighbors = <String>{};
+
+  for (final key in routeTransportOptions.keys) {
+    final parts = key.split('->');
+
+    if (parts.length != 2) {
+      continue;
+    }
+
+    final a = parts[0];
+    final b = parts[1];
+
+    if (a == normalizedFrom) {
+      neighbors.add(b);
+    } else if (b == normalizedFrom) {
+      neighbors.add(a);
+    }
+  }
+
+  if (neighbors.isEmpty) {
+    return const [];
+  }
+
+  final canonical = <String, String>{
+    for (final name in routeMapDestinations) _normalize(name): name,
+  };
+
+  final result = <String>[];
+
+  for (final neighbor in neighbors) {
+    result.add(canonical[neighbor] ?? neighbor);
+  }
+
+  result.sort();
+
+  return result;
+}
+
+// ============================================================
 // ROUTE LOOKUP
 // ============================================================
 
-List<RouteTransport> transportOptionsForRoute(
-  String from,
-  String to,
-) {
+List<RouteTransport> transportOptionsForRoute(String from, String to) {
   // First try the exact A -> B route.
-  final direct = routeTransportOptions[
-    _routeKey(
-      from,
-      to,
-    )
-  ];
+  final direct = routeTransportOptions[_routeKey(from, to)];
 
   if (direct != null) {
     return direct;
   }
 
   // Then try B -> A.
-  final reversed = routeTransportOptions[
-    _routeKey(
-      to,
-      from,
-    )
-  ];
+  final reversed = routeTransportOptions[_routeKey(to, from)];
 
   if (reversed != null) {
     return reversed;
@@ -792,8 +766,7 @@ List<RouteTransport> transportOptionsForRoute(
   // different locations.
   return [
     for (final option in transportOptionsFor(to))
-      if (!_isLocalExplorationOption(option))
-        _direct(option),
+      if (!_isLocalExplorationOption(option)) _direct(option),
   ];
 }
 
@@ -801,9 +774,7 @@ List<RouteTransport> transportOptionsForRoute(
 // HELPERS
 // ============================================================
 
-bool _isLocalExplorationOption(
-  TransportationOption option,
-) {
+bool _isLocalExplorationOption(TransportationOption option) {
   final name = _normalize(option.name);
 
   return name == 'visit kathmandu locally' ||

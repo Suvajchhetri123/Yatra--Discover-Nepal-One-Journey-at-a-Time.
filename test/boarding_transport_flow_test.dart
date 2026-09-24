@@ -33,8 +33,8 @@ Future<void> _pickDropdown(
   String value,
 ) async {
   final dropdown = find.byWidgetPredicate(
-    (w) => w is DropdownButtonFormField<String> &&
-        (w.decoration.hintText == hint),
+    (w) =>
+        w is DropdownButtonFormField<String> && (w.decoration.hintText == hint),
   );
   expect(dropdown, findsOneWidget, reason: 'dropdown with hint "$hint"');
   await tester.ensureVisible(dropdown);
@@ -62,7 +62,7 @@ Finder _transportLabel(String text) => find.text(text);
 Finder _addRouteLegButton() =>
     find.widgetWithText(OutlinedButton, 'Add Route Leg');
 Finder _addReturnLegButton() =>
-    find.widgetWithText(OutlinedButton, 'Add Return Leg');
+    find.widgetWithText(OutlinedButton, 'Add to Return Journey');
 
 String _allText(WidgetTester tester) {
   return tester
@@ -72,8 +72,7 @@ String _allText(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets(
-      'Boarding points first settle: '
+  testWidgets('Boarding points first settle: '
       'no transportation selector when the screen opens', (tester) async {
     await _pumpBoarding(tester);
 
@@ -83,8 +82,7 @@ void main() {
     expect(_addReturnLegButton(), findsNothing);
   });
 
-  testWidgets(
-      'selecting the next destination reveals exactly that leg\'s '
+  testWidgets('selecting the next destination reveals exactly that leg\'s '
       'transportation and the label contains A → B', (tester) async {
     await _pumpBoarding(tester);
     await _pickDropdown(tester, 'Choose where you want to start', 'Kathmandu');
@@ -97,14 +95,17 @@ void main() {
     await _pickDropdown(tester, 'Choose next location', 'Pokhara');
 
     expect(find.text('Transportation'), findsOneWidget);
-    expect(_transportLabel('Transportation: Kathmandu → Pokhara'),
-        findsOneWidget);
+    expect(
+      _transportLabel('Transportation: Kathmandu → Pokhara'),
+      findsOneWidget,
+    );
     // Add Route Leg must be disabled (hidden) until transport selected.
     expect(_addRouteLegButton(), findsNothing);
   });
 
-  testWidgets('Add Route Leg is disabled until transportation is selected',
-      (tester) async {
+  testWidgets('Add Route Leg is disabled until transportation is selected', (
+    tester,
+  ) async {
     await _pumpBoarding(tester);
     await _pickDropdown(tester, 'Choose where you want to start', 'Kathmandu');
     await _pickDropdown(tester, 'Choose next location', 'Pokhara');
@@ -115,8 +116,7 @@ void main() {
     expect(_addRouteLegButton(), findsOneWidget);
   });
 
-  testWidgets(
-      'after adding A → B the transportation selector disappears, '
+  testWidgets('after adding A → B the transportation selector disappears, '
       'then B → C reveals a NEW selector for B → C', (tester) async {
     await _pumpBoarding(tester);
     await _pickDropdown(tester, 'Choose where you want to start', 'Kathmandu');
@@ -127,21 +127,23 @@ void main() {
 
     // The A -> B selector must be gone after the leg is added.
     expect(find.text('Transportation'), findsNothing);
-    expect(_transportLabel('Transportation: Kathmandu → Pokhara'),
-        findsNothing);
+    expect(
+      _transportLabel('Transportation: Kathmandu → Pokhara'),
+      findsNothing,
+    );
     expect(_addRouteLegButton(), findsNothing);
 
     // Select B -> C.
     await _pickDropdown(tester, 'Choose next location', 'Jomsom');
     expect(find.text('Transportation'), findsOneWidget);
-    expect(_transportLabel('Transportation: Pokhara → Jomsom'),
-        findsOneWidget);
-    expect(_transportLabel('Transportation: Kathmandu → Pokhara'),
-        findsNothing);
+    expect(_transportLabel('Transportation: Pokhara → Jomsom'), findsOneWidget);
+    expect(
+      _transportLabel('Transportation: Kathmandu → Pokhara'),
+      findsNothing,
+    );
   });
 
-  testWidgets(
-      'multiple intermediate destinations: each leg keeps its own '
+  testWidgets('multiple intermediate destinations: each leg keeps its own '
       'transportation through to the recommendation', (tester) async {
     await _pumpBoarding(tester);
     await _pickDropdown(tester, 'Choose where you want to start', 'Kathmandu');
@@ -170,9 +172,16 @@ void main() {
     expect(text, contains('Jomsom → Mustang\nJeep'));
   });
 
-  testWidgets('return legs work the same way with their own transportation',
-      (tester) async {
+  testWidgets('return legs work the same way with their own transportation', (
+    tester,
+  ) async {
     await _pumpBoarding(tester);
+
+    // Trip Type is the first planning choice: choose Round Trip before
+    // choosing the boarding point.
+    await tester.tap(find.text('Round Trip'));
+    await tester.pumpAndSettle();
+
     await _pickDropdown(tester, 'Choose where you want to start', 'Kathmandu');
 
     // Outbound
@@ -183,22 +192,30 @@ void main() {
     await _pickDropdown(tester, 'Choose transportation', 'Jeep');
     await _tapButton(tester, 'Add Route Leg');
 
-    // Round trip -> return journey
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Round Trip'));
+    // Customize the return journey from the return-type cards.
+    await tester.tap(find.text('Custom Return'));
     await tester.pumpAndSettle();
 
-    // Return Mustang -> Pokhara = Private Vehicle (road-only route)
-    expect(_transportLabel('Transportation: Mustang → Pokhara'),
-        findsOneWidget);
+    // Pick the destination first; the label only appears for the pending leg.
+    await _pickDropdown(tester, 'Choose next return destination', 'Pokhara');
+    expect(
+      _transportLabel('Transportation: Mustang → Pokhara'),
+      findsOneWidget,
+    );
     expect(_addReturnLegButton(), findsNothing);
+
+    // Return Mustang -> Pokhara = Private Vehicle (road-only route)
     await _pickDropdown(tester, 'Choose transportation', 'Private Vehicle');
-    await _tapButton(tester, 'Add Return Leg');
+    await _tapButton(tester, 'Add to Return Journey');
 
     // Return Pokhara -> Kathmandu = Flight (road + air route)
-    expect(_transportLabel('Transportation: Pokhara → Kathmandu'),
-        findsOneWidget);
+    await _pickDropdown(tester, 'Choose next return destination', 'Kathmandu');
+    expect(
+      _transportLabel('Transportation: Pokhara → Kathmandu'),
+      findsOneWidget,
+    );
     await _pickDropdown(tester, 'Choose transportation', 'Flight');
-    await _tapButton(tester, 'Add Return Leg');
+    await _tapButton(tester, 'Add to Return Journey');
 
     await _tapButton(tester, 'Continue');
     final text = _allText(tester);

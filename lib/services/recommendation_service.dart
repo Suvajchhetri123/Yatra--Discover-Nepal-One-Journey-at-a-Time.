@@ -1,4 +1,5 @@
 import '../data/places_data.dart';
+import '../models/journey_stop_plan.dart';
 import '../models/place_model.dart';
 import '../models/travel_route_model.dart';
 import 'trip_cost_estimator.dart';
@@ -747,7 +748,8 @@ class RecommendationService {
     // Use the user's selected calendar duration whenever it is available.
     // Older helper calls may pass 0, so fall back to the calculated
     // minimum journey duration in that case.
-    final int fallbackDays = travelDays + visitDays + returnDays;
+    final int fallbackDays =
+        travelDays + visitDays + returnDays + route.explorationDays;
     final int totalPlanDays = actualJourneyDays > 0
         ? actualJourneyDays
         : fallbackDays;
@@ -807,14 +809,6 @@ class RecommendationService {
         ? outboundTravelItems.length
         : totalPlanDays;
 
-    int currentDay = 1;
-
-    // OUTBOUND JOURNEY
-    for (int i = 0; i < outboundDaysToUse; i++) {
-      plans.add(DayPlan(day: currentDay, items: [outboundTravelItems[i]]));
-      currentDay++;
-    }
-
     final int remainingDays = totalPlanDays - outboundDaysToUse;
 
     // Reserve the end of a round trip for the user's actual return route.
@@ -828,12 +822,13 @@ class RecommendationService {
           : remainingDays;
     }
 
+    // Days available for non-travel time between the outbound journey and the
+    // start of the return journey: exploration at outbound stops, the core
+    // destination stay, and exploration at stops that only exist on a custom
+    // return route.
     final int explorationDays = remainingDays - returnDaysToUse;
 
-    // EXTRA STOP EXPLORATION DAYS
-    // When the traveller allocated extra stay time at specific stops,
-    // those days are placed right after the outbound journey, before the
-    // remaining destination days.
+    // EXTRA STOP EXPLORATION DAYS (outbound stops)
     int stopPlanDaysToUse = 0;
 
     if (route.stopPlans.isNotEmpty && explorationDays > 0) {
@@ -846,51 +841,266 @@ class RecommendationService {
       stopPlanDaysToUse = requestedStopDays < explorationDays
           ? requestedStopDays
           : explorationDays;
-
-      if (stopPlanDaysToUse > 0) {
-        final List<DayPlan> stopPlans = _createStopPlanPlans(
-          route: route,
-          numberOfDays: stopPlanDaysToUse,
-          startingDay: currentDay,
-          ages: ages,
-          adultCount: adultCount,
-          childCount: childCount,
-        );
-
-        plans.addAll(stopPlans);
-        currentDay += stopPlanDaysToUse;
-      }
     }
 
-    // DESTINATION / EXTRA-DAY EXPLORATION
-    final int destinationDays = explorationDays - stopPlanDaysToUse;
+    // How many stay days each outbound stop contributes, keyed canonically.
+    // Each stop's days attach to the leg that actually arrives there so the
+    // plan reads in true chronological order (travel -> stay -> next travel).
+    final Map<String, int> outboundStopDaysByStop = <String, int>{};
 
-    if (destinationDays > 0) {
-      final List<DayPlan> visitPlans = _createVisitPlans(
-        places: _getDestinationPlaces(route.destination),
-        numberOfDays: destinationDays,
-        startingDay: currentDay,
-        ages: ages,
-        adultCount: adultCount,
-        childCount: childCount,
-      );
+    if (stopPlanDaysToUse > 0) {
+      int allocated = 0;
 
-      plans.addAll(visitPlans);
-      currentDay += destinationDays;
-    }
+      for (final plan in route.stopPlans) {
+        if (plan.explorationDays <= 0) {
+          continue;
+        }
 
-    // RETURN JOURNEY
-    if (route.isRoundTrip && returnDaysToUse > 0) {
-      // If the selected duration is too short, begin the return from the
-      // destination and include as many correctly ordered return legs as fit.
-      for (int i = 0; i < returnDaysToUse; i++) {
-        if (currentDay > totalPlanDays) {
+        if (allocated >= stopPlanDaysToUse) {
           break;
         }
 
-        plans.add(DayPlan(day: currentDay, items: [returnTravelItems[i]]));
+        final int daysToUse =
+            plan.explorationDays < (stopPlanDaysToUse - allocated)
+            ? plan.explorationDays
+            : (stopPlanDaysToUse - allocated);
+
+        outboundStopDaysByStop[plan.location.toLowerCase()] = daysToUse;
+
+        allocated += daysToUse;
+      }
+    }
+
+    // RETURN-ONLY STOP EXPLORATION DAYS
+    // Kept out of the destination stay so they can be interleaved between the
+    // return legs in chronological order (each stop's days follow the leg that
+    // arrives there and precede the next return leg).
+    final int returnStopBudget = explorationDays - stopPlanDaysToUse;
+
+    final List<JourneyStopPlan> returnStopsToUse = <JourneyStopPlan>[];
+
+    if (route.isRoundTrip) {
+      int allocated = 0;
+
+      for (final plan in route.returnStopPlans) {
+        if (plan.explorationDays <= 0) {
+          continue;
+        }
+
+        if (allocated >= returnStopBudget) {
+          break;
+        }
+
+        final int daysToUse =
+            plan.explorationDays < (returnStopBudget - allocated)
+            ? plan.explorationDays
+            : (returnStopBudget - allocated);
+
+        returnStopsToUse.add(
+          JourneyStopPlan(location: plan.location, explorationDays: daysToUse),
+        );
+
+        allocated += daysToUse;
+      }
+    }
+
+    // DESTINATION VISIT DAYS (the core stay at the destination)
+    final int requestedReturnStopDays = returnStopsToUse.fold(
+      0,
+      (total, plan) => total + plan.explorationDays,
+    );
+    final int destinationDays = returnStopBudget - requestedReturnStopDays;
+
+    // OUTBOUND JOURNEY
+    // Each leg is followed by the traveller's stay at the stop it reaches:
+    // intermediate stops draw from [route.stopPlans] while the final leg leads
+    // into the core destination stay. Keeping outbound stops in true travel
+    // order also guarantees that a stop visited on the way out (for example
+    // Pokhara with 1 day) is never merged with the same stop visited again on
+    // the return journey (Pokhara with 2 days).
+    int currentDay = 1;
+    int outboundItemIndex = 0;
+
+    for (
+      int legIndex = 0;
+      legIndex < route.segments.length && currentDay <= totalPlanDays;
+      legIndex++
+    ) {
+      final RouteSegment segment = route.segments[legIndex];
+
+      final int travelDaysForLeg = _daysForTransport(
+        from: segment.from,
+        to: segment.to,
+        transportation: segment.transportation,
+      );
+
+      for (
+        int i = 0;
+        i < travelDaysForLeg &&
+            outboundItemIndex < outboundTravelItems.length &&
+            currentDay <= totalPlanDays;
+        i++
+      ) {
+        plans.add(
+          DayPlan(
+            day: currentDay,
+            items: [outboundTravelItems[outboundItemIndex]],
+          ),
+        );
 
         currentDay++;
+        outboundItemIndex++;
+      }
+
+      if (currentDay > totalPlanDays) {
+        break;
+      }
+
+      final bool isFinalOutboundLeg = legIndex == route.segments.length - 1;
+
+      if (isFinalOutboundLeg) {
+        // EXTRA EXPLORATION DAYS at the destination itself (the final
+        // destination is a normal stop plan): planned before the core visit.
+        final int? destStopDays =
+            outboundStopDaysByStop[segment.to.toLowerCase()];
+
+        if (destStopDays != null && destStopDays > 0) {
+          final List<DayPlan> stopPlans = _createStopPlans(
+            stops: [
+              JourneyStopPlan(
+                location: segment.to,
+                explorationDays: destStopDays,
+              ),
+            ],
+            numberOfDays: destStopDays,
+            startingDay: currentDay,
+            ages: ages,
+            adultCount: adultCount,
+            childCount: childCount,
+          );
+
+          plans.addAll(stopPlans);
+          currentDay += stopPlans.length;
+
+          outboundStopDaysByStop[segment.to.toLowerCase()] = 0;
+        }
+
+        // DESTINATION VISIT DAYS (the core stay at the destination)
+        if (destinationDays > 0) {
+          final List<DayPlan> visitPlans = _createVisitPlans(
+            places: _getDestinationPlaces(route.destination),
+            numberOfDays: destinationDays,
+            startingDay: currentDay,
+            ages: ages,
+            adultCount: adultCount,
+            childCount: childCount,
+          );
+
+          plans.addAll(visitPlans);
+          currentDay += visitPlans.length;
+        }
+      } else {
+        // EXPLORATION DAYS at this intermediate stop before the next leg.
+        final int? stopDays = outboundStopDaysByStop[segment.to.toLowerCase()];
+
+        if (stopDays != null && stopDays > 0) {
+          final List<DayPlan> stopPlans = _createStopPlans(
+            stops: [
+              JourneyStopPlan(location: segment.to, explorationDays: stopDays),
+            ],
+            numberOfDays: stopDays,
+            startingDay: currentDay,
+            ages: ages,
+            adultCount: adultCount,
+            childCount: childCount,
+          );
+
+          plans.addAll(stopPlans);
+          currentDay += stopPlans.length;
+
+          // Produced exactly once; clear so a later outbound leg to the same
+          // place cannot add the stop a second time.
+          outboundStopDaysByStop[segment.to.toLowerCase()] = 0;
+        }
+      }
+    }
+
+    // RETURN JOURNEY
+    // Travel legs come first, each followed by the traveller's exploration
+    // days at the stop just reached, before moving on to the next return leg.
+    if (route.isRoundTrip && returnDaysToUse > 0) {
+      // Remaining stop days per return stop, keyed canonically. Each return
+      // stop plans to stay only at the leg that actually arrives there.
+      final remainingStopDaysByStop = <String, int>{
+        for (final plan in returnStopsToUse)
+          plan.location.toLowerCase(): plan.explorationDays,
+      };
+
+      int returnItemIndex = 0;
+
+      for (
+        int legIndex = 0;
+        legIndex < route.returnSegments.length &&
+            returnItemIndex < returnDaysToUse;
+        legIndex++
+      ) {
+        final RouteSegment segment = route.returnSegments[legIndex];
+
+        final int travelDaysForLeg = _daysForTransport(
+          from: segment.from,
+          to: segment.to,
+          transportation: segment.transportation,
+        );
+
+        for (
+          int i = 0;
+          i < travelDaysForLeg && returnItemIndex < returnDaysToUse;
+          i++
+        ) {
+          if (currentDay > totalPlanDays) {
+            break;
+          }
+
+          plans.add(
+            DayPlan(
+              day: currentDay,
+              items: [returnTravelItems[returnItemIndex]],
+            ),
+          );
+
+          currentDay++;
+          returnItemIndex++;
+        }
+
+        // Exploration days at the stop reached by this leg, before continuing
+        // with the next return leg.
+        if (currentDay <= totalPlanDays) {
+          final int? stopDays =
+              remainingStopDaysByStop[segment.to.toLowerCase()];
+
+          if (stopDays != null && stopDays > 0) {
+            final List<DayPlan> stopPlans = _createStopPlans(
+              stops: [
+                JourneyStopPlan(
+                  location: segment.to,
+                  explorationDays: stopDays,
+                ),
+              ],
+              numberOfDays: stopDays,
+              startingDay: currentDay,
+              ages: ages,
+              adultCount: adultCount,
+              childCount: childCount,
+            );
+
+            plans.addAll(stopPlans);
+            currentDay += stopPlans.length;
+
+            // Produced exactly once; clear so a later leg to the same place
+            // cannot add the stop a second time.
+            remainingStopDaysByStop[segment.to.toLowerCase()] = 0;
+          }
+        }
       }
     }
 
@@ -908,9 +1118,10 @@ class RecommendationService {
   /// Builds the day plans for the traveller's extra stay days at specific
   /// route stops. Each selected stop contributes its exploration days in
   /// order, using matching places when available and a friendly free-text
-  /// activity otherwise.
-  static List<DayPlan> _createStopPlanPlans({
-    required TravelRoute route,
+  /// activity otherwise. Works for both outbound stops ([TravelRoute.stopPlans])
+  /// and stops introduced on a custom return route ([TravelRoute.returnStopPlans]).
+  static List<DayPlan> _createStopPlans({
+    required List<JourneyStopPlan> stops,
     required int numberOfDays,
     required int startingDay,
     required List<int> ages,
@@ -922,7 +1133,7 @@ class RecommendationService {
     int allocated = 0;
     int day = startingDay;
 
-    for (final plan in route.stopPlans) {
+    for (final plan in stops) {
       if (allocated >= numberOfDays) {
         break;
       }
