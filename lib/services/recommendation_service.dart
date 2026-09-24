@@ -10,6 +10,11 @@ class DayPlan {
   final List<DayPlanItem> items;
 
   const DayPlan({required this.day, required this.items});
+
+  /// Returns a copy of this plan with the given items, keeping the day number.
+  DayPlan replaceItems(List<DayPlanItem> newItems) {
+    return DayPlan(day: day, items: List.of(newItems));
+  }
 }
 
 /// Represents the type of item in a day plan.
@@ -30,30 +35,73 @@ class DayPlanItem {
   // Activity information
   final String? activity;
 
+  /// Optional user-edited title override shown instead of the generated one.
+  ///
+  /// Set during itinerary editing; an empty/null value falls back to the
+  /// generated title so "Reset to Recommended" restores the original text.
+  final String? customTitle;
+
+  /// Optional free-text note the tourist can add while editing the itinerary.
+  final String? note;
+
   const DayPlanItem.travel({
     required this.from,
     required this.to,
     required this.transportation,
   }) : type = DayPlanItemType.travel,
        place = null,
+       activity = null,
+       customTitle = null,
+       note = null;
+
+  const DayPlanItem.attraction({
+    required this.place,
+    this.customTitle,
+    this.note,
+  }) : type = DayPlanItemType.attraction,
+       from = null,
+       to = null,
+       transportation = null,
        activity = null;
 
-  const DayPlanItem.attraction({required this.place})
-    : type = DayPlanItemType.attraction,
-      from = null,
-      to = null,
-      transportation = null,
-      activity = null;
-
-  const DayPlanItem.activity({required this.activity})
+  const DayPlanItem.activity({required this.activity, this.note})
     : type = DayPlanItemType.activity,
       from = null,
       to = null,
       transportation = null,
-      place = null;
+      place = null,
+      customTitle = null;
+
+  /// Returns a copy with editable text fields replaced.
+  ///
+  /// Travel items are read-only and returned unchanged. An empty title is
+  /// stored as null so the generated title is used again.
+  DayPlanItem copyWith({String? customTitle, String? note, String? activity}) {
+    if (type == DayPlanItemType.travel) {
+      return this;
+    }
+
+    final trimmedTitle = customTitle?.trim() ?? '';
+
+    if (type == DayPlanItemType.attraction) {
+      return DayPlanItem.attraction(
+        place: place,
+        customTitle: trimmedTitle.isEmpty ? null : trimmedTitle,
+        note: note,
+      );
+    }
+
+    return DayPlanItem.activity(activity: activity?.trim() ?? '', note: note);
+  }
 
   /// Text displayed as the main title in RecommendationScreen.
   String get title {
+    final override = customTitle?.trim() ?? '';
+
+    if (override.isNotEmpty) {
+      return override;
+    }
+
     if (type == DayPlanItemType.travel) {
       return '$from → $to';
     }

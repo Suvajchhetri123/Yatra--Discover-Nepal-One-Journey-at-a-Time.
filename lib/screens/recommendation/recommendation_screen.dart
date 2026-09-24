@@ -6,11 +6,10 @@ import '../../services/recommendation_service.dart';
 import '../../data/places_data.dart';
 import '../../widgets/yatra_components.dart';
 import '../place_details/place_details_screen.dart';
-import '../map/map_screen.dart';
 import '../../models/place_model.dart';
 import '../../models/travel_route_model.dart';
 
-class RecommendationScreen extends StatelessWidget {
+class RecommendationScreen extends StatefulWidget {
   final String touristType;
   final String destination;
   final DateTime departureDate;
@@ -46,6 +45,44 @@ class RecommendationScreen extends StatelessWidget {
     required this.route,
   });
 
+  @override
+  State<RecommendationScreen> createState() => _RecommendationScreenState();
+}
+
+class _RecommendationScreenState extends State<RecommendationScreen> {
+  // Shadow copies of the widget's planning fields so the rest of this file
+  // can keep using them without a widget. prefix.
+  late final String touristType = widget.touristType;
+  late final String destination = widget.destination;
+  late final DateTime departureDate = widget.departureDate;
+  late final DateTime returnDate = widget.returnDate;
+  late final String season = widget.season;
+  late final String suitability = widget.suitability;
+  late final String currency = widget.currency;
+  late final double budget = widget.budget;
+  late final List<int> ages = widget.ages;
+  late final int adultCount = widget.adultCount;
+  late final int childCount = widget.childCount;
+  late final String travelType = widget.travelType;
+  late final int groupSize = widget.groupSize;
+  late final String seasonMessage = widget.seasonMessage;
+  late final TravelRoute route = widget.route;
+
+  late final RecommendationResult _recommendation;
+
+  late final int _duration;
+
+  /// Pristine generated plans, kept separate so edits can be undone.
+  late final List<DayPlan> _recommendedDayPlans;
+
+  /// Plans currently displayed; replaced when the tourist saves an edit.
+  late final List<DayPlan> _displayedDayPlans;
+
+  /// Working copy while editing; discarded on cancel.
+  List<DayPlan> _draftDayPlans = [];
+
+  bool _editing = false;
+
   static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   static const _months = [
@@ -69,12 +106,26 @@ class RecommendationScreen extends StatelessWidget {
     return '$weekday, $month ${date.day}, ${date.year}';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final rawDuration = returnDate.difference(departureDate).inDays + 1;
-    final duration = rawDuration > 0 ? rawDuration : 1;
+  /// Plans shown for the current mode: the edit draft while editing,
+  /// otherwise the committed display plans.
+  List<DayPlan> get _visibleDayPlans =>
+      _editing ? _draftDayPlans : _displayedDayPlans;
 
-    final recommendation = RecommendationService.generate(
+  static List<DayPlan> _copyDayPlans(List<DayPlan> plans) {
+    return [
+      for (final plan in plans)
+        DayPlan(day: plan.day, items: List.of(plan.items)),
+    ];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    final rawDuration = returnDate.difference(departureDate).inDays + 1;
+    _duration = rawDuration > 0 ? rawDuration : 1;
+
+    _recommendation = RecommendationService.generate(
       touristType: touristType,
       destination: destination,
       season: season,
@@ -86,9 +137,287 @@ class RecommendationScreen extends StatelessWidget {
       childCount: childCount,
       travelType: travelType,
       groupSize: groupSize,
-      duration: duration,
+      duration: _duration,
       route: route,
     );
+
+    _recommendedDayPlans = _copyDayPlans(_recommendation.dayPlans);
+    _displayedDayPlans = _copyDayPlans(_recommendation.dayPlans);
+  }
+
+  // ============================================================
+  // ITINERARY EDITING
+  // ============================================================
+
+  void _beginEditing() {
+    setState(() {
+      _draftDayPlans = _copyDayPlans(_displayedDayPlans);
+      _editing = true;
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _draftDayPlans = [];
+      _editing = false;
+    });
+  }
+
+  void _saveChanges() {
+    if (_draftDayPlans.isEmpty) {
+      _cancelEditing();
+      return;
+    }
+
+    setState(() {
+      _editing = false;
+      // _displayedDayPlans is final; commit through the reference.
+      _displayedDayPlans.clear();
+      _displayedDayPlans.addAll(_draftDayPlans);
+      _draftDayPlans = [];
+    });
+  }
+
+  void _resetToRecommended() {
+    setState(() {
+      _editing = false;
+      _draftDayPlans = [];
+      _displayedDayPlans.clear();
+      _displayedDayPlans.addAll(_copyDayPlans(_recommendedDayPlans));
+    });
+  }
+
+  bool _canMoveInDay(DayPlan day, int itemIndex, int delta) {
+    final positions = <int>[];
+    for (var i = 0; i < day.items.length; i++) {
+      if (day.items[i].type != DayPlanItemType.travel) {
+        positions.add(i);
+      }
+    }
+
+    final position = positions.indexOf(itemIndex);
+    if (position < 0) return false;
+
+    final target = position + delta;
+    return target >= 0 && target < positions.length;
+  }
+
+  /// Moves a non-travel item within the non-travel slots of its day so
+  /// travel legs stay pinned in place.
+  void _moveItem(DayPlan dayPlan, int itemIndex, int delta) {
+    final dayIndex = _visibleDayPlans.indexOf(dayPlan);
+    if (dayIndex < 0 || !_editing) return;
+
+    final day = _draftDayPlans[dayIndex];
+    final items = List.of(day.items);
+
+    final positions = <int>[];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type != DayPlanItemType.travel) {
+        positions.add(i);
+      }
+    }
+
+    final position = positions.indexOf(itemIndex);
+    if (position < 0) return;
+
+    final targetPosition = position + delta;
+    if (targetPosition < 0 || targetPosition >= positions.length) return;
+
+    final a = positions[position];
+    final b = positions[targetPosition];
+    final temp = items[a];
+    items[a] = items[b];
+    items[b] = temp;
+
+    setState(() {
+      _draftDayPlans[dayIndex] = day.replaceItems(items);
+    });
+  }
+
+  void _removeItem(DayPlan dayPlan, int itemIndex) {
+    final dayIndex = _visibleDayPlans.indexOf(dayPlan);
+    if (dayIndex < 0 || !_editing) return;
+
+    final day = _draftDayPlans[dayIndex];
+    final item = day.items[itemIndex];
+    if (item.type == DayPlanItemType.travel) return;
+
+    final items = List.of(day.items)..removeAt(itemIndex);
+
+    setState(() {
+      _draftDayPlans[dayIndex] = day.replaceItems(items);
+    });
+  }
+
+  int _insertionIndex(DayPlan day) {
+    int index = day.items.length;
+    for (var i = day.items.length - 1; i >= 0; i--) {
+      if (day.items[i].type != DayPlanItemType.travel) {
+        index = i + 1;
+        break;
+      }
+    }
+    return index;
+  }
+
+  void _addActivity(DayPlan dayPlan) {
+    final dayIndex = _visibleDayPlans.indexOf(dayPlan);
+    if (dayIndex < 0 || !_editing) return;
+
+    final day = _draftDayPlans[dayIndex];
+    final insertAt = _insertionIndex(day);
+    final items = List.of(day.items);
+    items.insert(insertAt, const DayPlanItem.activity(activity: ''));
+
+    setState(() {
+      _draftDayPlans[dayIndex] = day.replaceItems(items);
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openItemEditor(dayIndex, insertAt);
+    });
+  }
+
+  void _addAttraction(DayPlan dayPlan) {
+    final dayIndex = _visibleDayPlans.indexOf(dayPlan);
+    if (dayIndex < 0 || !_editing) return;
+
+    final places = <Place>[];
+    for (final name in _recommendation.suggestedPlaces) {
+      final place = findPlaceByName(name);
+      if (place != null) {
+        places.add(place);
+      }
+    }
+
+    if (places.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No attractions are available to add.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  'Add an attraction',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: places.length,
+                  itemBuilder: (listContext, index) {
+                    final place = places[index];
+                    return ListTile(
+                      leading: const Icon(Icons.location_on_outlined),
+                      title: Text(place.name),
+                      subtitle: Text(place.location),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _insertItem(
+                          dayIndex,
+                          DayPlanItem.attraction(place: place),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _insertItem(int dayIndex, DayPlanItem item) {
+    final day = _draftDayPlans[dayIndex];
+    final items = List.of(day.items);
+    items.insert(_insertionIndex(day), item);
+
+    setState(() {
+      _draftDayPlans[dayIndex] = day.replaceItems(items);
+    });
+  }
+
+  void _openItemEditor(int dayIndex, int itemIndex) {
+    if (!_editing) return;
+    final day = _draftDayPlans[dayIndex];
+    final item = day.items[itemIndex];
+    if (item.type == DayPlanItemType.travel) return;
+
+    final initialTitle = item.type == DayPlanItemType.attraction
+        ? (item.customTitle ?? item.place?.name ?? '')
+        : (item.activity ?? '');
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return _DayPlanItemEditor(
+          initialTitle: initialTitle,
+          initialNote: item.note ?? '',
+          onSave: (title, note) {
+            Navigator.pop(sheetContext);
+            setState(() {
+              final updatedDay = _draftDayPlans[dayIndex];
+              final items = List.of(updatedDay.items);
+              items[itemIndex] = item.copyWith(
+                customTitle: title,
+                note: note,
+                activity: title,
+              );
+              _draftDayPlans[dayIndex] = updatedDay.replaceItems(items);
+            });
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmEditTripPlan() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Edit Trip Plan?'),
+          content: const Text(
+            'You will return to the planning screens. Your saved itinerary '
+            'edits are kept for this trip.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Stay'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.pop(context);
+              },
+              child: const Text('Edit Trip Plan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final int duration = _duration;
+
+    final RecommendationResult recommendation = _recommendation;
 
     final ageDisplay = travelType == 'Solo'
         ? '${ages.isNotEmpty ? ages.first : 18} years'
@@ -102,20 +431,20 @@ class RecommendationScreen extends StatelessWidget {
         route.boardingPoint.toLowerCase().trim() ==
             route.destination.toLowerCase().trim();
 
-    final fullMapDestinations = <String>[
-      if (route.segments.isNotEmpty)
-        ...route.segments.map((segment) => segment.to)
-      else
-        route.destination,
-      if (route.isRoundTrip)
-        ...route.returnSegments.map((segment) => segment.to),
-    ];
-
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Your Journey')),
+      appBar: AppBar(
+        title: const Text('Your Journey'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit Trip Plan',
+            onPressed: _confirmEditTripPlan,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -375,29 +704,6 @@ class RecommendationScreen extends StatelessWidget {
                         style: textTheme.bodyMedium,
                       ),
                     ],
-
-                    const Divider(height: AppSpacing.xxl),
-
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => MapScreen(
-                              boardingPoint: route.boardingPoint,
-                              destinations: fullMapDestinations,
-                              travelRoute: route,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.map_outlined),
-                      label: Text(
-                        route.isRoundTrip
-                            ? 'View Full Round-Trip Map'
-                            : 'View Full Route Map',
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -535,130 +841,28 @@ class RecommendationScreen extends StatelessWidget {
 
               const SizedBox(height: AppSpacing.md),
 
-              if (recommendation.dayPlans.isEmpty)
+              if (_editing) ...[
+                _editingToolbar(),
+              ] else ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _beginEditing,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit Itinerary'),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: AppSpacing.lg),
+
+              if (_visibleDayPlans.isEmpty)
                 const YatraEmptyState(
                   icon: Icons.map_outlined,
                   message: 'No route plan is currently available.',
                 ),
 
-              ...recommendation.dayPlans.map((dayPlan) {
-                final dayDate = departureDate.add(
-                  Duration(days: dayPlan.day - 1),
-                );
-
-                return YatraCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: scheme.primary,
-                              borderRadius: BorderRadius.circular(AppRadius.sm),
-                            ),
-                            child: Text(
-                              '${dayPlan.day}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Day ${dayPlan.day}',
-                                  style: textTheme.titleLarge,
-                                ),
-                                Text(
-                                  _formatDate(dayDate),
-                                  style: AppType.caption,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: AppSpacing.md),
-
-                      ...dayPlan.items.map((item) {
-                        final isTravel = item.type == DayPlanItemType.travel;
-
-                        final isActivity =
-                            item.type == DayPlanItemType.activity;
-
-                        final place = item.type == DayPlanItemType.attraction
-                            ? item.place
-                            : null;
-
-                        if (isTravel) {
-                          return _travelItem(
-                            context,
-                            from: item.from,
-                            to: item.to,
-                            transportation: item.transportation,
-                          );
-                        }
-
-                        if (isActivity) {
-                          return Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.md,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.check_circle_outline,
-                                  size: 20,
-                                  color: AppColors.accent,
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Expanded(
-                                  child: Text(
-                                    item.activity ?? 'Recommended activity',
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        // Attraction item.
-                        if (place == null) {
-                          return Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.md,
-                            ),
-                            child: Text(
-                              item.title,
-                              style: textTheme.titleMedium,
-                            ),
-                          );
-                        }
-
-                        return _attractionItem(
-                          context,
-                          item: item,
-                          place: place,
-                        );
-                      }),
-                    ],
-                  ),
-                );
-              }),
+              ..._visibleDayPlans.map((dayPlan) => _dayPlanCard(dayPlan)),
 
               const SizedBox(height: AppSpacing.xl),
 
@@ -768,6 +972,322 @@ class RecommendationScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // ITINERARY DAY CARD
+  // ============================================================
+
+  Widget _dayPlanCard(DayPlan dayPlan) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final dayDate = departureDate.add(Duration(days: dayPlan.day - 1));
+
+    return YatraCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Text(
+                  '${dayPlan.day}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Day ${dayPlan.day}', style: textTheme.titleLarge),
+                    Text(_formatDate(dayDate), style: AppType.caption),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+
+          ..._dayItems(dayPlan),
+
+          if (_editing) ...[
+            const Divider(height: AppSpacing.xl),
+            _addItemButtons(dayPlan),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _dayItems(DayPlan dayPlan) {
+    if (!_editing) {
+      return [for (final item in dayPlan.items) _itineraryItemView(item)];
+    }
+
+    final dayIndex = _visibleDayPlans.indexOf(dayPlan);
+
+    return [
+      for (var i = 0; i < dayPlan.items.length; i++)
+        _editableItemRow(dayIndex, i, dayPlan.items[i]),
+    ];
+  }
+
+  /// Read-only rendering of one itinerary item (travel / activity / attraction).
+  Widget _itineraryItemView(DayPlanItem item) {
+    final textTheme = Theme.of(context).textTheme;
+
+    if (item.type == DayPlanItemType.travel) {
+      return _travelItem(
+        context,
+        from: item.from,
+        to: item.to,
+        transportation: item.transportation,
+      );
+    }
+
+    if (item.type == DayPlanItemType.activity) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 20,
+                  color: AppColors.accent,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+            if (item.note?.isNotEmpty ?? false) ...[
+              const SizedBox(height: 2),
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: Text(item.note!, style: textTheme.bodySmall),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    final place = item.place;
+
+    if (place == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Text(item.title, style: textTheme.titleMedium),
+      );
+    }
+
+    return _attractionItem(context, item: item, place: place);
+  }
+
+  /// Edit-mode row for one itinerary item. Travel legs stay read-only.
+  Widget _editableItemRow(int dayIndex, int itemIndex, DayPlanItem item) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    if (item.type == DayPlanItemType.travel) {
+      return _travelItem(
+        context,
+        from: item.from,
+        to: item.to,
+        transportation: item.transportation,
+      );
+    }
+
+    final isAttraction = item.type == DayPlanItemType.attraction;
+
+    final day = _visibleDayPlans[dayIndex];
+    final canMoveUp = _canMoveInDay(day, itemIndex, -1);
+    final canMoveDown = _canMoveInDay(day, itemIndex, 1);
+
+    final icon = isAttraction ? Icons.location_on : Icons.check_circle_outline;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _moveIconButton(
+                icon: Icons.arrow_upward,
+                tooltip: 'Move up',
+                onPressed: canMoveUp
+                    ? () => _requestMove(dayIndex, itemIndex, -1)
+                    : null,
+              ),
+              _moveIconButton(
+                icon: Icons.arrow_downward,
+                tooltip: 'Move down',
+                onPressed: canMoveDown
+                    ? () => _requestMove(dayIndex, itemIndex, 1)
+                    : null,
+              ),
+              Icon(icon, size: 18, color: AppColors.accent),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: textTheme.titleMedium,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit text / note',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _openItemEditor(dayIndex, itemIndex),
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: AppColors.danger),
+                tooltip: 'Remove',
+                visualDensity: VisualDensity.compact,
+                onPressed: () =>
+                    _removeItem(_visibleDayPlans[dayIndex], itemIndex),
+              ),
+            ],
+          ),
+          if (item.note?.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(left: AppSpacing.md),
+              child: Text(
+                item.note!,
+                style: textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _moveIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return IconButton(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(),
+      padding: const EdgeInsets.all(6),
+      onPressed: onPressed,
+    );
+  }
+
+  void _requestMove(int dayIndex, int itemIndex, int delta) {
+    _moveItem(_visibleDayPlans[dayIndex], itemIndex, delta);
+  }
+
+  Widget _addItemButtons(DayPlan dayPlan) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _addActivity(dayPlan),
+            icon: const Icon(Icons.add),
+            label: const Text('Add Activity'),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _addAttraction(dayPlan),
+            icon: const Icon(Icons.add_location_alt_outlined),
+            label: const Text('Add Attraction'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _editingToolbar() {
+    final textTheme = Theme.of(context).textTheme;
+
+    return YatraCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.edit_outlined, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text('Editing Mode', style: textTheme.titleMedium),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Refine each day\'s schedule, add or remove activities, and edit '
+            'any title or note. Travel legs stay as planned and cannot be '
+            'changed here.',
+            style: textTheme.bodySmall?.copyWith(height: 1.4),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _cancelEditing,
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: YatraPrimaryButton(
+                  label: 'Save Changes',
+                  icon: Icons.check,
+                  onPressed: _saveChanges,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Center(
+            child: TextButton(
+              onPressed: _resetToRecommended,
+              child: const Text('Reset to Recommended'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -992,7 +1512,7 @@ class RecommendationScreen extends StatelessWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              place.name,
+                              item.title,
                               style: textTheme.titleMedium,
                             ),
                           ),
@@ -1002,6 +1522,14 @@ class RecommendationScreen extends StatelessWidget {
                       if (place.location.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(place.location, style: AppType.caption),
+                      ],
+
+                      if (item.note?.isNotEmpty ?? false) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          item.note!,
+                          style: textTheme.bodySmall?.copyWith(height: 1.4),
+                        ),
                       ],
 
                       if (place.description.isNotEmpty) ...[
@@ -1079,6 +1607,108 @@ class _StatusCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DAY PLAN ITEM EDITOR
+// ============================================================
+
+class _DayPlanItemEditor extends StatefulWidget {
+  final String initialTitle;
+  final String initialNote;
+  final void Function(String title, String note) onSave;
+
+  const _DayPlanItemEditor({
+    required this.initialTitle,
+    required this.initialNote,
+    required this.onSave,
+  });
+
+  @override
+  State<_DayPlanItemEditor> createState() => _DayPlanItemEditorState();
+}
+
+class _DayPlanItemEditorState extends State<_DayPlanItemEditor> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _noteController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.initialTitle);
+    _noteController = TextEditingController(text: widget.initialNote);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.lg,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Edit Itinerary Item',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          TextField(
+            controller: _titleController,
+            autofocus: true,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Title',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _noteController,
+            textInputAction: TextInputAction.done,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Note (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => widget.onSave(
+                    _titleController.text,
+                    _noteController.text,
+                  ),
+                  icon: const Icon(Icons.check),
+                  label: const Text('Save'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -49,8 +49,12 @@ void main() {
       selectedTransport: 'Kathmandu',
     );
 
-    // Local-exploration state is shown.
-    expect(find.text('Kathmandu Local Exploration'), findsOneWidget);
+    // Local-exploration state is shown: the header switches from
+    // "Build your route..." to the local header and the local card is
+    // present with the selection confirmed.
+    expect(find.text('You are exploring Kathmandu locally.'), findsOneWidget);
+    expect(find.text('Explore Kathmandu Locally'), findsOneWidget);
+    expect(find.text('Local Exploration Selected'), findsOneWidget);
 
     // Intercity boarding selector and its origin options must not appear.
     // These are boarding points for routes TO Kathmandu and are meaningless
@@ -81,7 +85,7 @@ void main() {
       );
 
       expect(_boardingDropdown(), findsOneWidget);
-      expect(find.text('Kathmandu Local Exploration'), findsNothing);
+      expect(find.text('You are exploring Kathmandu locally.'), findsNothing);
       expect(find.text('Choose where you want to start'), findsOneWidget);
     },
   );
@@ -96,6 +100,6 @@ void main() {
     );
 
     expect(_boardingDropdown(), findsOneWidget);
-    expect(find.text('Kathmandu Local Exploration'), findsNothing);
+    expect(find.text('You are exploring Pokhara locally.'), findsNothing);
   });
 }

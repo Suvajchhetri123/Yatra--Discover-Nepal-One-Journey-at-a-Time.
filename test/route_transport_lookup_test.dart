@@ -67,24 +67,30 @@ void main() {
     });
 
     test('road-to-trailhead travel is offered as labelled transfer modes '
-        'on Poon Hill and Annapurna Base Camp legs', () {
-      for (final (from, to) in [
-        ('Pokhara', 'Poon Hill'),
-        ('Pokhara', 'Annapurna'),
-      ]) {
-        final names = _names(transportOptionsForRoute(from, to));
-        expect(names, contains('Trek'));
-        expect(names, contains('Jeep'));
-        expect(names, contains('Private Vehicle'));
-        expect(names, contains('Bus'));
-        expect(_route(from, to, 'Trek').requiresTransfer, isFalse);
-        for (final mode in ['Jeep', 'Private Vehicle', 'Bus']) {
-          expect(
-            _route(from, to, mode).requiresTransfer,
-            isTrue,
-            reason: '$mode on $from -> $to only reaches the trailhead',
-          );
-        }
+        'and Poon Hill connects only via Ghandruk', () {
+      // Poon Hill is a trekking-only stop; it has no direct road/air route
+      // from Pokhara. The connected itinerary reaches it through the
+      // Ghandruk road hub (Pokhara -> Ghandruk by road, then Ghandruk ->
+      // Poon Hill by Trek).
+      expect(transportOptionsForRoute('Pokhara', 'Poon Hill'), isEmpty);
+      expect(_names(transportOptionsForRoute('Ghandruk', 'Poon Hill')), [
+        'Trek',
+      ]);
+
+      // Annapurna Base Camp from Pokhara: the road modes only reach the
+      // trekking trailhead, so every option is labelled as a transfer and
+      // Trek is not offered as a direct motorised leg.
+      final names = _names(transportOptionsForRoute('Pokhara', 'Annapurna'));
+      expect(names, contains('Jeep'));
+      expect(names, contains('Private Vehicle'));
+      expect(names, contains('Bus'));
+      expect(names, isNot(contains('Trek')));
+      for (final mode in ['Jeep', 'Private Vehicle', 'Bus']) {
+        expect(
+          _route('Pokhara', 'Annapurna', mode).requiresTransfer,
+          isTrue,
+          reason: '$mode on Pokhara -> Annapurna only reaches the trailhead',
+        );
       }
     });
 
@@ -113,8 +119,13 @@ void main() {
       expect(mustang, isNot(contains('Trek')));
     });
 
-    test('Mustang valley and Upper-Mustang legs are road-only '
-        'without Motorbike', () {
+    test('Mustang valley and Upper-Mustang legs are road-only by land '
+        '(no Flight, no Trek)', () {
+      // The Mustang valley road network is driveable end to end. Motorcycle
+      // touring on these paved/packed roads is intentionally supported (the
+      // Lo Manthang / Upper Mustang road corridor is a known bike route), so
+      // Motorbike is expected alongside the other road modes. Air and foot
+      // travel are not offered on these legs.
       for (final (from, to) in [
         ('Jomsom', 'Kagbeni'),
         ('Jomsom', 'Marpha'),
@@ -123,8 +134,8 @@ void main() {
         ('Jomsom', 'Mustang'),
       ]) {
         final names = _names(transportOptionsForRoute(from, to));
-        expect(names, contains('Jeep'));
-        expect(names, isNot(contains('Motorbike')));
+        expect(names, containsAll(['Bus', 'Jeep', 'Private Vehicle']));
+        expect(names, contains('Motorbike'));
         expect(names, isNot(contains('Flight')));
         expect(names, isNot(contains('Trek')));
       }
@@ -308,7 +319,8 @@ void main() {
       expect(rt.transferNote, isNotNull);
       expect(
         rt.transferNote,
-        'No road reaches Lukla: drive to Jiri/Salleri, then trek the rest.',
+        'Travel to Jiri/Salleri by road, then continue the remaining '
+        'journey by trekking.',
       );
     }
 
