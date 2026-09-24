@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../../services/google_maps_launcher.dart';
 import '../../services/recommendation_service.dart';
 import '../../data/places_data.dart';
 import '../../widgets/yatra_components.dart';
@@ -340,28 +341,12 @@ class RecommendationScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       ...route.segments.map(
-                        (segment) => Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.directions,
-                                size: 20,
-                                color: scheme.primary,
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Text(
-                                  '${segment.from} → ${segment.to}\n'
-                                  '${segment.transportation}',
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        (segment) => _routeLeg(
+                          context,
+                          from: segment.from,
+                          to: segment.to,
+                          transportation: segment.transportation,
+                          iconColor: scheme.primary,
                         ),
                       ),
                     ],
@@ -372,28 +357,12 @@ class RecommendationScreen extends StatelessWidget {
                       Text('Return Journey', style: textTheme.titleMedium),
                       const SizedBox(height: AppSpacing.md),
                       ...route.returnSegments.map(
-                        (segment) => Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.directions,
-                                size: 20,
-                                color: AppColors.accent,
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Text(
-                                  '${segment.from} → ${segment.to}\n'
-                                  '${segment.transportation}',
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        (segment) => _routeLeg(
+                          context,
+                          from: segment.from,
+                          to: segment.to,
+                          transportation: segment.transportation,
+                          iconColor: AppColors.accent,
                         ),
                       ),
                     ],
@@ -853,25 +822,11 @@ class RecommendationScreen extends StatelessWidget {
 
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        if (fromText.isEmpty || toText.isEmpty) {
-                          return;
-                        }
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => MapScreen(
-                              boardingPoint: fromText,
-                              destinations: [toText],
-                              singleLegTransportation: transportation,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.map_outlined, size: 18),
-                      label: const Text('View Map'),
+                    child: _googleMapsButton(
+                      context,
+                      from: fromText,
+                      to: toText,
+                      transportation: transportation,
                     ),
                   ),
                 ],
@@ -879,6 +834,87 @@ class RecommendationScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // GOOGLE MAPS LAUNCH BUTTON
+  // ============================================================
+
+  /// [View in Google Maps] button for one actual travel leg.
+  ///
+  /// Opens Google Maps directions (after an offline reminder) using the leg's
+  /// real origin, destination and transportation. Hidden when the leg has no
+  /// usable endpoints, so exploration-only days never show a route button.
+  Widget _googleMapsButton(
+    BuildContext context, {
+    required String from,
+    required String to,
+    String? transportation,
+  }) {
+    if (from.trim().isEmpty || to.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return OutlinedButton.icon(
+      onPressed: () {
+        GoogleMapsLauncher.launch(
+          context,
+          from: from,
+          to: to,
+          transportation: transportation,
+        );
+      },
+      icon: const Icon(Icons.map_outlined, size: 18),
+      label: const Text('View in Google Maps'),
+    );
+  }
+
+  // ============================================================
+  // ROUTE LEG (ROUTE CARD)
+  // ============================================================
+
+  /// One travel leg in the "Your Travel Route" card, with its own
+  /// [View in Google Maps] button.
+  Widget _routeLeg(
+    BuildContext context, {
+    required String from,
+    required String to,
+    required String transportation,
+    required Color iconColor,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.directions, size: 20, color: iconColor),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  '$from → $to\n$transportation',
+                  style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _googleMapsButton(
+              context,
+              from: from,
+              to: to,
+              transportation: transportation,
+            ),
+          ),
+        ],
       ),
     );
   }
