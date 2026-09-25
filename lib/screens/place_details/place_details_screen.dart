@@ -84,10 +84,7 @@ class PlaceDetailsScreen extends StatelessWidget {
                               style: textTheme.headlineMedium?.copyWith(
                                 color: Colors.white,
                                 shadows: const [
-                                  Shadow(
-                                    color: Colors.black54,
-                                    blurRadius: 6,
-                                  ),
+                                  Shadow(color: Colors.black54, blurRadius: 6),
                                 ],
                               ),
                             ),
@@ -129,7 +126,6 @@ class PlaceDetailsScreen extends StatelessWidget {
                 // ================================================
                 // CONTENT
                 // ================================================
-
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.screen,
@@ -160,7 +156,6 @@ class PlaceDetailsScreen extends StatelessWidget {
                       // ==========================================
                       // VISITOR INFORMATION
                       // ==========================================
-
                       YatraSectionTitle(title: 'Visitor Information'),
 
                       const SizedBox(height: AppSpacing.md),
@@ -168,12 +163,7 @@ class PlaceDetailsScreen extends StatelessWidget {
                       YatraCard(
                         child: Column(
                           children: [
-                            YatraInfoRow(
-                              label: 'Entry Fee',
-                              value: place.entryFee == 0
-                                  ? 'Free'
-                                  : 'NPR ${place.entryFee.toStringAsFixed(0)}',
-                            ),
+                            ..._buildEntryFeeRows(),
                             YatraInfoRow(
                               label: 'Opening Hours',
                               value: place.openingHours,
@@ -187,7 +177,6 @@ class PlaceDetailsScreen extends StatelessWidget {
                       // ==========================================
                       // GETTING THERE
                       // ==========================================
-
                       if (place.transportation.isNotEmpty) ...[
                         YatraSectionTitle(title: 'How to Get There'),
 
@@ -206,8 +195,9 @@ class PlaceDetailsScreen extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   place.transportation,
-                                  style:
-                                      textTheme.bodyMedium?.copyWith(height: 1.5),
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    height: 1.5,
+                                  ),
                                 ),
                               ),
                             ],
@@ -220,7 +210,6 @@ class PlaceDetailsScreen extends StatelessWidget {
                       // ==========================================
                       // TRAVEL / TRIP INFORMATION
                       // ==========================================
-
                       if (place.travelTrip.isNotEmpty) ...[
                         YatraSectionTitle(title: 'Recommended Trip'),
 
@@ -239,8 +228,9 @@ class PlaceDetailsScreen extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   place.travelTrip,
-                                  style:
-                                      textTheme.bodyMedium?.copyWith(height: 1.5),
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    height: 1.5,
+                                  ),
                                 ),
                               ),
                             ],
@@ -257,7 +247,6 @@ class PlaceDetailsScreen extends StatelessWidget {
           // ================================================
           // FLOATING BACK BUTTON
           // ================================================
-
           SafeArea(
             child: Align(
               alignment: Alignment.topLeft,
@@ -287,5 +276,35 @@ class PlaceDetailsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Entry-fee rows. When the place has domestic/international overrides the
+  /// two segment fees are shown separately; otherwise a single universal fee
+  /// applies. A null override falls back to [Place.entryFee], and a 0 fee is
+  /// presented as "Free".
+  List<Widget> _buildEntryFeeRows() {
+    final pricing = place.touristEntryFee;
+
+    if (pricing == null ||
+        (pricing.domestic == null && pricing.international == null)) {
+      return [
+        YatraInfoRow(label: 'Entry Fee', value: _feeLabel(place.entryFee)),
+      ];
+    }
+
+    return [
+      YatraInfoRow(
+        label: 'Entry Fee (Domestic)',
+        value: _feeLabel(pricing.domestic ?? place.entryFee),
+      ),
+      YatraInfoRow(
+        label: 'Entry Fee (International)',
+        value: _feeLabel(pricing.international ?? place.entryFee),
+      ),
+    ];
+  }
+
+  String _feeLabel(double fee) {
+    return fee == 0 ? 'Free' : 'NPR ${fee.toStringAsFixed(0)}';
   }
 }

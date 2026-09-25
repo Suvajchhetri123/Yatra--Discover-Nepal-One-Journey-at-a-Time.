@@ -326,6 +326,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 childCount: widget.childCount,
                                 travelType: widget.travelType,
                                 groupSize: widget.groupSize,
+                                package: widget.package,
                               ),
                             ),
                           );

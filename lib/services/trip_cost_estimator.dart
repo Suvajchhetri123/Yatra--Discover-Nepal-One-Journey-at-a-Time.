@@ -441,4 +441,50 @@ class TripCostEstimator {
             'You have significant room for upgrades or extra activities.';
     }
   }
+
+  // ==========================================================
+  // FINAL BUDGET GATE
+  // ==========================================================
+
+  /// True when [budgetNpr] cannot even cover the no-frills minimum cost of
+  /// this trip. This is the hard floor the boarding screen enforces before
+  /// the itinerary is finalised: below it the trip is not affordable.
+  static bool budgetBlocksForTrip({
+    required double budgetNpr,
+    required TripCostEstimate estimate,
+  }) {
+    return budgetNpr < estimate.minimum;
+  }
+
+  /// How much more budget is needed to cover the no-frills minimum trip cost.
+  /// Zero when the budget already covers the minimum.
+  static double minimumShortfall({
+    required double budgetNpr,
+    required TripCostEstimate estimate,
+  }) {
+    final shortfall = estimate.minimum - budgetNpr;
+    return shortfall > 0 ? shortfall : 0;
+  }
+
+  /// Message shown on the boarding screen when the budget is below the
+  /// no-frills minimum trip cost. The trip cannot continue until the user
+  /// raises their budget or adjusts the trip.
+  static String minimumShortfallMessage({
+    required double budgetNpr,
+    required TripCostEstimate estimate,
+    required String currency,
+  }) {
+    final budgetDisplay = formatInCurrency(budgetNpr, currency);
+    final minimumDisplay = formatNprAmount(estimate.minimum);
+    final shortfallDisplay = formatInCurrency(
+      minimumShortfall(budgetNpr: budgetNpr, estimate: estimate),
+      currency,
+    );
+
+    return 'Your budget is not enough for this trip.\n'
+        'Your budget: $budgetDisplay\n'
+        'Estimated minimum: $minimumDisplay\n'
+        'Additional amount needed: $shortfallDisplay.\n'
+        'Increase your budget or adjust your trip.';
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/packages_data.dart';
+import '../../models/package_model.dart';
 import '../../models/travel_route_model.dart';
 import '../../services/season_service.dart';
 import '../../services/trip_cost_estimator.dart';
@@ -31,6 +32,10 @@ class SeasonAnalysisScreen extends StatelessWidget {
   /// the route builder.
   final String? selectedTransport;
 
+  /// Package this trip was planned from (package planning flow). Carried to
+  /// the Route Builder so the generated itinerary can keep the package title.
+  final TourPackage? package;
+
   const SeasonAnalysisScreen({
     super.key,
     required this.touristType,
@@ -45,6 +50,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
     required this.travelType,
     required this.groupSize,
     this.selectedTransport,
+    this.package,
   });
 
   String formatDate(DateTime date) {
@@ -291,6 +297,7 @@ class SeasonAnalysisScreen extends StatelessWidget {
                         travelType: travelType,
                         groupSize: groupSize,
                         seasonMessage: result.message,
+                        package: package,
                       ),
                     ),
                   );

@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/google_maps_launcher.dart';
 import '../../services/recommendation_service.dart';
+import '../../services/trip_cost_estimator.dart';
 import '../../data/places_data.dart';
 import '../../widgets/yatra_components.dart';
+import '../booking/booking_review_screen.dart';
 import '../place_details/place_details_screen.dart';
+import '../../models/package_model.dart';
 import '../../models/place_model.dart';
 import '../../models/travel_route_model.dart';
 
@@ -26,6 +29,10 @@ class RecommendationScreen extends StatefulWidget {
   final String seasonMessage;
   final TravelRoute route;
 
+  /// The package this itinerary was planned from, when planning started from
+  /// a package (used to keep the package title on the booking request).
+  final TourPackage? package;
+
   const RecommendationScreen({
     super.key,
     required this.touristType,
@@ -43,6 +50,7 @@ class RecommendationScreen extends StatefulWidget {
     required this.groupSize,
     required this.seasonMessage,
     required this.route,
+    this.package,
   });
 
   @override
@@ -67,6 +75,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
   late final int groupSize = widget.groupSize;
   late final String seasonMessage = widget.seasonMessage;
   late final TravelRoute route = widget.route;
+  late final TourPackage? package = widget.package;
 
   late final RecommendationResult _recommendation;
 
@@ -958,6 +967,13 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
               const SizedBox(height: AppSpacing.xxl),
 
               // ==================================================
+              // BOOK THIS ITINERARY
+              // ==================================================
+              _buildBookingSection(context),
+
+              const SizedBox(height: AppSpacing.xxl),
+
+              // ==================================================
               // RESTART
               // ==================================================
               YatraPrimaryButton(
@@ -971,6 +987,100 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
               const SizedBox(height: AppSpacing.sm),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // BOOKING SECTION
+  // ============================================================
+
+  /// Estimated trip cost summary plus the "Book This Itinerary" action.
+  ///
+  /// The cost uses the estimate already produced during generation — nothing
+  /// is re-priced here. Booking submits a Pending request; no payment occurs.
+  Widget _buildBookingSection(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final estimate = _recommendation.tripCostEstimate;
+    final currency = this.currency;
+
+    String formatAmount(double nprAmount) {
+      return TripCostEstimator.formatInCurrency(nprAmount, currency);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        YatraSectionTitle(
+          title: 'Estimated Trip Cost',
+          subtitle: 'Review the cost before submitting a booking request.',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        YatraCard(
+          child: Column(
+            children: [
+              YatraInfoRow(
+                label: 'Transport',
+                value: formatAmount(estimate.transport),
+              ),
+              YatraInfoRow(
+                label: 'Accommodation',
+                value: formatAmount(estimate.stay),
+              ),
+              YatraInfoRow(
+                label: 'Activities',
+                value: formatAmount(estimate.activity),
+              ),
+              if (estimate.packagePrice > 0)
+                YatraInfoRow(
+                  label: 'Package',
+                  value: formatAmount(estimate.packagePrice),
+                ),
+              const Divider(height: AppSpacing.xl),
+              YatraInfoRow(
+                label: 'Estimated Trip Cost',
+                value: formatAmount(estimate.total),
+                emphasized: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'This is an estimate, not a payment. Submitting a booking request '
+          'does not charge you anything.',
+          style: textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        YatraPrimaryButton(
+          label: 'Book This Itinerary',
+          icon: Icons.event_available_outlined,
+          onPressed: _openBookingReview,
+        ),
+      ],
+    );
+  }
+
+  void _openBookingReview() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingReviewScreen(
+          touristType: touristType,
+          destination: destination,
+          startDate: departureDate,
+          endDate: returnDate,
+          currency: currency,
+          estimate: _recommendation.tripCostEstimate,
+          duration: _duration,
+          travelType: travelType,
+          adultCount: adultCount,
+          childCount: childCount,
+          groupSize: groupSize,
+          packageTitle: package?.title,
+          route: route,
+          dayPlans: List<DayPlan>.of(_displayedDayPlans),
         ),
       ),
     );

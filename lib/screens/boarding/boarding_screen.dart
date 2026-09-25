@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../theme/app_theme.dart';
+import '../../models/package_model.dart';
 import '../../models/journey_stop_plan.dart';
 import '../../models/travel_route_model.dart';
 import '../../data/transportation_data.dart';
@@ -29,6 +30,10 @@ class BoardingScreen extends StatefulWidget {
   /// Transportation selected on the previous Transportation screen.
   final String? selectedTransport;
 
+  /// Package this trip was planned from, carried through to the itinerary so
+  /// the booking request can keep the package title.
+  final TourPackage? package;
+
   const BoardingScreen({
     super.key,
     required this.touristType,
@@ -46,6 +51,7 @@ class BoardingScreen extends StatefulWidget {
     required this.travelType,
     required this.groupSize,
     required this.seasonMessage,
+    this.package,
   });
 
   @override
@@ -1040,6 +1046,29 @@ class _BoardingScreenState extends State<BoardingScreen> {
     );
   }
 
+  /// Final hard budget gate for the current manual/custom itinerary.
+  ///
+  /// The trip cannot proceed while the budget cannot cover even the no-frills
+  /// minimum cost (transport + base stays) of the actual planned route. The
+  /// estimate comes from [TripCostEstimator] — the same single source of truth
+  /// used by the Route Cost Summary card, RecommendationService and the final
+  /// itinerary — so this recalculates live as transport, return route and
+  /// exploration/stay days change.
+  bool get _budgetBlocksTrip {
+    final estimate = _routeEstimate;
+
+    if (estimate == null) {
+      return false;
+    }
+
+    final budgetNpr = TripCostEstimator.toNpr(widget.budget, widget.currency);
+
+    return TripCostEstimator.budgetBlocksForTrip(
+      budgetNpr: budgetNpr,
+      estimate: estimate,
+    );
+  }
+
   void _continue() {
     if (!routeComplete) {
       return;
@@ -1051,6 +1080,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
     }
 
     if (_durationTooShort) {
+      return;
+    }
+
+    if (_budgetBlocksTrip) {
       return;
     }
 
@@ -1075,6 +1108,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
           groupSize: widget.groupSize,
           seasonMessage: widget.seasonMessage,
           route: route,
+          package: widget.package,
         ),
       ),
     );
@@ -2128,7 +2162,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
         selectedTripDirection == TripDirection.roundTrip;
 
     final canContinue =
-        routeComplete && returnRouteComplete && !_durationTooShort;
+        routeComplete &&
+        returnRouteComplete &&
+        !_durationTooShort &&
+        !_budgetBlocksTrip;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Choose Transportation')),
@@ -2659,6 +2696,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         currency: widget.currency,
                         adultCount: widget.adultCount,
                         childCount: widget.childCount,
+                        blocksTrip: _budgetBlocksTrip,
                       ),
                     ],
 
@@ -2780,6 +2818,10 @@ class _RouteCostSummaryCard extends StatelessWidget {
   final int adultCount;
   final int childCount;
 
+  /// True when the budget cannot cover even the no-frills minimum trip cost.
+  /// Such a trip must not continue to the recommendation step.
+  final bool blocksTrip;
+
   const _RouteCostSummaryCard({
     required this.estimate,
     required this.verdict,
@@ -2788,27 +2830,38 @@ class _RouteCostSummaryCard extends StatelessWidget {
     required this.currency,
     required this.adultCount,
     required this.childCount,
+    this.blocksTrip = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    final isInsufficient = verdict == BudgetVerdict.insufficient;
+    final isInsufficient = blocksTrip || verdict == BudgetVerdict.insufficient;
     final accent = isInsufficient ? AppColors.danger : AppColors.success;
 
     final segments = route.completeSegments;
 
     final budgetNpr = TripCostEstimator.toNpr(budget, currency);
-
-    final message = TripCostEstimator.verdictMessage(
-      verdict: verdict,
-      budgetNpr: budgetNpr,
-      estimate: estimate,
-      currency: currency,
-      adultCount: adultCount,
-      childCount: childCount,
+    final budgetDisplay = TripCostEstimator.formatInCurrency(
+      budgetNpr,
+      currency,
     );
+
+    final message = blocksTrip
+        ? TripCostEstimator.minimumShortfallMessage(
+            budgetNpr: budgetNpr,
+            estimate: estimate,
+            currency: currency,
+          )
+        : TripCostEstimator.verdictMessage(
+            verdict: verdict,
+            budgetNpr: budgetNpr,
+            estimate: estimate,
+            currency: currency,
+            adultCount: adultCount,
+            childCount: childCount,
+          );
 
     return Container(
       width: double.infinity,
@@ -2884,6 +2937,26 @@ class _RouteCostSummaryCard extends StatelessWidget {
                 style: textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: accent,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Your budget',
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                budgetDisplay,
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
                 ),
               ),
             ],

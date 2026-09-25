@@ -17,7 +17,7 @@ import '../travel_dates/travel_dates_screen.dart';
 /// All navigation is preserved:
 ///   - back button / hero            -> pop
 ///   - included place chip           -> PlaceDetailsScreen
-///   - "Plan This Trip" CTA          -> TravelDatesScreen(package)
+///   - "Plan This Package" CTA -> TravelDatesScreen(package)
 class PackageDetailsScreen extends StatelessWidget {
   final TourPackage package;
 
@@ -104,7 +104,7 @@ class PackageDetailsScreen extends StatelessWidget {
               );
             },
             icon: const Icon(Icons.rocket_launch_outlined, size: 20),
-            label: const Text('Plan This Trip'),
+            label: const Text('Plan This Package'),
           ),
         ),
       ),
@@ -355,11 +355,7 @@ class _QuickFacts extends StatelessWidget {
           label: 'Difficulty',
           valueColor: difficultyColor(package.difficulty),
         ),
-        _FactCard(
-          icon: Icons.payments_outlined,
-          value: formatNpr(package.price),
-          label: 'Price',
-        ),
+        ..._priceFacts(),
         _FactCard(
           icon: Icons.place_outlined,
           value: package.region,
@@ -367,6 +363,36 @@ class _QuickFacts extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// Price fact cards. When a domestic/international overrides pair exists the
+  /// two segment prices are shown side by side; otherwise a single universal
+  /// price card is shown.
+  List<Widget> _priceFacts() {
+    final pricing = package.touristPrice;
+
+    if (pricing == null) {
+      return [
+        _FactCard(
+          icon: Icons.payments_outlined,
+          value: formatNpr(package.price),
+          label: 'Price',
+        ),
+      ];
+    }
+
+    return [
+      _FactCard(
+        icon: Icons.payments_outlined,
+        value: formatNpr(pricing.domestic ?? package.price),
+        label: 'Domestic Price',
+      ),
+      _FactCard(
+        icon: Icons.payments_outlined,
+        value: formatNpr(pricing.international ?? package.price),
+        label: 'International Price',
+      ),
+    ];
   }
 }
 

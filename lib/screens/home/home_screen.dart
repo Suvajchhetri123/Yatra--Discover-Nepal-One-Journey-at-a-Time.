@@ -4,10 +4,13 @@ import '../../data/packages_data.dart';
 import '../../models/package_model.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/sos_action.dart';
 import '../../widgets/yatra_components.dart';
+import '../booking/my_bookings_screen.dart';
+import '../offline/offline_access_screen.dart';
 import '../package_details/package_details_screen.dart';
 import '../plan_trip/plan_trip_screen.dart';
-import '../../services/session_manager.dart';
+import '../profile/profile_screen.dart';
 
 /// Home landing page: hero, plan-trip CTA, destination discovery and popular
 /// packages. Redesigned on the central Yatra design system.
@@ -25,10 +28,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const String _allRegions = 'All';
-
-  void _logout() {
-    SessionManager.instance.logout();
-  }
 
   String _selectedRegion = _allRegions;
 
@@ -90,10 +89,16 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Yatra'),
         actions: [
+          const YatraSosAction(),
           IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _logout,
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profile',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -104,6 +109,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _Hero(onPlanTrip: _openPlanTrip),
             const SizedBox(height: AppSpacing.xl),
             _PlanTripCard(onTap: _openPlanTrip),
+            const SizedBox(height: AppSpacing.xl),
+            _QuickActions(onPlanTrip: _openPlanTrip),
             const SizedBox(height: AppSpacing.xxl),
             _buildDestinationSection(),
             const SizedBox(height: AppSpacing.xxl),
@@ -419,6 +426,115 @@ class _PlanTripCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ==================================================
+// QUICK ACTIONS
+// ==================================================
+
+class _QuickActions extends StatelessWidget {
+  final VoidCallback onPlanTrip;
+
+  const _QuickActions({required this.onPlanTrip});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <(_QuickActionData, VoidCallback)>[
+      (
+        const _QuickActionData(
+          label: 'Plan Trip',
+          icon: Icons.route,
+          color: AppColors.primary,
+        ),
+        onPlanTrip,
+      ),
+      (
+        const _QuickActionData(
+          label: 'My Bookings',
+          icon: Icons.confirmation_num_outlined,
+          color: AppColors.accent,
+        ),
+        () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MyBookingsScreen()),
+          );
+        },
+      ),
+      (
+        const _QuickActionData(
+          label: 'SOS',
+          icon: Icons.emergency_outlined,
+          color: AppColors.danger,
+        ),
+        () => confirmSosAndOpen(context),
+      ),
+      (
+        const _QuickActionData(
+          label: 'Offline',
+          icon: Icons.cloud_off_outlined,
+          color: AppColors.warning,
+        ),
+        () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const OfflineAccessScreen(),
+            ),
+          );
+        },
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screen),
+      child: Row(
+        children: [
+          for (final (data, onTap) in items)
+            Expanded(
+              child: _QuickActionTile(data: data, onTap: onTap),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActionTile extends StatelessWidget {
+  final _QuickActionData data;
+  final VoidCallback onTap;
+
+  const _QuickActionTile({required this.data, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return YatraCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.lg,
+      ),
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(data.icon, size: 26, color: data.color),
+          const SizedBox(height: AppSpacing.sm),
+          Text(data.label, textAlign: TextAlign.center, style: AppType.caption),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActionData {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _QuickActionData({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
 }
 
 // ==================================================
