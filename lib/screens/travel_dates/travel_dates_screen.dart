@@ -18,10 +18,7 @@ import '../travel_group/travel_group_screen.dart';
 class TravelDatesScreen extends StatefulWidget {
   final TourPackage? package;
 
-  const TravelDatesScreen({
-    super.key,
-    this.package,
-  });
+  const TravelDatesScreen({super.key, this.package});
 
   @override
   State<TravelDatesScreen> createState() => _TravelDatesScreenState();
@@ -56,8 +53,7 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
   Future<void> selectDepartureDate() async {
     final DateTime today = _today;
 
-    final DateTime initialDate =
-        departureDate != null ? departureDate! : today;
+    final DateTime initialDate = departureDate != null ? departureDate! : today;
 
     final DateTime? selectedDate = await showDatePicker(
       context: context,
@@ -98,8 +94,7 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
 
     // If a return date already exists and is valid,
     // use it when reopening the picker.
-    if (returnDate != null &&
-        !returnDate!.isBefore(firstAllowedDate)) {
+    if (returnDate != null && !returnDate!.isBefore(firstAllowedDate)) {
       initialDate = returnDate!;
     } else {
       // Default to the day after departure.
@@ -176,15 +171,13 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
     });
 
     try {
-      final profile =
-          await _firestoreService.getCurrentUserProfile();
+      final profile = await _firestoreService.getCurrentUserProfile();
 
       if (!mounted) {
         return;
       }
 
-      final touristType =
-          profile?['touristType'] as String?;
+      final touristType = profile?.touristType;
 
       // The tourist type should already exist because it is
       // selected during account setup after the first login.
@@ -220,9 +213,7 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Unable to load your profile. Please try again.',
-          ),
+          content: Text('Unable to load your profile. Please try again.'),
         ),
       );
     } finally {
@@ -240,27 +231,20 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme =
-        Theme.of(context).colorScheme;
+    final ColorScheme scheme = Theme.of(context).colorScheme;
 
-    final TextTheme textTheme =
-        Theme.of(context).textTheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Travel Dates'),
-      ),
+      appBar: AppBar(title: const Text('Travel Dates')),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(
-                  AppSpacing.screen,
-                ),
+                padding: const EdgeInsets.all(AppSpacing.screen),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ==================================================
                     // HEADER
@@ -270,26 +254,17 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
                       step: 1,
                       totalSteps: 4,
                       title: 'When are you travelling?',
-                      subtitle:
-                          'Select your departure and return dates.',
+                      subtitle: 'Select your departure and return dates.',
                     ),
 
-                    const SizedBox(
-                      height: AppSpacing.xxl,
-                    ),
+                    const SizedBox(height: AppSpacing.xxl),
 
                     // ==================================================
                     // DEPARTURE DATE
                     // ==================================================
+                    Text('Departure Date', style: textTheme.titleLarge),
 
-                    Text(
-                      'Departure Date',
-                      style: textTheme.titleLarge,
-                    ),
-
-                    const SizedBox(
-                      height: AppSpacing.md,
-                    ),
+                    const SizedBox(height: AppSpacing.md),
 
                     _DateSelectorCard(
                       icon: Icons.flight_takeoff,
@@ -300,22 +275,14 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
                       onTap: selectDepartureDate,
                     ),
 
-                    const SizedBox(
-                      height: AppSpacing.xl,
-                    ),
+                    const SizedBox(height: AppSpacing.xl),
 
                     // ==================================================
                     // RETURN DATE
                     // ==================================================
+                    Text('Return Date', style: textTheme.titleLarge),
 
-                    Text(
-                      'Return Date',
-                      style: textTheme.titleLarge,
-                    ),
-
-                    const SizedBox(
-                      height: AppSpacing.md,
-                    ),
+                    const SizedBox(height: AppSpacing.md),
 
                     _DateSelectorCard(
                       icon: Icons.flight_land,
@@ -326,50 +293,36 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
                       onTap: selectReturnDate,
                     ),
 
-                    const SizedBox(
-                      height: AppSpacing.xl,
-                    ),
+                    const SizedBox(height: AppSpacing.xl),
 
                     // ==================================================
                     // TRIP DURATION
                     // ==================================================
-
                     if (tripDuration != null)
                       Center(
                         child: Container(
-                          padding:
-                              const EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.xl,
                             vertical: AppSpacing.md,
                           ),
                           decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(
-                              AppRadius.md,
-                            ),
-                            color: scheme.primary.withValues(
-                              alpha: 0.1,
-                            ),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            color: scheme.primary.withValues(alpha: 0.1),
                           ),
                           child: Row(
-                            mainAxisSize:
-                                MainAxisSize.min,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 Icons.hourglass_bottom,
                                 size: 20,
                                 color: scheme.primary,
                               ),
-                              const SizedBox(
-                                width: AppSpacing.sm,
-                              ),
+                              const SizedBox(width: AppSpacing.sm),
                               Text(
                                 'Trip Duration: '
                                 '$tripDuration '
                                 '${tripDuration == 1 ? 'day' : 'days'}',
-                                style:
-                                    AppType.bodyEmphasis
-                                        .copyWith(
+                                style: AppType.bodyEmphasis.copyWith(
                                   color: scheme.primary,
                                 ),
                               ),
@@ -381,19 +334,13 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
                     // ==================================================
                     // RETURN DATE HELPER
                     // ==================================================
-
-                    if (departureDate != null &&
-                        returnDate == null)
+                    if (departureDate != null && returnDate == null)
                       Padding(
-                        padding:
-                            const EdgeInsets.only(
-                          top: AppSpacing.md,
-                        ),
+                        padding: const EdgeInsets.only(top: AppSpacing.md),
                         child: Center(
                           child: Text(
                             'Now select your return date.',
-                            style: textTheme.bodyMedium
-                                ?.copyWith(
+                            style: textTheme.bodyMedium?.copyWith(
                               color: scheme.primary,
                             ),
                           ),
@@ -407,7 +354,6 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
             // ========================================================
             // BOTTOM BAR
             // ========================================================
-
             _buildBottomBar(),
           ],
         ),
@@ -431,17 +377,14 @@ class _TravelDatesScreenState extends State<TravelDatesScreen> {
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: Theme.of(context)
-                .colorScheme
-                .outlineVariant
-                .withValues(alpha: 0.6),
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
           ),
         ),
       ),
       child: YatraPrimaryButton(
-        label: _loadingProfile
-            ? 'Loading...'
-            : 'Continue',
+        label: _loadingProfile ? 'Loading...' : 'Continue',
         onPressed: _canContinue && !_loadingProfile
             ? _continueToTravelGroup
             : null,
@@ -476,51 +419,31 @@ class _DateSelectorCard extends StatelessWidget {
     if (!enabled) {
       return Opacity(
         opacity: 0.5,
-        child: _buildContent(
-          context,
-          selected: false,
-        ),
+        child: _buildContent(context, selected: false),
       );
     }
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(
-        AppRadius.lg,
-      ),
-      child: _buildContent(
-        context,
-        selected: selected,
-      ),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: _buildContent(context, selected: selected),
     );
   }
 
-  Widget _buildContent(
-    BuildContext context, {
-    required bool selected,
-  }) {
-    final ColorScheme scheme =
-        Theme.of(context).colorScheme;
+  Widget _buildContent(BuildContext context, {required bool selected}) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
 
     return AnimatedContainer(
-      duration: const Duration(
-        milliseconds: 180,
-      ),
+      duration: const Duration(milliseconds: 180),
       width: double.infinity,
-      padding: const EdgeInsets.all(
-        AppSpacing.lg,
-      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: selected
             ? scheme.primary.withValues(alpha: 0.06)
             : AppColors.surface,
-        borderRadius: BorderRadius.circular(
-          AppRadius.lg,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
-          color: selected
-              ? scheme.primary
-              : scheme.outlineVariant,
+          color: selected ? scheme.primary : scheme.outlineVariant,
           width: selected ? 2 : 1,
         ),
       ),
@@ -534,46 +457,25 @@ class _DateSelectorCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: scheme.primary.withValues(
-                alpha: 0.1,
-              ),
-              borderRadius:
-                  BorderRadius.circular(
-                AppRadius.md,
-              ),
+              color: scheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             alignment: Alignment.center,
-            child: Icon(
-              icon,
-              color: scheme.primary,
-              size: 22,
-            ),
+            child: Icon(icon, color: scheme.primary, size: 22),
           ),
 
-          const SizedBox(
-            width: AppSpacing.md,
-          ),
+          const SizedBox(width: AppSpacing.md),
 
           // ========================================================
           // TEXT
           // ========================================================
-
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall,
-                ),
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: AppType.bodyEmphasis,
-                ),
+                Text(value, style: AppType.bodyEmphasis),
               ],
             ),
           ),
@@ -581,14 +483,9 @@ class _DateSelectorCard extends StatelessWidget {
           // ========================================================
           // TRAILING ICON
           // ========================================================
-
           Icon(
-            selected
-                ? Icons.check_circle
-                : Icons.chevron_right,
-            color: selected
-                ? scheme.primary
-                : scheme.outline,
+            selected ? Icons.check_circle : Icons.chevron_right,
+            color: selected ? scheme.primary : scheme.outline,
             size: 24,
           ),
         ],

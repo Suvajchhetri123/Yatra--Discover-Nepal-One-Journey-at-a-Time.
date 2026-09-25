@@ -47,8 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'Email is required';
     }
 
-    final valid =
-        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+    final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
 
     return valid ? null : 'Enter a valid email address';
   }
@@ -79,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      final touristType = profile?['touristType'] as String?;
+      final touristType = profile?.touristType;
 
       if (touristType == null || touristType.trim().isEmpty) {
         Navigator.pushReplacement(
@@ -93,9 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
     } catch (e) {
       debugPrint('Error loading user profile: $e');
@@ -158,9 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -184,11 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Social login will be configured soon.',
-          ),
-        ),
+        const SnackBar(content: Text('Social login will be configured soon.')),
       );
     } finally {
       if (mounted) {
@@ -203,9 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const PhoneAuthScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const PhoneAuthScreen()),
     );
   }
 
@@ -300,16 +289,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   YatraPrimaryButton(
                     label: _submitting ? 'Logging in...' : 'Login',
                     icon: Icons.login,
-                    onPressed: _submitting || _socialSubmitting
-                        ? null
-                        : _login,
+                    onPressed: _submitting || _socialSubmitting ? null : _login,
                   ),
 
                   const SizedBox(height: AppSpacing.xl),
 
-                  const YatraDivider(
-                    label: 'or continue with',
-                  ),
+                  const YatraDivider(label: 'or continue with'),
 
                   const SizedBox(height: AppSpacing.xl),
 
@@ -318,8 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: 'Continue with Google',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () =>
-                        _socialLogin(_auth.signInWithGoogle),
+                    onPressed: () => _socialLogin(_auth.signInWithGoogle),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -329,8 +313,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: 'Continue with Facebook',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () =>
-                        _socialLogin(_auth.signInWithFacebook),
+                    onPressed: () => _socialLogin(_auth.signInWithFacebook),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -340,8 +323,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: 'Continue with Apple',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () =>
-                        _socialLogin(_auth.signInWithApple),
+                    onPressed: () => _socialLogin(_auth.signInWithApple),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -370,8 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const SignupScreen(),
+                                    builder: (context) => const SignupScreen(),
                                   ),
                                 );
                               },
@@ -391,9 +372,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showForgotPassword(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text(
-          'Password reset is not set up yet. Try again soon!',
-        ),
+        content: Text('Password reset is not set up yet. Try again soon!'),
       ),
     );
   }
@@ -403,9 +382,7 @@ class _LoginScreenState extends State<LoginScreen> {
 class _BrandLogo extends StatelessWidget {
   final ColorScheme scheme;
 
-  const _BrandLogo({
-    required this.scheme,
-  });
+  const _BrandLogo({required this.scheme});
 
   @override
   Widget build(BuildContext context) {
@@ -425,11 +402,7 @@ class _BrandLogo extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.xl),
             ),
             alignment: Alignment.center,
-            child: Icon(
-              Icons.explore,
-              size: 48,
-              color: scheme.primary,
-            ),
+            child: Icon(Icons.explore, size: 48, color: scheme.primary),
           );
         },
       ),

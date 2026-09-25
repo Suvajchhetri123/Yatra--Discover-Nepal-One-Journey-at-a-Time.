@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/user_profile.dart';
+
 class FirestoreService {
-  FirestoreService({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  FirestoreService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -44,16 +44,19 @@ class FirestoreService {
     final existing = await userRef.get();
 
     if (!existing.exists) {
-      data['createdAt'] = FieldValue.serverTimestamp();
+      data.addAll({
+        'language': 'English',
+        'role': 'tourist',
+        'emergencyContactName': null,
+        'emergencyContactPhone': null,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     }
 
-    await userRef.set(
-      data,
-      SetOptions(merge: true),
-    );
+    await userRef.set(data, SetOptions(merge: true));
   }
 
-  Future<Map<String, dynamic>?> getCurrentUserProfile() async {
+  Future<UserProfile?> getCurrentUserProfile() async {
     final user = _auth.currentUser;
 
     if (user == null) {
@@ -66,7 +69,13 @@ class FirestoreService {
       return null;
     }
 
-    return snapshot.data();
+    final data = snapshot.data();
+
+    if (data == null) {
+      return null;
+    }
+
+    return UserProfile.fromFirestore(snapshot.id, data);
   }
 
   Future<void> updateUserProfile(Map<String, dynamic> data) async {
@@ -76,12 +85,36 @@ class FirestoreService {
       throw StateError('No authenticated user found.');
     }
 
-    await _users.doc(user.uid).set(
-      {
-        ...data,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _users.doc(user.uid).set({
+      ...data,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> updatePersonalInfo({required String name, String? phone}) async {
+    final cleanName = name.trim();
+    final cleanPhone = phone?.trim();
+
+    await updateUserProfile({'name': cleanName, 'phone': cleanPhone});
+
+    final user = _auth.currentUser;
+
+    if (user != null && cleanName.isNotEmpty) {
+      await user.updateDisplayName(cleanName);
+    }
+  }
+
+  Future<void> updateEmergencyContact({
+    required String name,
+    required String phone,
+  }) async {
+    await updateUserProfile({
+      'emergencyContactName': name.trim(),
+      'emergencyContactPhone': phone.trim(),
+    });
+  }
+
+  Future<void> updateLanguage(String language) async {
+    await updateUserProfile({'language': language});
   }
 }
