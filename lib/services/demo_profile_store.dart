@@ -2,9 +2,8 @@
 ///
 /// Firestore is becoming the permanent source of truth for the user profile.
 ///
-/// This store is temporarily retained because some screens such as SOS,
-/// bookings, admin and offline access still consume language/emergency-contact
-/// values from it.
+/// This store is temporarily retained because booking, admin, offline and
+/// profile compatibility paths still consume language/profile values from it.
 ///
 /// TODO: Remove DemoProfileStore after all consumers are migrated to the
 /// Firestore-backed profile/repository layer.

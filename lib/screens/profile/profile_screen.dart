@@ -18,7 +18,7 @@ import '../offline/offline_access_screen.dart';
 /// Profile screen backed by the authenticated user's Firestore profile.
 ///
 /// DemoProfileStore is temporarily kept as a compatibility cache because
-/// SOS and several language-aware screens still depend on it.
+/// several language-aware and fallback screens still depend on it.
 /// It will be removed after those screens are migrated to Firestore.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -98,7 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// Temporary bridge while the rest of the frontend is still using
-  /// DemoProfileStore for language/SOS values.
+  /// DemoProfileStore for language compatibility.
   void _syncDemoProfile(UserProfile profile) {
     final demo = DemoProfileStore.instance;
 

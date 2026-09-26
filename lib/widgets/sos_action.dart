@@ -6,8 +6,8 @@ import '../theme/app_theme.dart';
 /// SOS AppBar action for every top-level tourist screen.
 ///
 /// Tapping it always asks for confirmation first ("Send Emergency SOS?"),
-/// then opens the existing [SosScreen] flow, which resolves the location via
-/// [LocationService] and lets the user share the message. Nothing is ever
+/// then opens the [SosScreen] flow, which reads location on-device, loads the
+/// saved Firestore profile, and lets the user share the message. Nothing is
 /// sent automatically.
 class YatraSosAction extends StatelessWidget {
   const YatraSosAction({super.key});

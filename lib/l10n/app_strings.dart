@@ -8,8 +8,8 @@
 ///  * a helper ([AppStrings.tr]) that falls back to English.
 ///
 /// No Flutter localization dependency is introduced yet — the app uses vanilla
-/// widgets, so strings are resolved at build time from the currently selected
-/// language in DemoProfileStore.
+/// widgets, so strings are resolved at build time from the language source
+/// currently used by the relevant screen.
 ///
 /// Full Nepali translation of every existing screen is intentionally NOT
 /// claimed in this phase. Only the new frontend feature strings are

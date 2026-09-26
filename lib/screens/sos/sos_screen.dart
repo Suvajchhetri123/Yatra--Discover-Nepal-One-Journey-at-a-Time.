@@ -4,7 +4,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_strings.dart';
-import '../../services/demo_profile_store.dart';
+import '../../models/user_profile.dart';
+import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
@@ -12,14 +13,19 @@ import '../../widgets/yatra_components.dart';
 /// How an SOS share request is resolved.
 typedef LocationProvider = Future<Position?> Function();
 typedef PermissionCheck = Future<bool> Function();
+typedef ProfileProvider = Future<UserProfile?> Function();
 
-/// Fetches the user's position for the demo.
+/// Fetches the user's position for the SOS flow.
 Future<Position?> _defaultLocationProvider() =>
     LocationService.getCurrentLocation();
 
-/// Whether location access is allowed for the demo.
+/// Whether location access is allowed for the SOS flow.
 Future<bool> _defaultPermissionCheck() =>
     LocationService.isLocationAccessAllowed();
+
+/// Fetches the authenticated user's saved Firestore profile.
+Future<UserProfile?> _defaultProfileProvider() =>
+    FirestoreService().getCurrentUserProfile();
 
 /// Builds the shareable SOS message. Kept as a pure function so widget tests
 /// can assert on it without any platform plugins.
@@ -46,14 +52,20 @@ String buildSosMessage({
   ].join('\n');
 }
 
-/// SOS screen (frontend demo). Requests the device location and lets the user
-/// share an SOS message with their emergency contact. It never sends anything
-/// automatically — sharing is always user-initiated.
+/// SOS screen. Location is read on-device, profile details are loaded from
+/// Firestore, and the user explicitly shares the prepared message. Nothing is
+/// sent automatically.
 class SosScreen extends StatefulWidget {
   final LocationProvider? locationProvider;
   final PermissionCheck? permissionCheck;
+  final ProfileProvider? profileProvider;
 
-  const SosScreen({super.key, this.locationProvider, this.permissionCheck});
+  const SosScreen({
+    super.key,
+    this.locationProvider,
+    this.permissionCheck,
+    this.profileProvider,
+  });
 
   @override
   State<SosScreen> createState() => _SosScreenState();
@@ -65,10 +77,40 @@ class _SosScreenState extends State<SosScreen> {
   Position? _position;
   String? _error;
 
+  UserProfile? _profile;
+  bool _profileLoading = true;
+  String? _profileError;
+
   @override
   void initState() {
     super.initState();
     _locate();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final provider = widget.profileProvider ?? _defaultProfileProvider;
+
+    try {
+      final profile = await provider();
+      if (!mounted) return;
+
+      setState(() {
+        _profile = profile;
+        _profileLoading = false;
+        _profileError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _profile = null;
+        _profileLoading = false;
+        _profileError =
+            'Saved profile information could not be loaded. You can still '
+            'share your current location.';
+      });
+    }
   }
 
   Future<void> _locate() async {
@@ -111,17 +153,20 @@ class _SosScreenState extends State<SosScreen> {
   }
 
   Future<void> _shareSos() async {
-    final profile = DemoProfileStore.instance;
-    final destination = _profileDestination();
+    final profile = _profile;
+    final name = profile?.name.trim() ?? '';
+    final phone = profile?.phone?.trim() ?? '';
+    final emergencyContactName = profile?.emergencyContactName?.trim() ?? '';
+    final emergencyContactPhone = profile?.emergencyContactPhone?.trim() ?? '';
 
     final message = buildSosMessage(
-      name: profile.name ?? 'Yatra traveler',
-      phone: profile.phone ?? '-',
-      emergencyContactName: profile.emergencyContactName ?? '',
-      emergencyContactPhone: profile.emergencyContactPhone ?? '',
+      name: name.isEmpty ? 'Yatra traveler' : name,
+      phone: phone.isEmpty ? '-' : phone,
+      emergencyContactName: emergencyContactName,
+      emergencyContactPhone: emergencyContactPhone,
       latitude: _position?.latitude,
       longitude: _position?.longitude,
-      destination: destination,
+      destination: _profileDestination(),
     );
 
     await SharePlus.instance.share(ShareParams(text: message));
@@ -149,8 +194,7 @@ class _SosScreenState extends State<SosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final language = DemoProfileStore.instance.language;
-    final profile = DemoProfileStore.instance;
+    final language = _profile?.language ?? 'English';
 
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.tr(language, 'sos.title'))),
@@ -181,38 +225,7 @@ class _SosScreenState extends State<SosScreen> {
 
               YatraSectionTitle(title: 'Emergency Contact'),
               const SizedBox(height: AppSpacing.md),
-              YatraCard(
-                child: (profile.emergencyContactName ?? '').isEmpty
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'No emergency contact saved yet.',
-                            style: AppType.bodyEmphasis,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'Add one in Profile so it is included in your SOS '
-                            'share message.',
-                            style: AppType.caption,
-                          ),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            profile.emergencyContactName!,
-                            style: AppType.bodyEmphasis,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            profile.emergencyContactPhone ?? '',
-                            style: AppType.caption,
-                          ),
-                        ],
-                      ),
-              ),
+              YatraCard(child: _buildEmergencyContactCard()),
 
               const SizedBox(height: AppSpacing.xl),
 
@@ -284,6 +297,63 @@ class _SosScreenState extends State<SosScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildEmergencyContactCard() {
+    if (_profileLoading) {
+      return const Row(
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: AppSpacing.md),
+          Text('Loading emergency contact…'),
+        ],
+      );
+    }
+
+    if (_profileError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_profileError!, style: AppType.caption),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'You can add or update an emergency contact in Profile.',
+            style: AppType.caption,
+          ),
+        ],
+      );
+    }
+
+    final contactName = _profile?.emergencyContactName?.trim() ?? '';
+    if (contactName.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('No emergency contact saved yet.', style: AppType.bodyEmphasis),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Add one in Profile so it is included in your SOS share message.',
+            style: AppType.caption,
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(contactName, style: AppType.bodyEmphasis),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          _profile?.emergencyContactPhone?.trim() ?? '',
+          style: AppType.caption,
+        ),
+      ],
     );
   }
 

@@ -6,8 +6,18 @@ import 'package:yatra/screens/booking/my_bookings_screen.dart';
 import 'package:yatra/screens/home/home_screen.dart';
 import 'package:yatra/screens/offline/offline_access_screen.dart';
 import 'package:yatra/screens/profile/profile_screen.dart';
+import 'package:yatra/models/user_profile.dart';
 import 'package:yatra/screens/sos/sos_screen.dart';
-import 'package:yatra/services/demo_profile_store.dart';
+
+const UserProfile _profile = UserProfile(
+  uid: 'test-uid',
+  name: 'Suva',
+  email: 'suva@example.com',
+  phone: '9800000000',
+  emergencyContactName: 'Maya',
+  emergencyContactPhone: '9811111111',
+  language: 'English',
+);
 
 final Position _position = Position(
   latitude: 27.7172,
@@ -35,11 +45,9 @@ Future<bool> _false() async => false;
 
 Future<Position?> _positionProvider() async => _position;
 
-void main() {
-  setUp(() {
-    DemoProfileStore.instance.clear();
-  });
+Future<UserProfile?> _profileProvider() async => _profile;
 
+void main() {
   testWidgets('TEST 1: SOS lives in the main AppBar navigation', (
     tester,
   ) async {
@@ -107,16 +115,12 @@ void main() {
   testWidgets('TEST 5: a valid location yields lat/lng and a Google Maps URL', (
     tester,
   ) async {
-    DemoProfileStore.instance.setEmergencyContact(
-      name: 'Maya Shrestha',
-      phone: '+977 9841 000000',
-    );
-
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: SosScreen(
           permissionCheck: _true,
           locationProvider: _positionProvider,
+          profileProvider: _profileProvider,
         ),
       ),
     );
@@ -149,10 +153,11 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: SosScreen(
           permissionCheck: _false,
           locationProvider: _positionProvider,
+          profileProvider: _profileProvider,
         ),
       ),
     );
