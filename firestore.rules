@@ -1,18 +1,142 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 9, 29);
+
+    // ------------------------------------------------------------
+    // HELPERS
+    // ------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
     }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.role == 'admin';
+    }
+
+    // ------------------------------------------------------------
+    // USERS
+    // users/{firebaseUid}
+    // ------------------------------------------------------------
+
+    match /users/{userId} {
+
+      // A logged-in user can create only their own profile.
+      //
+      // New accounts must begin as tourists.
+      allow create: if isOwner(userId)
+        && request.resource.data.role == 'tourist';
+
+      // Users can read their own profile.
+      // Admins can read profiles for administration.
+      allow read: if isOwner(userId) || isAdmin();
+
+      // A normal tourist may update only profile/preferences fields.
+      //
+      // They cannot give themselves admin privileges or replace account
+      // ownership/security fields.
+      allow update: if isOwner(userId)
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'name',
+            'phone',
+            'touristType',
+            'language',
+            'emergencyContactName',
+            'emergencyContactPhone',
+            'updatedAt'
+          ]);
+
+      // Do not allow client-side profile deletion for now.
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------
+    // BOOKINGS
+    // bookings/{bookingId}
+    // ------------------------------------------------------------
+
+    match /bookings/{bookingId} {
+
+      // Tourist can create a booking only for themselves.
+      //
+      // New bookings must always start as Pending and without a coordinator.
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.assignedCoordinator == null;
+
+      // Tourist can read their own bookings.
+      // Admin can read all bookings.
+      allow read: if isSignedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isAdmin()
+        );
+
+      // Tourist cancellation:
+      //
+      // Pending -> Cancelled only.
+      // No route/cost/user/coordinator editing is allowed.
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'status',
+            'updatedAt'
+          ]);
+
+      // Admin may later change booking status and coordinator assignment.
+      allow update: if isAdmin()
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'status',
+            'assignedCoordinator',
+            'updatedAt'
+          ]);
+
+      // Keep booking history instead of deleting documents.
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------
+    // COORDINATORS
+    // Future admin-backed coordinator collection.
+    // ------------------------------------------------------------
+
+    match /coordinators/{coordinatorId} {
+
+      // Signed-in tourists may eventually need coordinator details
+      // attached to their booking.
+      allow read: if isSignedIn();
+
+      // Only admins may manage coordinator records.
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------
+    // DEFAULT
+    // ------------------------------------------------------------
+
+    // Any collection not explicitly covered above is denied automatically.
   }
 }

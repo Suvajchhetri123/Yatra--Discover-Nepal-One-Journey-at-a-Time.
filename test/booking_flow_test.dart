@@ -10,6 +10,8 @@ import 'package:yatra/services/demo_booking_store.dart';
 import 'package:yatra/services/recommendation_service.dart';
 import 'package:yatra/services/trip_cost_estimator.dart';
 
+import 'support/fake_booking_repository.dart';
+
 const _route = TravelRoute(
   boardingPoint: 'Kathmandu',
   destination: 'Pokhara',
@@ -55,7 +57,39 @@ ItineraryBooking _createBooking({
   return booking;
 }
 
-Future<void> _pumpReview(WidgetTester tester) async {
+/// A booking as the backend returns it: a Firestore document id plus a
+/// separate user-facing booking code.
+ItineraryBooking _persistedBooking() {
+  return ItineraryBooking(
+    id: 'CkQ7dXbZmN3pVrT1',
+    bookingCode: 'YT-2026-CKQ7DX',
+    userId: 'user-uid-1',
+    createdAt: DateTime(2026, 9, 20),
+    status: BookingStatus.pending,
+    destination: 'Pokhara',
+    startDate: DateTime(2026, 9, 1),
+    endDate: DateTime(2026, 9, 4),
+    touristType: 'Domestic Tourist',
+    adultCount: 2,
+    childCount: 0,
+    travelType: 'Solo',
+    groupSize: 2,
+    currency: 'NPR',
+    estimatedCost: 30000,
+    duration: 3,
+    packageTitle: 'Annapurna Explorer',
+    tripDirection: TripDirection.oneWay,
+    route: _route,
+    dayPlans: const [
+      DayPlan(day: 1, items: [DayPlanItem.activity(activity: 'Sightseeing')]),
+    ],
+  );
+}
+
+Future<void> _pumpReview(
+  WidgetTester tester,
+  FakeBookingRepository repository,
+) async {
   await tester.pumpWidget(
     MaterialApp(
       home: BookingReviewScreen(
@@ -86,6 +120,7 @@ Future<void> _pumpReview(WidgetTester tester) async {
             items: [DayPlanItem.activity(activity: 'Sightseeing')],
           ),
         ],
+        repository: repository,
       ),
     ),
   );
@@ -149,7 +184,11 @@ void main() {
   testWidgets(
     'review screen shows an estimate and a Submit Booking Request action',
     (tester) async {
-      await _pumpReview(tester);
+      final repository = FakeBookingRepository(
+        createdBooking: _persistedBooking(),
+      );
+
+      await _pumpReview(tester, repository);
 
       expect(find.text('Review Your Trip'), findsOneWidget);
       expect(find.text('Estimated Trip Cost'), findsWidgets);
@@ -158,7 +197,7 @@ void main() {
       expect(find.textContaining('Pay now'), findsNothing);
       expect(find.textContaining('Buy Ticket'), findsNothing);
 
-      // Submitting creates one pending booking in the demo store.
+      // Submitting persists exactly one booking through the backend.
       await tester.scrollUntilVisible(
         find.text('Submit Booking Request'),
         300,
@@ -167,11 +206,13 @@ void main() {
       await tester.tap(find.text('Submit Booking Request'));
       await tester.pumpAndSettle();
 
-      expect(DemoBookingStore.instance.bookings.length, 1);
-      expect(
-        DemoBookingStore.instance.bookings.first.status,
-        BookingStatus.pending,
-      );
+      expect(repository.createCalls, 1);
+      expect(find.text('Booking request submitted.'), findsOneWidget);
+      expect(find.text('View Booking'), findsOneWidget);
+
+      // The demo store is not dual-written: it stays empty until the
+      // My Bookings migration step.
+      expect(DemoBookingStore.instance.bookings, isEmpty);
     },
   );
 
@@ -194,14 +235,23 @@ void main() {
     tester,
   ) async {
     final booking = _createBooking();
+    final repository = FakeBookingRepository(fetchedBooking: booking);
 
     await tester.pumpWidget(
-      MaterialApp(home: BookingDetailsScreen(bookingId: booking.id)),
+      MaterialApp(
+        home: BookingDetailsScreen(
+          bookingId: booking.id,
+          repository: repository,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Booking Details'), findsOneWidget);
-    expect(find.text('Booking ID: ${booking.id}'), findsOneWidget);
+    expect(
+      find.text('Booking Reference: ${booking.bookingCode}'),
+      findsOneWidget,
+    );
     expect(find.text('Pending'), findsOneWidget);
     expect(find.text('Pokhara'), findsWidgets);
 
@@ -217,13 +267,20 @@ void main() {
   testWidgets('pending booking appears in My Bookings with a status chip', (
     tester,
   ) async {
-    _createBooking(destination: 'Pokhara');
+    // My Bookings reads the tourist's persistent booking history from the
+    // backend, so the list is served by the repository rather than the demo
+    // store.
+    final repository = FakeBookingRepository(bookings: [_persistedBooking()]);
 
-    await tester.pumpWidget(const MaterialApp(home: MyBookingsScreen()));
+    await tester.pumpWidget(
+      MaterialApp(home: MyBookingsScreen(repository: repository)),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('1 booking in this session'), findsOneWidget);
+    expect(repository.listCalls, 1);
+    expect(find.text('1 booking'), findsOneWidget);
     expect(find.text('Pokhara'), findsOneWidget);
     expect(find.text('Pending'), findsOneWidget);
+    expect(find.textContaining('YT-2026-CKQ7DX •'), findsOneWidget);
   });
 }

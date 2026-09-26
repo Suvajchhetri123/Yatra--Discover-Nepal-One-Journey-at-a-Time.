@@ -2,19 +2,27 @@ import 'package:flutter/material.dart';
 
 import '../../models/itinerary_booking.dart';
 import '../../models/travel_route_model.dart';
-import '../../services/demo_booking_store.dart';
+import '../../services/booking_repository.dart';
+import '../../services/firestore_booking_service.dart';
 import '../../services/recommendation_service.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import 'booking_details_screen.dart';
 
+/// Shown when the booking could not be written to the backend.
+///
+/// The raw backend exception is never surfaced to the tourist.
+const String kBookingSubmitFailureMessage =
+    'Could not submit your booking request. Please check your connection and '
+    'try again.';
+
 /// Review step shown before an itinerary booking request is submitted.
 ///
 /// Protects the user from accidental submissions: everything already known
 /// about the trip (destination, dates, route, travelers, estimate) is shown,
-/// and the single action — "Submit Booking Request" — creates a Pending
-/// booking in the demo store. NO payment happens here.
+/// and the single action — "Submit Booking Request" — persists a Pending
+/// booking in Firestore. NO payment happens here.
 class BookingReviewScreen extends StatefulWidget {
   final String touristType;
   final String destination;
@@ -30,6 +38,12 @@ class BookingReviewScreen extends StatefulWidget {
   final String? packageTitle;
   final TravelRoute route;
   final List<DayPlan> dayPlans;
+
+  /// Booking persistence backend.
+  ///
+  /// Defaults to [FirestoreBookingService]. Tests inject a fake so no widget
+  /// test ever touches Firestore.
+  final BookingRepository? repository;
 
   const BookingReviewScreen({
     super.key,
@@ -47,6 +61,7 @@ class BookingReviewScreen extends StatefulWidget {
     this.packageTitle,
     required this.route,
     required this.dayPlans,
+    this.repository,
   });
 
   @override
@@ -54,6 +69,16 @@ class BookingReviewScreen extends StatefulWidget {
 }
 
 class _BookingReviewScreenState extends State<BookingReviewScreen> {
+  /// True while the Firestore write is in flight.
+  ///
+  /// Guards the submit action so repeated taps can never create two booking
+  /// documents.
+  bool _submitting = false;
+
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final BookingRepository _repository =
+      widget.repository ?? FirestoreBookingService();
+
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
@@ -63,26 +88,55 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
   }
 
   Future<void> _submit() async {
-    final booking = DemoBookingStore.instance.create(
-      destination: widget.destination,
-      startDate: widget.startDate,
-      endDate: widget.endDate,
-      touristType: widget.touristType,
-      adultCount: widget.adultCount,
-      childCount: widget.childCount,
-      travelType: widget.travelType,
-      groupSize: widget.groupSize,
-      currency: widget.currency,
-      estimatedCost: widget.estimate.total,
-      duration: widget.duration,
-      packageTitle: widget.packageTitle,
-      tripDirection: widget.route.tripDirection,
-      route: widget.route,
-      dayPlans: widget.dayPlans,
-    );
+    // Synchronous guard: the flag is set before the first await, so a second
+    // tap in the same frame cannot start a second write.
+    if (_submitting) return;
 
-    // Confirmation shown immediately. No payment, no backend.
-    showDialog<void>(
+    setState(() => _submitting = true);
+
+    ItineraryBooking? created;
+
+    try {
+      // The trip snapshots supplied to this screen are persisted verbatim.
+      // Pricing, routing and itinerary are never recomputed here.
+      created = await _repository.createBooking(
+        destination: widget.destination,
+        startDate: widget.startDate,
+        endDate: widget.endDate,
+        touristType: widget.touristType,
+        adultCount: widget.adultCount,
+        childCount: widget.childCount,
+        travelType: widget.travelType,
+        groupSize: widget.groupSize,
+        currency: widget.currency,
+        estimatedCost: widget.estimate.total,
+        duration: widget.duration,
+        packageTitle: widget.packageTitle,
+        route: widget.route,
+        dayPlans: widget.dayPlans,
+      );
+    } catch (_) {
+      // Firestore is the source of truth: no silent local fallback.
+      created = null;
+    }
+
+    if (!mounted) return;
+
+    setState(() => _submitting = false);
+
+    if (created == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(kBookingSubmitFailureMessage)),
+      );
+
+      return;
+    }
+
+    await _showConfirmation(created);
+  }
+
+  Future<void> _showConfirmation(ItineraryBooking booking) async {
+    await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -96,11 +150,15 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(dialogContext);
+
+                // booking.id is the Firestore document ID used for lookups.
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        BookingDetailsScreen(bookingId: booking.id),
+                    builder: (context) => BookingDetailsScreen(
+                      bookingId: booking.id,
+                      repository: _repository,
+                    ),
                   ),
                 );
               },
@@ -267,6 +325,7 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
               YatraPrimaryButton(
                 label: 'Submit Booking Request',
                 icon: Icons.event_available_outlined,
+                loading: _submitting,
                 onPressed: _submit,
               ),
               const SizedBox(height: AppSpacing.sm),

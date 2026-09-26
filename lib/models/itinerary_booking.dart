@@ -2,16 +2,10 @@ import '../services/recommendation_service.dart';
 import 'travel_coordinator.dart';
 import 'travel_route_model.dart';
 
-/// The lifecycle of an itinerary (trip) booking request.
+/// Lifecycle of an itinerary booking request.
 ///
-/// Current Yatra version is an ITINERARY BOOKING REQUEST — not a real
-/// ticket/seat/inventory booking. Status moves:
-///
-///   pending  -> confirmed | cancelled
-///   pending  -> completed (admin marks the trip finished)
-///
-/// Central user-facing label lives on [BookingStatusLabel.label] so screens
-/// never compare raw enum names or random status strings.
+/// This is an itinerary/trip booking request, not a real ticket,
+/// hotel inventory, seat reservation, or payment record.
 enum BookingStatus { pending, confirmed, cancelled, completed }
 
 extension BookingStatusLabel on BookingStatus {
@@ -29,54 +23,74 @@ extension BookingStatusLabel on BookingStatus {
   }
 }
 
-/// A temporary frontend-only itinerary booking record.
+/// Snapshot of a trip at the moment the tourist submits a booking request.
 ///
-/// Created when a tourist taps "Submit Booking Request" after reviewing their
-/// generated itinerary. It keeps enough information to render the full
-/// Booking Details screen: the trip summary, the built route and the
-/// day-by-day plan.
+/// [id] is the internal record identifier.
+/// - DemoBookingStore may still use a readable YT-* value.
+/// - Firestore uses the Firestore document ID.
 ///
-/// NOTE: This is DEMO/FEMI state for the running app session. It will be
-/// replaced by a Firestore-backed booking when the backend lands.
+/// [bookingCode] is the user-facing booking reference.
+///
+/// [userId] is the Firebase Authentication UID of the booking owner.
 class ItineraryBooking {
-  /// Readable demo id, e.g. `YT-2026-001`. NOT a server-guaranteed number.
   final String id;
 
+  /// Human-readable booking reference, e.g. YT-2026-A1B2C3.
+  ///
+  /// During the temporary demo-store period this defaults to [id].
+  final String bookingCode;
+
+  /// Firebase UID of the tourist who owns the booking.
+  ///
+  /// Empty only for legacy/demo bookings created before Firestore migration.
+  final String userId;
+
   final DateTime createdAt;
+  final DateTime? updatedAt;
 
   BookingStatus status;
 
   final String destination;
+
   final DateTime startDate;
   final DateTime endDate;
+
   final String touristType;
+
   final int adultCount;
   final int childCount;
+
   final String travelType;
   final int groupSize;
 
-  /// Currency the estimate was expressed in.
   final String currency;
 
-  /// The estimated trip total in the estimate's currency (from the existing
-  /// trip estimate — never re-priced at booking time).
+  /// Snapshot of the estimate shown when the booking was submitted.
+  ///
+  /// Historical bookings must not be repriced from newer application data.
   final double estimatedCost;
 
   final int duration;
 
-  /// Package title when the itinerary was planned from a package.
   final String? packageTitle;
 
   final TripDirection tripDirection;
+
+  /// Route snapshot at booking time.
   final TravelRoute route;
+
+  /// Itinerary snapshot at booking time.
   final List<DayPlan> dayPlans;
 
-  /// Coordinator assigned by the admin frontend (null until reviewed).
+  /// Null until an admin assigns a travel coordinator.
   TravelCoordinator? assignedCoordinator;
 
   ItineraryBooking({
     required this.id,
+    String? bookingCode,
+    this.userId = '',
     required this.createdAt,
+    this.updatedAt,
     required this.status,
     required this.destination,
     required this.startDate,
@@ -94,7 +108,7 @@ class ItineraryBooking {
     required this.route,
     required this.dayPlans,
     this.assignedCoordinator,
-  });
+  }) : bookingCode = bookingCode ?? id;
 
   String get tripTypeLabel => route.tripDirectionDescription;
 

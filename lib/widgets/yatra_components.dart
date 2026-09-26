@@ -15,19 +15,35 @@ class YatraPrimaryButton extends StatelessWidget {
   final IconData? icon;
   final bool expanded;
 
+  /// Shows a progress indicator and disables the button while an async action
+  /// is still in flight (e.g. persisting a booking request).
+  ///
+  /// This mirrors the existing [YatraSocialButton.loading] convention so
+  /// repeated taps cannot trigger the same action twice.
+  final bool loading;
+
   const YatraPrimaryButton({
     super.key,
     required this.label,
     this.onPressed,
     this.icon,
     this.expanded = true,
+    this.loading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final button = ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: icon != null ? Icon(icon, size: 20) : const SizedBox.shrink(),
+      onPressed: loading ? null : onPressed,
+      icon: loading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2.2),
+            )
+          : icon != null
+          ? Icon(icon, size: 20)
+          : const SizedBox.shrink(),
       label: Text(label),
     );
 
@@ -60,10 +76,7 @@ class YatraSecondaryButton extends StatelessWidget {
             icon: Icon(icon, size: 20),
             label: Text(label),
           )
-        : OutlinedButton(
-            onPressed: onPressed,
-            child: Text(label),
-          );
+        : OutlinedButton(onPressed: onPressed, child: Text(label));
 
     if (!expanded) return Align(alignment: Alignment.centerLeft, child: button);
 
@@ -88,14 +101,9 @@ class YatraCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = padded
-        ? Padding(padding: padding, child: child)
-        : child;
+    final content = padded ? Padding(padding: padding, child: child) : child;
 
-    final card = Card(
-      margin: EdgeInsets.zero,
-      child: content,
-    );
+    final card = Card(margin: EdgeInsets.zero, child: content);
 
     if (onTap == null) return card;
 
@@ -111,11 +119,7 @@ class YatraSectionTitle extends StatelessWidget {
   final String title;
   final String? subtitle;
 
-  const YatraSectionTitle({
-    super.key,
-    required this.title,
-    this.subtitle,
-  });
+  const YatraSectionTitle({super.key, required this.title, this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -246,16 +250,12 @@ class YatraInfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(label, style: textTheme.bodySmall),
-          ),
+          Expanded(child: Text(label, style: textTheme.bodySmall)),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: emphasized
-                  ? textTheme.bodyMedium
-                  : AppType.bodyEmphasis,
+              style: emphasized ? textTheme.bodyMedium : AppType.bodyEmphasis,
             ),
           ),
         ],
@@ -292,7 +292,11 @@ class YatraEmptyState extends StatelessWidget {
         children: [
           Icon(icon, size: 56, color: scheme.outline),
           const SizedBox(height: AppSpacing.lg),
-          Text(message, textAlign: TextAlign.center, style: textTheme.titleMedium),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: textTheme.titleMedium,
+          ),
           if (hint != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
@@ -312,11 +316,7 @@ class YatraStatusBadge extends StatelessWidget {
   final String label;
   final Color color;
 
-  const YatraStatusBadge({
-    super.key,
-    required this.label,
-    required this.color,
-  });
+  const YatraStatusBadge({super.key, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -379,9 +379,7 @@ class YatraStepIndicator extends StatelessWidget {
             height: 28,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: step <= currentStep
-                  ? scheme.primary
-                  : Colors.transparent,
+              color: step <= currentStep ? scheme.primary : Colors.transparent,
               shape: BoxShape.circle,
               border: Border.all(
                 color: step <= currentStep ? scheme.primary : scheme.outline,
@@ -424,18 +422,18 @@ class YatraWizardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          YatraStepIndicator(currentStep: step, totalSteps: totalSteps),
-          const SizedBox(height: AppSpacing.xxl),
-          Text(title, style: textTheme.headlineMedium),
-          const SizedBox(height: AppSpacing.sm),
-          Text(subtitle, style: textTheme.bodyLarge),
-        ],
-      );
-    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        YatraStepIndicator(currentStep: step, totalSteps: totalSteps),
+        const SizedBox(height: AppSpacing.xxl),
+        Text(title, style: textTheme.headlineMedium),
+        const SizedBox(height: AppSpacing.sm),
+        Text(subtitle, style: textTheme.bodyLarge),
+      ],
+    );
   }
+}
 
 /// A full-width, theme-consistent social sign-in button (e.g. Google,
 /// Facebook, Apple). Shows a provider icon tile, a label and an optional
@@ -489,11 +487,7 @@ class YatraSocialButton extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                     color: scheme.primary.withValues(alpha: 0.08),
                   ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: AppColors.onSurface,
-                  ),
+                  child: Icon(icon, size: 20, color: AppColors.onSurface),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -512,10 +506,7 @@ class YatraSocialButton extends StatelessWidget {
                     ),
                   )
                 else
-                  Icon(
-                    Icons.chevron_right,
-                    color: AppColors.onSurfaceHint,
-                  ),
+                  Icon(Icons.chevron_right, color: AppColors.onSurfaceHint),
               ],
             ),
           ),
@@ -652,8 +643,9 @@ class YatraPhoneInput extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             helperText!,
-            style: textTheme.bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            style: textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
         ],
       ],
@@ -758,10 +750,11 @@ class _YatraOtpInputState extends State<YatraOtpInput> {
   void initState() {
     super.initState();
     _buffer = '';
-    _controllers =
-        List.generate(YatraOtpInput.length, (_) => TextEditingController());
-    _focusNodes =
-        List.generate(YatraOtpInput.length, (_) => FocusNode());
+    _controllers = List.generate(
+      YatraOtpInput.length,
+      (_) => TextEditingController(),
+    );
+    _focusNodes = List.generate(YatraOtpInput.length, (_) => FocusNode());
   }
 
   @override
@@ -831,8 +824,9 @@ class _YatraOtpInputState extends State<YatraOtpInput> {
                   decoration: InputDecoration(
                     counterText: '',
                     hintText: '•',
-                    hintStyle:
-                        AppType.body.copyWith(color: scheme.onSurfaceVariant),
+                    hintStyle: AppType.body.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                   onChanged: (v) => _handleChange(i, v),
                 ),

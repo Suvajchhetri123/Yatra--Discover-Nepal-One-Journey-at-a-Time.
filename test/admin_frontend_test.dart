@@ -10,6 +10,8 @@ import 'package:yatra/screens/booking/my_bookings_screen.dart';
 import 'package:yatra/services/demo_booking_store.dart';
 import 'package:yatra/services/recommendation_service.dart';
 
+import 'support/fake_booking_repository.dart';
+
 const _route = TravelRoute(
   boardingPoint: 'Kathmandu',
   destination: 'Pokhara',
@@ -166,12 +168,20 @@ void main() {
 
     expect(booking.status, BookingStatus.confirmed);
 
-    // The same booking shows as Confirmed in the tourist-facing list too,
-    // because both surfaces read from the single demo store.
-    await tester.pumpWidget(const MaterialApp(home: MyBookingsScreen()));
+    // The same booking shows as Confirmed in the tourist-facing list too.
+    //
+    // The tourist list now reads the backend, so the fake repository hands it
+    // the very booking the admin screen just changed. Once admin persistence
+    // lands, this becomes a real Firestore re-read.
+    final repository = FakeBookingRepository(bookings: [booking]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: MyBookingsScreen(repository: repository)),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('${booking.id} •'), findsOneWidget);
+    // The tourist-facing reference is the booking code, not the document id.
+    expect(find.textContaining('${booking.bookingCode} •'), findsOneWidget);
     expect(find.text('Confirmed'), findsWidgets);
   });
 }

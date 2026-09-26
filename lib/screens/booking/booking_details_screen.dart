@@ -4,13 +4,28 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/itinerary_booking.dart';
 import '../../models/travel_coordinator.dart';
-import '../../services/demo_booking_store.dart';
+import '../../models/travel_route_model.dart';
+import '../../services/booking_repository.dart';
 import '../../services/demo_profile_store.dart';
+import '../../services/firestore_booking_service.dart';
 import '../../services/google_maps_launcher.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/booking_status_chip.dart';
 import '../../widgets/yatra_components.dart';
+
+/// Shown when the booking document is gone or not owned by this user.
+const String kBookingUnavailableMessage =
+    'This booking is no longer available.';
+
+/// Shown when the booking could not be read. The backend error is never
+/// surfaced to the tourist.
+const String kBookingLoadFailureMessage =
+    'Could not load this booking. Please try again.';
+
+/// Shown when the cancellation write fails.
+const String kBookingCancelFailureMessage =
+    'Could not cancel this booking request. Please try again.';
 
 /// Full detail view of a single itinerary booking request.
 ///
@@ -19,17 +34,90 @@ import '../../widgets/yatra_components.dart';
 /// clear "Not assigned yet" state; afterwards the coordinator's name, phone
 /// and email are shown with Call / Email actions.
 class BookingDetailsScreen extends StatefulWidget {
+  /// Firestore document ID of the booking to display.
   final String bookingId;
 
-  const BookingDetailsScreen({super.key, required this.bookingId});
+  /// Booking persistence backend.
+  ///
+  /// Defaults to [FirestoreBookingService]. Tests inject a fake so no widget
+  /// test ever touches Firestore.
+  final BookingRepository? repository;
+
+  const BookingDetailsScreen({
+    super.key,
+    required this.bookingId,
+    this.repository,
+  });
 
   @override
   State<BookingDetailsScreen> createState() => _BookingDetailsScreenState();
 }
 
 class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
-  ItineraryBooking? _booking() {
-    return DemoBookingStore.instance.byId(widget.bookingId);
+  ItineraryBooking? _booking;
+  bool _loadingBooking = true;
+  String? _bookingError;
+
+  /// True while the cancellation transaction is in flight.
+  bool _cancelling = false;
+
+  /// Guards against a stale read overwriting a newer one.
+  int _loadToken = 0;
+
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final BookingRepository _repository =
+      widget.repository ?? FirestoreBookingService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBooking();
+  }
+
+  /// Reads the booking from the backend.
+  ///
+  /// The widget never performs Firestore reads itself: it always goes through
+  /// [BookingRepository].
+  Future<void> _loadBooking({bool showLoader = true}) async {
+    if (showLoader && mounted && _booking == null && !_loadingBooking) {
+      setState(() {
+        _loadingBooking = true;
+        _bookingError = null;
+      });
+    }
+
+    final token = ++_loadToken;
+
+    try {
+      final booking = await _repository.getBookingById(widget.bookingId);
+
+      if (!mounted || token != _loadToken) return;
+
+      setState(() {
+        _booking = booking;
+        _bookingError = null;
+        _loadingBooking = false;
+      });
+    } catch (_) {
+      if (!mounted || token != _loadToken) return;
+
+      // Keep an already-rendered booking on screen when a background refresh
+      // fails; only a first load switches to the full error state.
+      if (_booking != null) {
+        setState(() => _loadingBooking = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(kBookingLoadFailureMessage)),
+        );
+
+        return;
+      }
+
+      setState(() {
+        _bookingError = kBookingLoadFailureMessage;
+        _loadingBooking = false;
+      });
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -49,17 +137,19 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
   }
 
   Future<void> _confirmCancel() async {
-    final booking = _booking();
+    final booking = _booking;
 
     if (booking == null) return;
+
+    if (_cancelling) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Cancel Booking Request?'),
         content: const Text(
-          'This removes the booking request from the demo list. No '
-          'coordinator will be assigned.',
+          'Your pending booking request will be cancelled. The booking will '
+          'remain in your booking history.',
         ),
         actions: [
           TextButton(
@@ -74,29 +164,80 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
       ),
     );
 
-    if (confirmed == true) {
-      DemoBookingStore.instance.updateStatus(
-        booking.id,
-        BookingStatus.cancelled,
-      );
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+
+    setState(() => _cancelling = true);
+
+    try {
+      // The backend owns the status change and validates the pending state
+      // transactionally. The document is never deleted.
+      await _repository.cancelBooking(booking.id);
+    } catch (_) {
       if (mounted) {
-        setState(() {});
+        setState(() => _cancelling = false);
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Booking request cancelled.')),
+          const SnackBar(content: Text(kBookingCancelFailureMessage)),
         );
       }
+
+      return;
     }
+
+    if (!mounted) return;
+
+    setState(() => _cancelling = false);
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Booking request cancelled.')));
+
+    // Reload so Firestore remains the source of truth for the new status.
+    await _loadBooking(showLoader: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final booking = _booking();
     final language = DemoProfileStore.instance.language;
+
+    if (_loadingBooking) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Booking Details')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final booking = _booking;
 
     if (booking == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Booking Details')),
-        body: const Center(child: Text('This booking is no longer available.')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.screen),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                YatraEmptyState(
+                  icon: _bookingError == null
+                      ? Icons.event_busy_outlined
+                      : Icons.cloud_off_outlined,
+                  message: _bookingError ?? kBookingUnavailableMessage,
+                ),
+                if (_bookingError != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  YatraPrimaryButton(
+                    label: 'Try Again',
+                    icon: Icons.refresh,
+                    onPressed: () => _loadBooking(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -118,8 +259,10 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
               Row(
                 children: [
                   Expanded(
+                    // The user-facing reference is the booking code; the
+                    // Firestore document ID is never shown.
                     child: Text(
-                      'Booking ID: ${booking.id}',
+                      'Booking Reference: ${booking.bookingCode}',
                       style: textTheme.titleMedium,
                     ),
                   ),
@@ -199,7 +342,10 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
                     _routeLine('Going', booking.route.routeDescription),
                     if (hasReturn) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      _routeLine('Coming Back', _returnRouteDescription()),
+                      _routeLine(
+                        'Coming Back',
+                        _returnRouteDescription(booking.route),
+                      ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
                     _buildLegMapsButtons(context, booking),
@@ -255,7 +401,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
               ? _NoCoordinator(
                   language: language,
                   booking: booking,
-                  onCancel: _confirmCancel,
+                  onCancel: _cancelling ? null : _confirmCancel,
                 )
               : _CoordinatorTile(
                   coordinator: booking.assignedCoordinator!,
@@ -323,8 +469,12 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
     );
   }
 
-  String _returnRouteDescription() {
-    final segments = _booking()!.route.returnSegments;
+  /// Describes the return legs from the stored snapshot.
+  ///
+  /// Return routing is never regenerated here: it is read back from the
+  /// resolved `returnSegments` that Firestore persisted at booking time.
+  String _returnRouteDescription(TravelRoute route) {
+    final segments = route.returnSegments;
 
     if (segments.isEmpty) return '';
 
@@ -349,7 +499,10 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
 class _NoCoordinator extends StatelessWidget {
   final String language;
   final ItineraryBooking booking;
-  final VoidCallback onCancel;
+
+  /// Null while the cancellation write is in flight, which disables the
+  /// action so a second tap cannot start a duplicate cancellation.
+  final VoidCallback? onCancel;
 
   const _NoCoordinator({
     required this.language,
