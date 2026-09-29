@@ -3,6 +3,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/user_profile.dart';
 
+/// Resolves the authenticated user's Firestore profile.
+///
+/// Returns null when nobody is signed in or when users/{uid} does not exist.
+/// Screens depend on this function type instead of constructing a
+/// [FirestoreService] themselves, so widget tests can inject a fake profile
+/// and never need a live Firebase app.
+typedef UserProfileLoader = Future<UserProfile?> Function();
+
 class FirestoreService {
   FirestoreService({FirebaseFirestore? firestore, FirebaseAuth? auth})
     : _firestore = firestore ?? FirebaseFirestore.instance,
@@ -46,7 +54,7 @@ class FirestoreService {
     if (!existing.exists) {
       data.addAll({
         'language': 'English',
-        'role': 'tourist',
+        'role': kTouristRole,
         'emergencyContactName': null,
         'emergencyContactPhone': null,
         'createdAt': FieldValue.serverTimestamp(),

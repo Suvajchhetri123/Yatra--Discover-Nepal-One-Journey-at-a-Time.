@@ -17,11 +17,21 @@ import '../offline/offline_access_screen.dart';
 
 /// Profile screen backed by the authenticated user's Firestore profile.
 ///
+/// The Admin entry is only offered when users/{uid}.role is exactly 'admin',
+/// and the role is never taken from DemoProfileStore. AdminScreen verifies the
+/// same role again, so hiding this entry is not the only protection.
+///
 /// DemoProfileStore is temporarily kept as a compatibility cache because
 /// several language-aware and fallback screens still depend on it.
 /// It will be removed after those screens are migrated to Firestore.
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.profileLoader});
+
+  /// Overrides how the authenticated profile is resolved.
+  ///
+  /// Production leaves this null so the screen uses Firestore; widget tests
+  /// inject a fake instead of booting a live Firebase app.
+  final UserProfileLoader? profileLoader;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -47,10 +57,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Widget tests currently run without a Firebase app, so in that
   /// environment the screen falls back to DemoProfileStore.
   Future<void> _initializeProfileBackend() async {
-    try {
-      _firestore = FirestoreService();
-    } catch (_) {
-      return;
+    if (widget.profileLoader == null) {
+      try {
+        _firestore = FirestoreService();
+      } catch (_) {
+        return;
+      }
     }
 
     await _loadProfile();
@@ -60,9 +72,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ///
   /// users/{firebaseUid}
   Future<void> _loadProfile() async {
+    final loader = widget.profileLoader;
     final firestore = _firestore;
 
-    if (firestore == null) {
+    if (loader == null && firestore == null) {
       return;
     }
 
@@ -74,7 +87,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      final profile = await firestore.getCurrentUserProfile();
+      final profile = loader != null
+          ? await loader()
+          : await firestore!.getCurrentUserProfile();
 
       if (!mounted) return;
 
@@ -323,7 +338,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _openAdmin() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const AdminScreen()),
+      MaterialPageRoute(
+        // AdminScreen re-checks the role itself, so it stays protected even if
+        // it is reached by direct navigation.
+        builder: (context) => AdminScreen(profileLoader: widget.profileLoader),
+      ),
     );
   }
 
@@ -558,12 +577,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     label: 'Offline Access',
                     onTap: _openOffline,
                   ),
-                  _menuRow(
-                    icon: Icons.admin_panel_settings_outlined,
-                    label: 'Admin (Demo)',
-                    caption: 'Frontend-only admin dashboard',
-                    onTap: _openAdmin,
-                  ),
+
+                  // Only accounts whose Firestore role is exactly 'admin' see
+                  // this entry. Tourists get no admin affordance at all.
+                  if (_profile?.isAdmin ?? false)
+                    _menuRow(
+                      icon: Icons.admin_panel_settings_outlined,
+                      label: 'Admin',
+                      caption: 'Role-protected admin dashboard',
+                      onTap: _openAdmin,
+                    ),
                 ],
               ),
             ),

@@ -3,21 +3,44 @@ import 'package:flutter/material.dart';
 import '../../data/mock_coordinators.dart';
 import '../../models/itinerary_booking.dart';
 import '../../models/travel_coordinator.dart';
-import '../../services/demo_booking_store.dart';
+import '../../services/admin_booking_repository.dart';
+import '../../services/firestore_admin_booking_service.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/booking_status_chip.dart';
 import '../../widgets/yatra_components.dart';
 
+/// Shown when a single booking could not be read.
+const String kAdminBookingDetailFailureMessage =
+    'Could not load this booking. Please try again.';
+
+/// Shown when a status or coordinator write fails.
+///
+/// The UI is never optimistically updated, so a failed write leaves the booking
+/// exactly as Firestore still has it.
+const String kAdminBookingActionFailureMessage =
+    'Could not update this booking. Please try again.';
+
 /// Admin view of a single booking: full trip details plus the two admin
 /// actions — assign a coordinator and change the booking status.
 ///
-/// Both actions write to the shared DemoBookingStore so the tourist-facing
-/// My Bookings reflects them immediately in the same runtime session.
+/// Both actions are persisted to the booking document through
+/// [AdminBookingRepository] and the booking is re-read afterwards, so the
+/// screen only ever displays what the backend actually stored. The coordinator
+/// *directory* is still the demo list.
 class AdminBookingDetailsScreen extends StatefulWidget {
   final String bookingId;
 
-  const AdminBookingDetailsScreen({super.key, required this.bookingId});
+  /// Booking persistence backend for the admin area.
+  ///
+  /// Defaults to [FirestoreAdminBookingService]. Tests inject a fake.
+  final AdminBookingRepository? repository;
+
+  const AdminBookingDetailsScreen({
+    super.key,
+    required this.bookingId,
+    this.repository,
+  });
 
   @override
   State<AdminBookingDetailsScreen> createState() =>
@@ -25,18 +48,112 @@ class AdminBookingDetailsScreen extends StatefulWidget {
 }
 
 class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
-  ItineraryBooking? _booking() {
-    return DemoBookingStore.instance.byId(widget.bookingId);
+  ItineraryBooking? _booking;
+
+  /// True until the first backend result arrives.
+  bool _loading = true;
+
+  /// Set when the read failed, or when the booking no longer exists.
+  bool _missing = false;
+
+  String? _error;
+
+  /// True while an admin write is in flight. Blocks duplicate rapid writes.
+  bool _saving = false;
+
+  /// Guards against a stale read overwriting a newer one.
+  int _loadToken = 0;
+
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final AdminBookingRepository _repository =
+      widget.repository ?? FirestoreAdminBookingService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBooking();
+  }
+
+  /// Reads the booking from the backend.
+  Future<void> _loadBooking({bool showLoader = true}) async {
+    if (showLoader && mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+
+    final token = ++_loadToken;
+
+    try {
+      final booking = await _repository.getBookingById(widget.bookingId);
+
+      if (!mounted || token != _loadToken) return;
+
+      setState(() {
+        _booking = booking;
+        _missing = booking == null;
+        _loading = false;
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted || token != _loadToken) return;
+
+      setState(() {
+        _error = kAdminBookingDetailFailureMessage;
+        _loading = false;
+      });
+    }
   }
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  Future<void> _assignCoordinator() async {
-    final booking = _booking();
+  /// Persists one admin action, then re-reads the booking.
+  ///
+  /// The screen is only disabled while the write is in flight, so a double tap
+  /// cannot produce two writes. A failure leaves the displayed booking
+  /// untouched and reports a friendly message.
+  Future<void> _runAdminAction({
+    required Future<void> Function() write,
+    required String successMessage,
+  }) async {
+    if (_saving) return;
 
-    if (booking == null) return;
+    setState(() => _saving = true);
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await write();
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _saving = false);
+
+      messenger.showSnackBar(
+        const SnackBar(content: Text(kAdminBookingActionFailureMessage)),
+      );
+
+      return;
+    }
+
+    // Re-read instead of trusting local state: the backend is the source of
+    // truth for both status and coordinator assignment.
+    await _loadBooking(showLoader: false);
+
+    if (!mounted) return;
+
+    setState(() => _saving = false);
+
+    messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+  }
+
+  Future<void> _assignCoordinator() async {
+    final booking = _booking;
+
+    if (booking == null || _saving) return;
 
     final action = await showModalBottomSheet<_CoordinatorAction>(
       context: context,
@@ -51,24 +168,20 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
     if (action == null || !mounted) return;
 
     final coordinator = action.coordinator;
+    final reference = booking.bookingCode;
 
-    DemoBookingStore.instance.assignCoordinator(booking.id, coordinator);
-
-    setState(() {});
-
-    if (coordinator != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${coordinator.name} assigned to ${booking.id}.'),
-        ),
-      );
-    }
+    await _runAdminAction(
+      write: () => _repository.assignCoordinator(booking.id, coordinator),
+      successMessage: coordinator == null
+          ? 'Coordinator removed from $reference.'
+          : '${coordinator.name} assigned to $reference.',
+    );
   }
 
   Future<void> _changeStatus() async {
-    final booking = _booking();
+    final booking = _booking;
 
-    if (booking == null) return;
+    if (booking == null || _saving) return;
 
     final selected = await showDialog<BookingStatus>(
       context: context,
@@ -94,16 +207,15 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
       ),
     );
 
-    if (selected == null) return;
+    if (selected == null || !mounted) return;
 
-    DemoBookingStore.instance.updateStatus(booking.id, selected);
+    final reference = booking.bookingCode;
 
-    if (mounted) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${booking.id} is now ${selected.label}.')),
-      );
-    }
+    await _runAdminAction(
+      // The Firestore document ID is the write key.
+      write: () => _repository.updateBookingStatus(booking.id, selected),
+      successMessage: '$reference is now ${selected.label}.',
+    );
   }
 
   IconData _statusIcon(BookingStatus status) {
@@ -121,9 +233,41 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final booking = _booking();
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Booking Details')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    if (booking == null) {
+    final error = _error;
+
+    if (error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Booking Details')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.screen),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                YatraEmptyState(icon: Icons.cloud_off_outlined, message: error),
+                const SizedBox(height: AppSpacing.lg),
+                YatraPrimaryButton(
+                  label: 'Retry',
+                  icon: Icons.refresh,
+                  onPressed: () => _loadBooking(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final booking = _booking;
+
+    if (_missing || booking == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Booking Details')),
         body: const Center(child: Text('This booking is no longer available.')),
@@ -144,7 +288,7 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Booking ID: ${booking.id}',
+                      'Booking Reference: ${booking.bookingCode}',
                       style: textTheme.titleMedium,
                     ),
                   ),
@@ -257,7 +401,7 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
                     ? 'Assign Coordinator'
                     : 'Change Coordinator',
                 icon: Icons.support_agent,
-                onPressed: _assignCoordinator,
+                onPressed: _saving ? null : _assignCoordinator,
               ),
 
               const SizedBox(height: AppSpacing.xl),
@@ -267,7 +411,7 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
               YatraSecondaryButton(
                 label: 'Change Status',
                 icon: Icons.swap_horiz,
-                onPressed: _changeStatus,
+                onPressed: _saving ? null : _changeStatus,
               ),
               const SizedBox(height: AppSpacing.xl),
             ],
@@ -322,8 +466,9 @@ class _CoordinatorPicker extends StatelessWidget {
             Text('Assign Coordinator', style: textTheme.headlineSmall),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Choose who will look after this booking. Demo coordinators '
-              'only — replace with the real staff registry in the backend.',
+              'Choose who will look after this booking. The choice is saved to '
+              'the booking, but the coordinator list is still demo data until '
+              'the staff registry is migrated.',
               style: textTheme.bodySmall,
             ),
             const SizedBox(height: AppSpacing.lg),

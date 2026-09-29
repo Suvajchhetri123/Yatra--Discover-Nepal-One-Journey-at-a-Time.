@@ -5,6 +5,7 @@ import 'package:yatra/screens/admin/admin_booking_list_screen.dart';
 import 'package:yatra/screens/booking/my_bookings_screen.dart';
 import 'package:yatra/services/demo_booking_store.dart';
 
+import 'support/fake_admin_booking_repository.dart';
 import 'support/fake_booking_repository.dart';
 
 void main() {
@@ -37,7 +38,12 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: AdminBookingListScreen(initialStatus: null)),
+      MaterialApp(
+        home: AdminBookingListScreen(
+          initialStatus: null,
+          repository: FakeAdminBookingRepository(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 

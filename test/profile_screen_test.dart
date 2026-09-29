@@ -42,7 +42,10 @@ void main() {
     await _scrollTo(tester, find.text('My Bookings'));
     expect(find.text('My Bookings'), findsOneWidget);
     expect(find.text('Offline Access'), findsOneWidget);
-    expect(find.text('Admin (Demo)'), findsOneWidget);
+
+    // Without a Firestore role there is no admin entry for this account.
+    expect(find.text('Admin'), findsNothing);
+    expect(find.text('Admin (Demo)'), findsNothing);
 
     await _scrollTo(tester, find.text('Log Out'));
     expect(find.text('Log Out'), findsOneWidget);
