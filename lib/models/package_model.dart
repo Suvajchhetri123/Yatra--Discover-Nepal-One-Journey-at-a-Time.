@@ -2,6 +2,11 @@ import 'tourist_pricing.dart';
 
 /// A curated, bookable tour package: a bundled multi-day trip with a price,
 /// duration, difficulty and the places it covers.
+///
+/// Packages are administered through the Firestore `packages` collection, where
+/// [id] is the document id. [active] is soft-removal metadata: an inactive
+/// package is hidden from the tourist catalog but never deleted, so existing
+/// bookings and itineraries that reference it stay resolvable.
 class TourPackage {
   final String id;
   final String title;
@@ -23,6 +28,9 @@ class TourPackage {
   final List<String> highlights;
   final List<String> includedPlaces;
 
+  /// False means "removed from the tourist catalog". The document is kept.
+  final bool active;
+
   const TourPackage({
     required this.id,
     required this.title,
@@ -37,6 +45,7 @@ class TourPackage {
     required this.imageUrl,
     required this.highlights,
     required this.includedPlaces,
+    this.active = true,
   });
 
   /// Resolve the package price that applies to [touristType].
@@ -45,6 +54,46 @@ class TourPackage {
       touristType: touristType,
       universalPrice: price,
       pricing: touristPrice,
+    );
+  }
+
+  TourPackage copyWith({
+    String? id,
+    String? title,
+    String? region,
+    String? summary,
+    String? description,
+    int? durationDays,
+    double? price,
+    TouristPricing? touristPrice,
+    bool clearTouristPrice = false,
+    String? difficulty,
+    double? rating,
+    String? imageUrl,
+    List<String>? highlights,
+    List<String>? includedPlaces,
+    bool? active,
+  }) {
+    return TourPackage(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      region: region ?? this.region,
+      summary: summary ?? this.summary,
+      description: description ?? this.description,
+      durationDays: durationDays ?? this.durationDays,
+      price: price ?? this.price,
+      // `null` means "leave the overrides alone", so removing them needs the
+      // explicit flag — otherwise switching the override off in the admin form
+      // would silently keep the old rates.
+      touristPrice: clearTouristPrice
+          ? null
+          : touristPrice ?? this.touristPrice,
+      difficulty: difficulty ?? this.difficulty,
+      rating: rating ?? this.rating,
+      imageUrl: imageUrl ?? this.imageUrl,
+      highlights: List<String>.of(highlights ?? this.highlights),
+      includedPlaces: List<String>.of(includedPlaces ?? this.includedPlaces),
+      active: active ?? this.active,
     );
   }
 }

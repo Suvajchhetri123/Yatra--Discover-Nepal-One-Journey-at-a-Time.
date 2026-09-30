@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/itinerary_booking.dart';
 import '../../services/admin_booking_repository.dart';
+import '../../services/coordinator_repository.dart';
 import '../../services/demo_profile_store.dart';
 import '../../services/firestore_admin_booking_service.dart';
+import '../../services/firestore_coordinator_service.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/booking_status_chip.dart';
@@ -28,10 +30,16 @@ class AdminBookingListScreen extends StatefulWidget {
   /// Defaults to [FirestoreAdminBookingService]. Tests inject a fake.
   final AdminBookingRepository? repository;
 
+  /// Source of the assignable coordinator list on the details screen.
+  ///
+  /// Defaults to [FirestoreCoordinatorService]. Tests inject a fake.
+  final CoordinatorRepository? coordinatorRepository;
+
   const AdminBookingListScreen({
     super.key,
     this.initialStatus,
     this.repository,
+    this.coordinatorRepository,
   });
 
   @override
@@ -117,6 +125,7 @@ class _AdminBookingListScreenState extends State<AdminBookingListScreen> {
           // what the administrator sees.
           bookingId: booking.id,
           repository: _repository,
+          coordinatorRepository: widget.coordinatorRepository,
         ),
       ),
     );

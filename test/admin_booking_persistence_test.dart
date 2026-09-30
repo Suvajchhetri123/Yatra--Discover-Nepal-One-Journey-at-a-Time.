@@ -17,6 +17,7 @@ import 'package:yatra/services/firestore_service.dart';
 import 'package:yatra/services/recommendation_service.dart';
 
 import 'support/fake_admin_booking_repository.dart';
+import 'support/fake_coordinator_repository.dart';
 
 const _route = TravelRoute(
   boardingPoint: 'Kathmandu',
@@ -86,16 +87,26 @@ ItineraryBooking _booking({
   );
 }
 
+/// Default assignable staff for the booking tests.
+///
+/// The picker now reads the coordinator registry, so tests that only care about
+/// the *booking* write still get a populated registry. Tests about the registry
+/// itself inject their own.
+FakeCoordinatorRepository _defaultCoordinators() =>
+    FakeCoordinatorRepository(coordinators: kMockCoordinators);
+
 Future<void> _pumpDashboard(
   WidgetTester tester,
   FakeAdminBookingRepository bookings, {
   bool asAdmin = true,
+  FakeCoordinatorRepository? coordinators,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: AdminScreen(
         profileLoader: asAdmin ? _adminProfile() : _touristProfile(),
         bookingRepository: bookings,
+        coordinatorRepository: coordinators ?? _defaultCoordinators(),
       ),
     ),
   );
@@ -106,12 +117,14 @@ Future<void> _pumpList(
   WidgetTester tester,
   FakeAdminBookingRepository bookings, {
   BookingStatus? initialStatus,
+  FakeCoordinatorRepository? coordinators,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: AdminBookingListScreen(
         initialStatus: initialStatus,
         repository: bookings,
+        coordinatorRepository: coordinators ?? _defaultCoordinators(),
       ),
     ),
   );
@@ -122,12 +135,14 @@ Future<void> _pumpDetails(
   WidgetTester tester,
   FakeAdminBookingRepository bookings, {
   String? bookingId,
+  FakeCoordinatorRepository? coordinators,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: AdminBookingDetailsScreen(
         bookingId: bookingId ?? bookings.bookings.first.id,
         repository: bookings,
+        coordinatorRepository: coordinators ?? _defaultCoordinators(),
       ),
     ),
   );

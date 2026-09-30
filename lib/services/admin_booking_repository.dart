@@ -31,8 +31,9 @@ abstract class AdminBookingRepository {
 
   /// Persists the assigned travel coordinator on the booking document.
   ///
-  /// Passing `null` removes the current assignment. The choice list itself is
-  /// still demo data until the coordinator registry is migrated.
+  /// Passing `null` removes the current assignment. The coordinator itself is
+  /// stored as a snapshot, and the pickable list comes from
+  /// `CoordinatorRepository` (the Firestore `coordinators` collection).
   Future<void> assignCoordinator(
     String bookingId,
     TravelCoordinator? coordinator,

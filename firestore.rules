@@ -120,17 +120,92 @@ service cloud.firestore {
 
     // ------------------------------------------------------------
     // COORDINATORS
-    // Future admin-backed coordinator collection.
+    // coordinators/{coordinatorId}
+    // Admin-managed registry of staff that can be assigned to a booking.
     // ------------------------------------------------------------
 
     match /coordinators/{coordinatorId} {
 
-      // Signed-in tourists may eventually need coordinator details
-      // attached to their booking.
-      allow read: if isSignedIn();
+      // Admins see the whole registry, including deactivated records.
+      //
+      // Everyone else may read an ACTIVE coordinator only. A document without
+      // the `active` flag is treated as not active, so an unexpected document
+      // fails closed rather than leaking.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.active == true);
 
-      // Only admins may manage coordinator records.
-      allow create, update, delete: if isAdmin();
+      // Only admins may manage coordinator records, and a record must always
+      // carry the fields the registry depends on.
+      allow create, update: if isAdmin()
+        && request.resource.data
+          .keys()
+          .hasAll([
+            'name',
+            'phone',
+            'email',
+            'active'
+          ]);
+
+      // A coordinator is retired with `active: false`, never deleted, so
+      // booking snapshots that reference one stay meaningful.
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------
+    // PLACES
+    // places/{placeId}
+    // Admin-curated destination catalog.
+    // ------------------------------------------------------------
+
+    match /places/{placeId} {
+
+      // Admins see every place; everyone else only active ones.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.active == true);
+
+      // Only admins may curate places. Domestic/international entry-fee
+      // overrides are stored in the same document as the universal fee.
+      allow create, update: if isAdmin()
+        && request.resource.data
+          .keys()
+          .hasAll([
+            'name',
+            'location',
+            'entryFee',
+            'active'
+          ]);
+
+      // Removal is `active: false`, so itineraries referencing a place still
+      // resolve.
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------
+    // PACKAGES
+    // packages/{packageId}
+    // Admin-curated tour package catalog.
+    // ------------------------------------------------------------
+
+    match /packages/{packageId} {
+
+      // Admins see every package; everyone else only active ones.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.active == true);
+
+      // Only admins may curate packages.
+      allow create, update: if isAdmin()
+        && request.resource.data
+          .keys()
+          .hasAll([
+            'title',
+            'region',
+            'price',
+            'durationDays',
+            'active'
+          ]);
+
+      // Removal is `active: false`, so a booked package is never destroyed.
+      allow delete: if false;
     }
 
     // ------------------------------------------------------------

@@ -4,12 +4,23 @@ import '../../l10n/app_strings.dart';
 import '../../models/itinerary_booking.dart';
 import '../../models/user_profile.dart';
 import '../../services/admin_booking_repository.dart';
+import '../../services/catalog_seed_service.dart';
+import '../../services/coordinator_repository.dart';
 import '../../services/demo_profile_store.dart';
 import '../../services/firestore_admin_booking_service.dart';
+import '../../services/firestore_coordinator_service.dart';
+import '../../services/firestore_package_service.dart';
+import '../../services/firestore_place_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/package_repository.dart';
+import '../../services/place_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import 'admin_booking_list_screen.dart';
+import 'admin_content_messages.dart';
+import 'admin_coordinator_list_screen.dart';
+import 'admin_package_list_screen.dart';
+import 'admin_place_list_screen.dart';
 
 /// Shown when the admin booking collection could not be read.
 ///
@@ -26,9 +37,18 @@ const String kAdminBookingsLoadFailureMessage =
 ///
 /// Only once authorized are bookings read through [AdminBookingRepository];
 /// the dashboard counts are derived from those Firestore documents rather than
-/// from a runtime demo store. The coordinator *directory* is still demo data.
+/// from a runtime demo store. The same gate fronts the travel-catalog hub
+/// (coordinators, places and packages), which is served by the injected
+/// repositories — Firestore by default, fakes in tests.
 class AdminScreen extends StatefulWidget {
-  const AdminScreen({super.key, this.profileLoader, this.bookingRepository});
+  const AdminScreen({
+    super.key,
+    this.profileLoader,
+    this.bookingRepository,
+    this.coordinatorRepository,
+    this.placeRepository,
+    this.packageRepository,
+  });
 
   /// Overrides how the authenticated profile is resolved.
   ///
@@ -40,6 +60,15 @@ class AdminScreen extends StatefulWidget {
   ///
   /// Defaults to [FirestoreAdminBookingService]. Tests inject a fake.
   final AdminBookingRepository? bookingRepository;
+
+  /// Coordinator registry backend. Defaults to [FirestoreCoordinatorService].
+  final CoordinatorRepository? coordinatorRepository;
+
+  /// Place catalog backend. Defaults to [FirestorePlaceService].
+  final PlaceRepository? placeRepository;
+
+  /// Package catalog backend. Defaults to [FirestorePackageService].
+  final PackageRepository? packageRepository;
 
   @override
   State<AdminScreen> createState() => _AdminScreenState();
@@ -64,6 +93,21 @@ class _AdminScreenState extends State<AdminScreen> {
   /// Resolved lazily so an injected repository is never bypassed.
   late final AdminBookingRepository _repository =
       widget.bookingRepository ?? FirestoreAdminBookingService();
+
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final CoordinatorRepository _coordinatorRepository =
+      widget.coordinatorRepository ?? FirestoreCoordinatorService();
+
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final PlaceRepository _placeRepository =
+      widget.placeRepository ?? FirestorePlaceService();
+
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final PackageRepository _packageRepository =
+      widget.packageRepository ?? FirestorePackageService();
+
+  /// True while the one-off catalog migration is running.
+  bool _seeding = false;
 
   @override
   void initState() {
@@ -169,9 +213,107 @@ class _AdminScreenState extends State<AdminScreen> {
         builder: (context) => AdminBookingListScreen(
           initialStatus: status,
           repository: _repository,
+          coordinatorRepository: _coordinatorRepository,
         ),
       ),
     );
+  }
+
+  void _openCoordinators() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            AdminCoordinatorListScreen(repository: _coordinatorRepository),
+      ),
+    );
+  }
+
+  void _openPlaces() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            AdminPlaceListScreen(repository: _placeRepository),
+      ),
+    );
+  }
+
+  void _openPackages() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            AdminPackageListScreen(repository: _packageRepository),
+      ),
+    );
+  }
+
+  /// Asks before running the one-off static-catalog migration.
+  Future<void> _confirmSeed() async {
+    if (_seeding) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Migrate travel catalog?'),
+        content: const Text(
+          'This copies the bundled coordinators, places and packages into '
+          'Firestore. Records that already exist are left untouched, so it is '
+          'safe to run more than once.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Migrate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await _runSeed();
+  }
+
+  /// Runs the idempotent migration and reports what changed.
+  Future<void> _runSeed() async {
+    setState(() => _seeding = true);
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      final report = await CatalogSeedService(
+        coordinators: _coordinatorRepository,
+        places: _placeRepository,
+        packages: _packageRepository,
+      ).seedMissingCatalogs();
+
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            report.hasFailures
+                ? '${report.summary} ${report.failures.length} could not be '
+                      'migrated.'
+                : report.summary,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        const SnackBar(content: Text(kAdminCatalogMigrationFailureMessage)),
+      );
+    } finally {
+      if (mounted) setState(() => _seeding = false);
+    }
   }
 
   @override
@@ -215,60 +357,52 @@ class _AdminScreenState extends State<AdminScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final error = _bookingsError;
-
-    if (error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.screen),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              YatraEmptyState(icon: Icons.cloud_off_outlined, message: error),
-              const SizedBox(height: AppSpacing.lg),
-              YatraPrimaryButton(
-                label: 'Retry',
-                icon: Icons.refresh,
-                onPressed: () => _loadBookings(),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final bookings = _bookings;
-
-    if (bookings.isEmpty) {
-      return const YatraEmptyState(
-        icon: Icons.inbox_outlined,
-        message: 'No bookings yet',
-        hint: 'Tourist booking requests will appear here.',
-      );
-    }
-
     return RefreshIndicator(
       // Pull-to-refresh re-reads Firestore and keeps the metrics visible.
       onRefresh: () => _loadBookings(showLoader: false),
       child: _Dashboard(
         language: language,
-        bookings: bookings,
+        bookings: _bookings,
+        bookingsError: _bookingsError,
+        onRetryBookings: _loadBookings,
         onOpenList: (status) => _openList(context, status),
+        onOpenCoordinators: _openCoordinators,
+        onOpenPlaces: _openPlaces,
+        onOpenPackages: _openPackages,
+        onSeedCatalog: _confirmSeed,
+        seeding: _seeding,
       ),
     );
   }
 }
 
-/// The admin dashboard, derived entirely from the loaded Firestore bookings.
+/// The admin dashboard: Firestore booking metrics plus the travel-catalog hub.
+///
+/// The hub is always rendered for a verified admin, so content can still be
+/// curated on a project that has not received its first booking yet.
 class _Dashboard extends StatelessWidget {
   final String language;
   final List<ItineraryBooking> bookings;
+  final String? bookingsError;
+  final Future<void> Function({bool showLoader}) onRetryBookings;
   final void Function(BookingStatus? status) onOpenList;
+  final VoidCallback onOpenCoordinators;
+  final VoidCallback onOpenPlaces;
+  final VoidCallback onOpenPackages;
+  final VoidCallback onSeedCatalog;
+  final bool seeding;
 
   const _Dashboard({
     required this.language,
     required this.bookings,
+    required this.bookingsError,
+    required this.onRetryBookings,
     required this.onOpenList,
+    required this.onOpenCoordinators,
+    required this.onOpenPlaces,
+    required this.onOpenPackages,
+    required this.onSeedCatalog,
+    required this.seeding,
   });
 
   @override
@@ -281,13 +415,13 @@ class _Dashboard extends StatelessWidget {
         .where((booking) => booking.status == BookingStatus.confirmed)
         .length;
     final travellers = bookings.fold<int>(0, (sum, b) => sum + b.groupSize);
+    final error = bookingsError;
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.screen),
       children: [
         Text(
-          'Live booking requests from Firestore. The coordinator directory is '
-          'still demo data until the staff registry is migrated.',
+          'Live booking requests from Firestore.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: AppSpacing.xl),
@@ -295,53 +429,114 @@ class _Dashboard extends StatelessWidget {
         YatraSectionTitle(title: AppStrings.tr(language, 'admin.dashboard')),
         const SizedBox(height: AppSpacing.md),
 
-        GridView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: AppSpacing.md,
-            crossAxisSpacing: AppSpacing.md,
-            childAspectRatio: 1.4,
+        if (error != null)
+          YatraCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                YatraEmptyState(icon: Icons.cloud_off_outlined, message: error),
+                const SizedBox(height: AppSpacing.md),
+                YatraSecondaryButton(
+                  label: 'Retry',
+                  icon: Icons.refresh,
+                  onPressed: onRetryBookings,
+                ),
+              ],
+            ),
+          )
+        else if (bookings.isEmpty)
+          const YatraEmptyState(
+            icon: Icons.inbox_outlined,
+            message: 'No bookings yet',
+            hint: 'Tourist booking requests will appear here.',
+          )
+        else ...[
+          GridView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: AppSpacing.md,
+              crossAxisSpacing: AppSpacing.md,
+              childAspectRatio: 1.4,
+            ),
+            children: [
+              _MetricCard(
+                label: 'Pending Bookings',
+                value: '$pending',
+                icon: Icons.pending_actions,
+                color: AppColors.warning,
+                onTap: () => onOpenList(BookingStatus.pending),
+              ),
+              _MetricCard(
+                label: 'Confirmed Bookings',
+                value: '$confirmed',
+                icon: Icons.verified_outlined,
+                color: AppColors.success,
+                onTap: () => onOpenList(BookingStatus.confirmed),
+              ),
+              _MetricCard(
+                label: 'Total Bookings',
+                value: '$total',
+                icon: Icons.event_note_outlined,
+                color: AppColors.primary,
+                onTap: () => onOpenList(null),
+              ),
+              _MetricCard(
+                label: 'Travelers in Bookings',
+                value: '$travellers',
+                icon: Icons.people_outline,
+                color: AppColors.accent,
+                onTap: () => onOpenList(null),
+              ),
+            ],
           ),
-          children: [
-            _MetricCard(
-              label: 'Pending Bookings',
-              value: '$pending',
-              icon: Icons.pending_actions,
-              color: AppColors.warning,
-              onTap: () => onOpenList(BookingStatus.pending),
-            ),
-            _MetricCard(
-              label: 'Confirmed Bookings',
-              value: '$confirmed',
-              icon: Icons.verified_outlined,
-              color: AppColors.success,
-              onTap: () => onOpenList(BookingStatus.confirmed),
-            ),
-            _MetricCard(
-              label: 'Total Bookings',
-              value: '$total',
-              icon: Icons.event_note_outlined,
-              color: AppColors.primary,
-              onTap: () => onOpenList(null),
-            ),
-            _MetricCard(
-              label: 'Travelers in Bookings',
-              value: '$travellers',
-              icon: Icons.people_outline,
-              color: AppColors.accent,
-              onTap: () => onOpenList(null),
-            ),
-          ],
-        ),
+          const SizedBox(height: AppSpacing.md),
+          YatraPrimaryButton(
+            label: AppStrings.tr(language, 'admin.bookings'),
+            icon: Icons.list_alt_outlined,
+            onPressed: () => onOpenList(null),
+          ),
+        ],
 
         const SizedBox(height: AppSpacing.xl),
 
-        YatraPrimaryButton(
-          label: AppStrings.tr(language, 'admin.bookings'),
-          icon: Icons.list_alt_outlined,
-          onPressed: () => onOpenList(null),
+        YatraSectionTitle(
+          title: 'Travel catalog',
+          subtitle: 'Manage the content the app shows travellers.',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _ContentHubCard(
+          icon: Icons.support_agent,
+          label: 'Coordinators',
+          description: 'Staff available for booking assignments',
+          onTap: onOpenCoordinators,
+        ),
+        _ContentHubCard(
+          icon: Icons.place_outlined,
+          label: 'Places',
+          description: 'Destinations, entry fees and details',
+          onTap: onOpenPlaces,
+        ),
+        _ContentHubCard(
+          icon: Icons.luggage_outlined,
+          label: 'Packages',
+          description: 'Tour packages, prices and itineraries',
+          onTap: onOpenPackages,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        YatraSecondaryButton(
+          label: 'Migrate bundled catalog',
+          icon: Icons.download_done,
+          onPressed: seeding ? null : onSeedCatalog,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          seeding
+              ? 'Migrating…'
+              : 'One-off: copies the bundled records into Firestore, keeping '
+                    'anything you have already edited.',
+          style: AppType.caption,
         ),
       ],
     );
@@ -389,6 +584,51 @@ class _AccessNotice extends StatelessWidget {
               icon: actionIcon,
               onPressed: onAction,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One entry in the travel-catalog hub.
+class _ContentHubCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String description;
+  final VoidCallback onTap;
+
+  const _ContentHubCard({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: YatraCard(
+        onTap: onTap,
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: AppType.bodyEmphasis),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    description,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
           ],
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:yatra/data/mock_coordinators.dart';
 import 'package:yatra/models/itinerary_booking.dart';
 import 'package:yatra/models/travel_route_model.dart';
 import 'package:yatra/models/user_profile.dart';
@@ -14,6 +15,7 @@ import 'package:yatra/services/recommendation_service.dart';
 
 import 'support/fake_admin_booking_repository.dart';
 import 'support/fake_booking_repository.dart';
+import 'support/fake_coordinator_repository.dart';
 
 const _route = TravelRoute(
   boardingPoint: 'Kathmandu',
@@ -176,6 +178,10 @@ void main() {
         home: AdminBookingDetailsScreen(
           bookingId: booking.id,
           repository: repository,
+          // The picker reads the coordinator registry, not a bundled list.
+          coordinatorRepository: FakeCoordinatorRepository(
+            coordinators: kMockCoordinators,
+          ),
         ),
       ),
     );
@@ -191,7 +197,7 @@ void main() {
     await tester.tap(find.text('Assign Coordinator'));
     await tester.pumpAndSettle();
 
-    // The sheet lists the demo coordinators.
+    // The sheet lists the registry's active coordinators.
     expect(find.text('Sushmita Gurung'), findsOneWidget);
     expect(find.text('Bikash Thapa'), findsOneWidget);
 
@@ -219,6 +225,9 @@ void main() {
         home: AdminBookingDetailsScreen(
           bookingId: booking.id,
           repository: repository,
+          coordinatorRepository: FakeCoordinatorRepository(
+            coordinators: kMockCoordinators,
+          ),
         ),
       ),
     );

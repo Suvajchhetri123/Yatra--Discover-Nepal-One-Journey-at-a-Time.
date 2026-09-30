@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../data/mock_coordinators.dart';
 import '../../models/itinerary_booking.dart';
 import '../../models/travel_coordinator.dart';
 import '../../services/admin_booking_repository.dart';
+import '../../services/coordinator_repository.dart';
 import '../../services/firestore_admin_booking_service.dart';
+import '../../services/firestore_coordinator_service.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/booking_status_chip.dart';
@@ -21,13 +22,18 @@ const String kAdminBookingDetailFailureMessage =
 const String kAdminBookingActionFailureMessage =
     'Could not update this booking. Please try again.';
 
+/// Shown when the assignable coordinator list cannot be read.
+const String kAdminCoordinatorListFailureMessage =
+    'Could not load coordinators. Please try again.';
+
 /// Admin view of a single booking: full trip details plus the two admin
 /// actions — assign a coordinator and change the booking status.
 ///
 /// Both actions are persisted to the booking document through
 /// [AdminBookingRepository] and the booking is re-read afterwards, so the
-/// screen only ever displays what the backend actually stored. The coordinator
-/// *directory* is still the demo list.
+/// screen only ever displays what the backend actually stored. The picker
+/// offers the *active* coordinators from [CoordinatorRepository] (Firestore by
+/// default); the assignment itself is still stored as a snapshot on the booking.
 class AdminBookingDetailsScreen extends StatefulWidget {
   final String bookingId;
 
@@ -36,10 +42,16 @@ class AdminBookingDetailsScreen extends StatefulWidget {
   /// Defaults to [FirestoreAdminBookingService]. Tests inject a fake.
   final AdminBookingRepository? repository;
 
+  /// Source of the assignable coordinator list.
+  ///
+  /// Defaults to [FirestoreCoordinatorService]. Tests inject a fake.
+  final CoordinatorRepository? coordinatorRepository;
+
   const AdminBookingDetailsScreen({
     super.key,
     required this.bookingId,
     this.repository,
+    this.coordinatorRepository,
   });
 
   @override
@@ -67,6 +79,10 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
   /// Resolved lazily so an injected repository is never bypassed.
   late final AdminBookingRepository _repository =
       widget.repository ?? FirestoreAdminBookingService();
+
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final CoordinatorRepository _coordinatorRepository =
+      widget.coordinatorRepository ?? FirestoreCoordinatorService();
 
   @override
   void initState() {
@@ -159,9 +175,9 @@ class _AdminBookingDetailsScreenState extends State<AdminBookingDetailsScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => _CoordinatorPicker(
+      builder: (sheetContext) => _CoordinatorPickerSheet(
         current: booking.assignedCoordinator,
-        coordinators: kMockCoordinators,
+        coordinators: _coordinatorRepository,
       ),
     );
 
@@ -444,17 +460,75 @@ class _CoordinatorAction {
   static const _remove = _CoordinatorAction._(null);
 }
 
-/// Bottom sheet listing mock coordinators (plus "Remove coordinator").
-class _CoordinatorPicker extends StatelessWidget {
+/// Bottom sheet listing the active coordinators (plus "Remove coordinator").
+///
+/// Only active records are offered, so a deactivated coordinator can never be
+/// assigned to a new booking. The currently assigned coordinator is always
+/// mentioned, even when it has since been deactivated, because removing it is
+/// still a valid action.
+class _CoordinatorPickerSheet extends StatefulWidget {
   final TravelCoordinator? current;
-  final List<TravelCoordinator> coordinators;
+  final CoordinatorRepository coordinators;
 
-  const _CoordinatorPicker({required this.current, required this.coordinators});
+  const _CoordinatorPickerSheet({
+    required this.current,
+    required this.coordinators,
+  });
+
+  @override
+  State<_CoordinatorPickerSheet> createState() =>
+      _CoordinatorPickerSheetState();
+}
+
+class _CoordinatorPickerSheetState extends State<_CoordinatorPickerSheet> {
+  List<TravelCoordinator> _coordinators = <TravelCoordinator>[];
+
+  bool _loading = true;
+
+  String? _error;
+
+  /// Guards against a stale read overwriting a newer one.
+  int _loadToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _error = null);
+
+    final token = ++_loadToken;
+
+    try {
+      // includeInactive stays false: only active coordinators are assignable.
+      final coordinators = await widget.coordinators.getCoordinators();
+
+      if (!mounted || token != _loadToken) return;
+
+      setState(() {
+        _coordinators = List<TravelCoordinator>.of(coordinators);
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted || token != _loadToken) return;
+
+      setState(() {
+        _error = kAdminCoordinatorListFailureMessage;
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
+    final current = widget.current;
+    final currentIsListed =
+        current == null ||
+        _coordinators.any((coordinator) => coordinator.id == current.id);
 
     return SafeArea(
       child: Padding(
@@ -466,9 +540,8 @@ class _CoordinatorPicker extends StatelessWidget {
             Text('Assign Coordinator', style: textTheme.headlineSmall),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Choose who will look after this booking. The choice is saved to '
-              'the booking, but the coordinator list is still demo data until '
-              'the staff registry is migrated.',
+              'Choose who will look after this booking. Only active '
+              'coordinators can be assigned.',
               style: textTheme.bodySmall,
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -479,17 +552,68 @@ class _CoordinatorPicker extends StatelessWidget {
                 title: const Text('Remove coordinator'),
                 onTap: () => Navigator.pop(context, _CoordinatorAction._remove),
               ),
-            for (final coordinator in coordinators)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.support_agent, color: scheme.primary),
-                title: Text(coordinator.name),
-                subtitle: Text('${coordinator.phone}\n${coordinator.email}'),
-                trailing: current?.id == coordinator.id
-                    ? const Icon(Icons.check_circle, color: AppColors.success)
-                    : null,
-                onTap: () =>
-                    Navigator.pop(context, _CoordinatorAction._(coordinator)),
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else if (_error != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  YatraEmptyState(
+                    icon: Icons.cloud_off_outlined,
+                    message: _error!,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  YatraSecondaryButton(
+                    label: 'Retry',
+                    icon: Icons.refresh,
+                    onPressed: _load,
+                  ),
+                ],
+              )
+            else if (_coordinators.isEmpty)
+              const YatraEmptyState(
+                icon: Icons.support_agent_outlined,
+                message: 'No active coordinators',
+                hint: 'Add one in the admin coordinator registry first.',
+              )
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final coordinator in _coordinators)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.support_agent,
+                          color: scheme.primary,
+                        ),
+                        title: Text(coordinator.name),
+                        subtitle: Text(
+                          '${coordinator.phone}\n${coordinator.email}',
+                        ),
+                        trailing: current?.id == coordinator.id
+                            ? const Icon(
+                                Icons.check_circle,
+                                color: AppColors.success,
+                              )
+                            : null,
+                        onTap: () => Navigator.pop(
+                          context,
+                          _CoordinatorAction._(coordinator),
+                        ),
+                      ),
+                    if (current != null && !currentIsListed)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.person_off_outlined),
+                        title: Text(current.name),
+                        subtitle: const Text(
+                          'Currently assigned, but no longer active',
+                        ),
+                      ),
+                  ],
+                ),
               ),
             const SizedBox(height: AppSpacing.lg),
             YatraSecondaryButton(
