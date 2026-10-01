@@ -57,9 +57,7 @@ class SessionManager {
     if (navigator == null) return;
 
     navigator.pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => const LoginScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );
   }

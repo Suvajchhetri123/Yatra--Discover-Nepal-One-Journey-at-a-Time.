@@ -29,10 +29,7 @@ class SeasonService {
       season = 'Winter';
     }
 
-    return _analyzeDestination(
-      destination: destination,
-      season: season,
-    );
+    return _analyzeDestination(destination: destination, season: season);
   }
 
   static SeasonResult _analyzeDestination({
@@ -96,8 +93,7 @@ class SeasonService {
         return SeasonResult(
           season: season,
           suitability: 'Suitable',
-          message:
-              '$season can be a suitable period for visiting Chitwan.',
+          message: '$season can be a suitable period for visiting Chitwan.',
         );
 
       case 'Everest':

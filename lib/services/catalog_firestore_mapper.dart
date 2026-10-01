@@ -87,9 +87,28 @@ class CatalogFirestoreMapper {
     return BookingFirestoreMapper.placeToMap(place);
   }
 
+  /// Catalog-only photo fields.
+  ///
+  /// Two keys are written on purpose:
+  ///
+  ///   - `imageUrls` is the source of truth for admin-managed photos;
+  ///   - `imageUrl` keeps the resolved cover (first photo, else the legacy URL)
+  ///     so an older reader still finds an image.
+  ///
+  /// Writing the cover on every save is what stops an edit to a seeded place
+  /// from dropping its legacy image: the legacy URL is copied forward instead
+  /// of being cleared.
+  static Map<String, dynamic> placePhotoFieldsToMap(Place place) {
+    return {
+      'imageUrls': List<String>.of(place.imageUrls),
+      'imageUrl': place.imageUrl,
+    };
+  }
+
   static Map<String, dynamic> placeDocumentToMap(Place place) {
     return {
       ...placeFieldsToMap(place),
+      ...placePhotoFieldsToMap(place),
       'active': place.active,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -100,6 +119,7 @@ class CatalogFirestoreMapper {
   static Map<String, dynamic> placeUpdateToMap(Place place) {
     return {
       ...placeFieldsToMap(place),
+      ...placePhotoFieldsToMap(place),
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -108,11 +128,14 @@ class CatalogFirestoreMapper {
     required String documentId,
     required Map<String, dynamic> data,
   }) {
+    // The snapshot decoder understands the legacy `imageUrl` field only; the
+    // photo list is layered on top here.
     final place = BookingFirestoreMapper.placeFromMap(data);
     final pricing = place.touristEntryFee;
 
     return place.copyWith(
       id: documentId,
+      imageUrls: _strings(data['imageUrls']),
       active: _bool(data['active']) ?? true,
       // An override object with no usable number is the same as no override.
       clearTouristEntryFee:

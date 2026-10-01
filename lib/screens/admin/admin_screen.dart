@@ -1,9 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_strings.dart';
 import '../../models/itinerary_booking.dart';
+import '../../navigation/app_entry_navigation.dart';
 import '../../models/user_profile.dart';
 import '../../services/admin_booking_repository.dart';
+import '../../services/admin_user_actions.dart';
+import '../../services/admin_user_repository.dart';
+import '../../services/app_entry.dart';
+import '../../services/auth_service.dart';
 import '../../services/catalog_seed_service.dart';
 import '../../services/coordinator_repository.dart';
 import '../../services/demo_profile_store.dart';
@@ -12,7 +19,9 @@ import '../../services/firestore_coordinator_service.dart';
 import '../../services/firestore_package_service.dart';
 import '../../services/firestore_place_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/functions_admin_user_actions.dart';
 import '../../services/package_repository.dart';
+import '../../services/preview_mode.dart';
 import '../../services/place_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
@@ -21,6 +30,9 @@ import 'admin_content_messages.dart';
 import 'admin_coordinator_list_screen.dart';
 import 'admin_package_list_screen.dart';
 import 'admin_place_list_screen.dart';
+import 'admin_preview_host.dart';
+import 'admin_settings_screen.dart';
+import 'admin_user_list_screen.dart';
 
 /// Shown when the admin booking collection could not be read.
 ///
@@ -48,6 +60,9 @@ class AdminScreen extends StatefulWidget {
     this.coordinatorRepository,
     this.placeRepository,
     this.packageRepository,
+    this.userRepository,
+    this.userActions,
+    this.onSignOut,
   });
 
   /// Overrides how the authenticated profile is resolved.
@@ -70,6 +85,20 @@ class AdminScreen extends StatefulWidget {
   /// Package catalog backend. Defaults to [FirestorePackageService].
   final PackageRepository? packageRepository;
 
+  /// User registry backend for the account-management area.
+  ///
+  /// Defaults to [FirestoreAdminUserRepository]. Tests inject a fake.
+  final AdminUserRepository? userRepository;
+
+  /// Privileged account operations, backed by callable Cloud Functions.
+  ///
+  /// Defaults to [FunctionsAdminUserActions]. Tests inject a fake.
+  final AdminUserActions? userActions;
+
+  /// Overrides signing out. Production leaves this null so [AuthService] is
+  /// used; tests inject a callback to assert the admin root offers the action.
+  final Future<void> Function()? onSignOut;
+
   @override
   State<AdminScreen> createState() => _AdminScreenState();
 }
@@ -78,6 +107,9 @@ class _AdminScreenState extends State<AdminScreen> {
   bool _verifying = true;
   bool _authorized = false;
   bool _verificationFailed = false;
+
+  /// The verified admin, kept for the settings and user-management screens.
+  UserProfile? _profile;
 
   List<ItineraryBooking> _bookings = <ItineraryBooking>[];
 
@@ -106,13 +138,31 @@ class _AdminScreenState extends State<AdminScreen> {
   late final PackageRepository _packageRepository =
       widget.packageRepository ?? FirestorePackageService();
 
+  /// Resolved lazily so an injected repository is never bypassed.
+  late final AdminUserRepository _userRepository =
+      widget.userRepository ?? FirestoreAdminUserRepository();
+
+  /// Resolved lazily so an injected fake is never bypassed.
+  late final AdminUserActions _userActions =
+      widget.userActions ?? FunctionsAdminUserActions();
+
   /// True while the one-off catalog migration is running.
   bool _seeding = false;
+
+  /// Owned by the admin root so entering preview from the dashboard and leaving
+  /// it again always agree on the same flag.
+  final PreviewModeController _previewController = PreviewModeController();
 
   @override
   void initState() {
     super.initState();
     _verifyAccess();
+  }
+
+  @override
+  void dispose() {
+    _previewController.dispose();
+    super.dispose();
   }
 
   /// Re-checks the stored role. Safe to call again to retry a failed lookup.
@@ -133,6 +183,7 @@ class _AdminScreenState extends State<AdminScreen> {
 
       setState(() {
         _authorized = authorized;
+        _profile = authorized ? profile : null;
         _verifying = false;
       });
 
@@ -249,6 +300,73 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  /// Opens the account-management area.
+  void _openUsers() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdminUserListScreen(
+          repository: _userRepository,
+          actions: _userActions,
+          currentUid: _profile?.uid,
+        ),
+      ),
+    );
+  }
+
+  /// Opens settings for the signed-in administrator.
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdminSettingsScreen(
+          // The profile was already verified by _verifyAccess, so it is reused
+          // rather than read a second time.
+          profile: _profile == null
+              ? null
+              : AdminUserSummary.fromProfile(_profile!),
+          onOpenUserManagement: _openUsers,
+          onOpenPreview: _openPreview,
+          onSignOut: _signOut,
+        ),
+      ),
+    );
+  }
+
+  /// Opens the tourist app inside the admin shell.
+  ///
+  /// The preview keeps the administrator's session, so the admin can inspect the
+  /// traveller experience and leave again without signing out.
+  void _openPreview() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdminPreviewHost(controller: _previewController),
+      ),
+    );
+  }
+
+  /// Signs the administrator out and returns to the login screen.
+  Future<void> _signOut() async {
+    final signOut = widget.onSignOut;
+
+    if (signOut != null) {
+      await signOut();
+
+      if (mounted) {
+        unawaited(AppEntryNavigation.goToAppEntry(context, AppEntry.signedOut));
+      }
+
+      return;
+    }
+
+    await AuthService().signOut();
+
+    if (!mounted) return;
+
+    unawaited(AppEntryNavigation.goToAppEntry(context, AppEntry.signedOut));
+  }
+
   /// Asks before running the one-off static-catalog migration.
   Future<void> _confirmSeed() async {
     if (_seeding) return;
@@ -321,7 +439,18 @@ class _AdminScreenState extends State<AdminScreen> {
     final language = DemoProfileStore.instance.language;
 
     return Scaffold(
-      appBar: AppBar(title: Text(AppStrings.tr(language, 'admin.title'))),
+      appBar: AppBar(
+        title: Text(AppStrings.tr(language, 'admin.title')),
+        actions: [
+          // Settings is reachable from the app bar so an admin is never trapped
+          // on the dashboard, and signing out does not require the tourist app.
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: _authorized ? _openSettings : null,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: _verifying
             ? const Center(child: CircularProgressIndicator())
@@ -371,6 +500,10 @@ class _AdminScreenState extends State<AdminScreen> {
         onOpenPackages: _openPackages,
         onSeedCatalog: _confirmSeed,
         seeding: _seeding,
+        onOpenUsers: _openUsers,
+        onOpenSettings: _openSettings,
+        onOpenPreview: _openPreview,
+        onSignOut: _signOut,
       ),
     );
   }
@@ -391,6 +524,10 @@ class _Dashboard extends StatelessWidget {
   final VoidCallback onOpenPackages;
   final VoidCallback onSeedCatalog;
   final bool seeding;
+  final VoidCallback onOpenUsers;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onOpenPreview;
+  final VoidCallback onSignOut;
 
   const _Dashboard({
     required this.language,
@@ -403,6 +540,10 @@ class _Dashboard extends StatelessWidget {
     required this.onOpenPackages,
     required this.onSeedCatalog,
     required this.seeding,
+    required this.onOpenUsers,
+    required this.onOpenSettings,
+    required this.onOpenPreview,
+    required this.onSignOut,
   });
 
   @override
@@ -524,6 +665,40 @@ class _Dashboard extends StatelessWidget {
           description: 'Tour packages, prices and itineraries',
           onTap: onOpenPackages,
         ),
+        const SizedBox(height: AppSpacing.xl),
+
+        YatraSectionTitle(
+          title: 'People and access',
+          subtitle: 'Your account, Yatra administrators and the tourist app.',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _ContentHubCard(
+          icon: Icons.group_outlined,
+          label: 'Users',
+          description: 'Grant and revoke administrator access from Yatra',
+          onTap: onOpenUsers,
+        ),
+        _ContentHubCard(
+          icon: Icons.settings_outlined,
+          label: 'Settings',
+          description: 'Your administrator account and sign out',
+          onTap: onOpenSettings,
+        ),
+        _ContentHubCard(
+          icon: Icons.visibility_outlined,
+          label: 'Preview tourist app',
+          description: 'See Yatra exactly as a traveller does',
+          onTap: onOpenPreview,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        YatraSecondaryButton(
+          label: 'Sign out',
+          icon: Icons.logout,
+          onPressed: onSignOut,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+
+        YatraSectionTitle(title: 'Setup'),
         const SizedBox(height: AppSpacing.md),
         YatraSecondaryButton(
           label: 'Migrate bundled catalog',

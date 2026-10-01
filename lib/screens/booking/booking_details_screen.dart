@@ -6,6 +6,7 @@ import '../../models/itinerary_booking.dart';
 import '../../models/travel_coordinator.dart';
 import '../../models/travel_route_model.dart';
 import '../../services/booking_repository.dart';
+import '../../services/preview_mode.dart';
 import '../../services/demo_profile_store.dart';
 import '../../services/firestore_booking_service.dart';
 import '../../services/google_maps_launcher.dart';
@@ -137,6 +138,9 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
   }
 
   Future<void> _confirmCancel() async {
+    // Cancelling is a write to a real booking, so it is blocked in preview just
+    // like booking submission is.
+    if (PreviewModeScope.guard(context)) return;
     final booking = _booking;
 
     if (booking == null) return;

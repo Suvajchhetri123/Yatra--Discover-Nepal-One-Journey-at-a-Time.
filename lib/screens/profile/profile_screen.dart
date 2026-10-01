@@ -7,6 +7,7 @@ import '../../services/auth_service.dart';
 import '../../services/demo_booking_store.dart';
 import '../../services/demo_profile_store.dart';
 import '../../services/firestore_service.dart';
+import '../../services/preview_mode.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/sos_action.dart';
 import '../../widgets/yatra_components.dart';
@@ -134,6 +135,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _editProfile() async {
+    // Editing the profile is a write to real user data, so it is blocked while
+    // an administrator is previewing the tourist app.
+    if (PreviewModeScope.guard(context)) return;
+
     final demo = DemoProfileStore.instance;
 
     final currentName = _profile?.name.isNotEmpty == true
@@ -191,6 +196,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _editEmergencyContact() async {
+    if (PreviewModeScope.guard(context)) return;
+
     final demo = DemoProfileStore.instance;
 
     final result = await _showTextFields(
@@ -579,8 +586,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   // Only accounts whose Firestore role is exactly 'admin' see
-                  // this entry. Tourists get no admin affordance at all.
-                  if (_profile?.isAdmin ?? false)
+                  // this entry. Tourists get no admin affordance at all, and
+                  // the entry is hidden during preview because the admin is
+                  // already inside the admin app.
+                  if ((_profile?.isAdmin ?? false) &&
+                      !PreviewModeScope.isActive(context))
                     _menuRow(
                       icon: Icons.admin_panel_settings_outlined,
                       label: 'Admin',

@@ -61,21 +61,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   void _startCountdown() {
     _countdown?.cancel();
     _secondsRemaining = _resendSeconds;
-    _countdown = Timer.periodic(
-      const Duration(seconds: 1),
-      (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        if (_secondsRemaining <= 1) {
-          timer.cancel();
-          setState(() => _secondsRemaining = 0);
-        } else {
-          setState(() => _secondsRemaining -= 1);
-        }
-      },
-    );
+    _countdown = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_secondsRemaining <= 1) {
+        timer.cancel();
+        setState(() => _secondsRemaining = 0);
+      } else {
+        setState(() => _secondsRemaining -= 1);
+      }
+    });
   }
 
   void _cancelCountdown() => _countdown?.cancel();
@@ -86,12 +83,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   String get _maskedPhone {
     final digits = widget.phoneNumber.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return widget.phoneNumber;
-    final shown = digits.length > 4 ? digits.substring(digits.length - 4) : digits;
+    final shown = digits.length > 4
+        ? digits.substring(digits.length - 4)
+        : digits;
     final masked = '*' * (digits.length - shown.length);
     return '${widget.countryCode} $masked$shown';
   }
 
-  bool get _canSubmit => _code.length == YatraOtpInput.length && !_verifyLoading;
+  bool get _canSubmit =>
+      _code.length == YatraOtpInput.length && !_verifyLoading;
 
   Future<void> _verify() async {
     if (!_canSubmit) return;
@@ -105,10 +105,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     try {
       // Firebase not connected yet: throws UnsupportedError. Replace inside
       // AuthService with a Firebase credential sign-in.
-      await _auth.verifyPhoneCode(
-        verificationId: _verificationId,
-        code: _code,
-      );
+      await _auth.verifyPhoneCode(verificationId: _verificationId, code: _code);
 
       // On success (once Firebase is wired) this is where we navigate to Home.
     } on UnsupportedError {
@@ -233,7 +230,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           padding: const EdgeInsets.only(left: AppSpacing.xs),
                           child: Text(
                             '00:${_secondsRemaining.toString().padLeft(2, '0')}',
-                            style: AppType.label.copyWith(color: scheme.primary),
+                            style: AppType.label.copyWith(
+                              color: scheme.primary,
+                            ),
                           ),
                         )
                       else

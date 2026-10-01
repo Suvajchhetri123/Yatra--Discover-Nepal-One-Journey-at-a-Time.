@@ -277,6 +277,18 @@ class BookingFirestoreMapper {
   // PLACE SNAPSHOT
   // ============================================================
 
+  /// Encodes a place for a **booking snapshot**.
+  ///
+  /// A snapshot is a historical record of what the tourist saw when the
+  /// booking was made, so it deliberately keeps a *single* `imageUrl` and never
+  /// stores the catalog's `imageUrls` list. That boundary is intentional:
+  ///
+  ///   - historical booking documents stay readable exactly as they are;
+  ///   - changing a place's photos later never rewrites booking history;
+  ///   - the snapshot does not become dependent on the admin photo feature.
+  ///
+  /// The value written is [Place.imageUrl], the cover photo (or the legacy URL
+  /// when the place has no uploaded photo).
   static Map<String, dynamic> placeToMap(Place place) {
     return {
       'name': place.name,
@@ -294,6 +306,11 @@ class BookingFirestoreMapper {
     };
   }
 
+  /// Decodes a place from a **booking snapshot** document.
+  ///
+  /// Only the legacy single `imageUrl` field is read, because that is all a
+  /// snapshot has ever contained. `imageUrls` is intentionally ignored here so
+  /// booking history cannot start depending on the admin photo model.
   static Place placeFromMap(Map<String, dynamic> data) {
     final pricing = data['touristEntryFee'];
 

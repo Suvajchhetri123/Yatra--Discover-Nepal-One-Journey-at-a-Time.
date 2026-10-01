@@ -8,11 +8,28 @@ import 'package:yatra/screens/admin/admin_package_form_screen.dart';
 import 'package:yatra/screens/admin/admin_package_list_screen.dart';
 import 'package:yatra/screens/admin/admin_place_form_screen.dart';
 import 'package:yatra/screens/admin/admin_place_list_screen.dart';
+import 'package:yatra/services/place_photo_service.dart';
 
 import 'support/fake_package_repository.dart';
+import 'support/fake_place_image_picker.dart';
+import 'support/fake_place_image_storage.dart';
 import 'support/fake_place_repository.dart';
 
 const _muktinath = Place(
+  id: 'mustang-muktinath',
+  name: 'Muktinath',
+  location: 'Mustang',
+  description: 'Ridge-top temple',
+  imageUrl: 'https://example.test/muktinath.jpg',
+  entryFee: 1000,
+  openingHours: '6:00 AM - 6:00 PM',
+  transportation: '3h drive from Pokhara',
+  travelTrip: 'Pokhara - Muktinath',
+  recommendedHours: 4,
+);
+
+/// A seeded place that predates photo support: it has only the legacy URL.
+const _muktinathWithLegacyImage = Place(
   id: 'mustang-muktinath',
   name: 'Muktinath',
   location: 'Mustang',
@@ -95,6 +112,15 @@ Future<void> _pumpPlaceList(
   await tester.pumpAndSettle();
 }
 
+/// The photo collaborators a form test needs, so no CMS widget test ever
+/// reaches for a real picker or a real bucket.
+final _picker = FakePlaceImagePicker();
+final _storage = FakePlaceImageStorage();
+
+PlacePhotoService _photoService(FakePlaceRepository repository) {
+  return PlacePhotoService(repository: repository, storage: _storage);
+}
+
 Future<void> _pumpPlaceForm(
   WidgetTester tester,
   FakePlaceRepository repository, {
@@ -102,7 +128,12 @@ Future<void> _pumpPlaceForm(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: AdminPlaceFormScreen(place: place, repository: repository),
+      home: AdminPlaceFormScreen(
+        place: place,
+        repository: repository,
+        photoService: _photoService(repository),
+        picker: _picker,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -262,7 +293,7 @@ void main() {
       await _pumpPlaceForm(tester, repository);
       await tester.enterText(find.byType(TextField).at(0), 'Muktinath');
       await tester.enterText(find.byType(TextField).at(1), 'Mustang');
-      await tester.enterText(find.byType(TextField).at(4), 'free');
+      await tester.enterText(find.byType(TextField).at(3), 'free');
       await _scrollTo(tester, find.widgetWithText(ElevatedButton, 'Add place'));
       await tester.tap(find.widgetWithText(ElevatedButton, 'Add place'));
       await tester.pumpAndSettle();
@@ -275,46 +306,209 @@ void main() {
       expect(find.text('Enter a valid number of 0 or more.'), findsOneWidget);
     });
 
-    testWidgets('rejects an image value that is not a full URL', (
-      tester,
-    ) async {
-      final repository = FakePlaceRepository();
-
-      await _pumpPlaceForm(tester, repository);
-      await tester.enterText(find.byType(TextField).at(0), 'Muktinath');
-      await tester.enterText(find.byType(TextField).at(1), 'Mustang');
-      await tester.enterText(
-        find.byType(TextField).at(3),
-        'assets/muktinath.png',
-      );
-      await tester.enterText(find.byType(TextField).at(4), '1000');
-      await _scrollTo(tester, find.widgetWithText(ElevatedButton, 'Add place'));
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Add place'));
-      await tester.pumpAndSettle();
-
-      expect(repository.createCalls, 0);
-      await _scrollTo(tester, find.widgetWithText(TextField, 'Image URL'));
-      expect(find.text('Use a full http:// or https:// link.'), findsOneWidget);
-    });
-
-    testWidgets('an empty image URL is allowed', (tester) async {
+    testWidgets('a place can be saved with no photos at all', (tester) async {
       final repository = FakePlaceRepository();
 
       await _pumpPlaceForm(tester, repository);
       await tester.enterText(find.byType(TextField).at(0), 'Phewa Lake');
       await tester.enterText(find.byType(TextField).at(1), 'Pokhara');
-      await tester.enterText(find.byType(TextField).at(4), '0');
+      await tester.enterText(find.byType(TextField).at(3), '0');
       await _scrollTo(tester, find.widgetWithText(ElevatedButton, 'Add place'));
       await tester.tap(find.widgetWithText(ElevatedButton, 'Add place'));
       await tester.pumpAndSettle();
 
       expect(repository.createCalls, 1);
+      expect(repository.places.single.imageUrls, isEmpty);
       expect(repository.places.single.imageUrl, isEmpty);
       expect(repository.places.single.entryFee, 0);
       expect(
         repository.places.single.id,
         Place.slugFor('Pokhara', 'Phewa Lake'),
       );
+    });
+
+    testWidgets('there is no raw image URL field', (tester) async {
+      final repository = FakePlaceRepository();
+
+      await _pumpPlaceForm(tester, repository);
+
+      expect(find.widgetWithText(TextField, 'Image URL'), findsNothing);
+      expect(find.text('Photos'), findsOneWidget);
+    });
+
+    testWidgets('a chosen photo is previewed and uploaded on save', (
+      tester,
+    ) async {
+      final repository = FakePlaceRepository();
+      final picker = FakePlaceImagePicker();
+      final storage = FakePlaceImageStorage();
+
+      picker.enqueueSample();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminPlaceFormScreen(
+            repository: repository,
+            photoService: PlacePhotoService(
+              repository: repository,
+              storage: storage,
+            ),
+            picker: picker,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).at(0), 'Phewa Lake');
+      await tester.enterText(find.byType(TextField).at(1), 'Pokhara');
+      await tester.enterText(find.byType(TextField).at(3), '0');
+
+      await _scrollTo(tester, find.text('Add photo'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Add photo'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(Image),
+        findsOneWidget,
+        reason: 'the admin sees the photo before it is uploaded',
+      );
+
+      await _scrollTo(tester, find.widgetWithText(ElevatedButton, 'Add place'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Add place'));
+      await tester.pumpAndSettle();
+
+      expect(storage.uploadedPaths.single, startsWith('places/'));
+      expect(repository.places.single.imageUrls, hasLength(1));
+      expect(repository.places.single.imageUrl, isNotEmpty);
+    });
+
+    testWidgets('a fifth photo is the limit', (tester) async {
+      final repository = FakePlaceRepository();
+      final picker = FakePlaceImagePicker();
+
+      for (var i = 0; i < 6; i++) {
+        picker.enqueueSample(fileName: 'photo-$i.png');
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminPlaceFormScreen(
+            repository: repository,
+            photoService: PlacePhotoService(
+              repository: repository,
+              storage: FakePlaceImageStorage(),
+            ),
+            picker: picker,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (var i = 0; i < 5; i++) {
+        await _scrollTo(tester, find.text('Add photo'));
+        await tester.tap(find.widgetWithText(OutlinedButton, 'Add photo'));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.text('Photo limit reached'), findsOneWidget);
+    });
+
+    testWidgets('a failed upload says the place was saved', (tester) async {
+      final repository = FakePlaceRepository();
+      final picker = FakePlaceImagePicker()..enqueueSample();
+      final storage = FakePlaceImageStorage(uploadError: StateError('nope'));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminPlaceFormScreen(
+            repository: repository,
+            photoService: PlacePhotoService(
+              repository: repository,
+              storage: storage,
+            ),
+            picker: picker,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).at(0), 'Phewa Lake');
+      await tester.enterText(find.byType(TextField).at(1), 'Pokhara');
+      await tester.enterText(find.byType(TextField).at(3), '0');
+
+      await _scrollTo(tester, find.text('Add photo'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Add photo'));
+      await tester.pumpAndSettle();
+
+      await _scrollTo(tester, find.widgetWithText(ElevatedButton, 'Add place'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Add place'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(PlacePhotoService.kUploadFailureMessage),
+        findsOneWidget,
+        reason: 'the place exists, so the message must not imply otherwise',
+      );
+      expect(
+        repository.createCalls,
+        1,
+        reason: 'the document was saved before the upload was attempted',
+      );
+    });
+
+    testWidgets('a legacy photo is listed but never offered for deletion', (
+      tester,
+    ) async {
+      final repository = FakePlaceRepository(
+        places: <Place>[_muktinathWithLegacyImage],
+      );
+      final storage = FakePlaceImageStorage();
+
+      final picker = FakePlaceImagePicker()..enqueueSample();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminPlaceFormScreen(
+            place: _muktinathWithLegacyImage,
+            repository: repository,
+            photoService: PlacePhotoService(
+              repository: repository,
+              storage: storage,
+            ),
+            picker: picker,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current image'), findsOneWidget);
+      expect(
+        find.text('Remove link'),
+        findsNothing,
+        reason: 'a web image is not Yatra-managed, so it cannot be removed',
+      );
+
+      // Adding a real photo is what replaces the legacy image. The legacy URL
+      // itself is never deleted, because a historical booking snapshot may
+      // still reference it.
+      await _scrollTo(tester, find.text('Add photo'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Add photo'));
+      await tester.pumpAndSettle();
+
+      await _scrollTo(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Save changes'),
+      );
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save changes'));
+      await tester.pumpAndSettle();
+
+      expect(repository.places.single.imageUrls, hasLength(1));
+      expect(
+        repository.places.single.legacyImageUrl,
+        'https://example.test/muktinath.jpg',
+        reason: 'historical snapshots still resolve',
+      );
+      expect(storage.deleteCalls, 0);
     });
 
     testWidgets('saves explicit domestic and international rates', (
@@ -325,7 +519,7 @@ void main() {
       await _pumpPlaceForm(tester, repository);
       await tester.enterText(find.byType(TextField).at(0), 'Boudhanath');
       await tester.enterText(find.byType(TextField).at(1), 'Kathmandu');
-      await tester.enterText(find.byType(TextField).at(4), '400');
+      await tester.enterText(find.byType(TextField).at(3), '400');
 
       await _scrollTo(tester, find.text('Domestic / international rates'));
       await tester.tap(find.byType(SwitchListTile));
@@ -365,7 +559,7 @@ void main() {
       await _pumpPlaceForm(tester, repository);
       await tester.enterText(find.byType(TextField).at(0), 'Boudhanath');
       await tester.enterText(find.byType(TextField).at(1), 'Kathmandu');
-      await tester.enterText(find.byType(TextField).at(4), '400');
+      await tester.enterText(find.byType(TextField).at(3), '400');
       await _scrollTo(tester, find.text('Domestic / international rates'));
       await tester.tap(find.byType(SwitchListTile));
       await tester.pumpAndSettle();
@@ -442,7 +636,7 @@ void main() {
       await _pumpPlaceForm(tester, repository);
       await tester.enterText(find.byType(TextField).at(0), 'Phewa Lake');
       await tester.enterText(find.byType(TextField).at(1), 'Pokhara');
-      await tester.enterText(find.byType(TextField).at(4), '0');
+      await tester.enterText(find.byType(TextField).at(3), '0');
       await _scrollTo(tester, find.widgetWithText(ElevatedButton, 'Add place'));
       await tester.tap(find.widgetWithText(ElevatedButton, 'Add place'));
       await tester.pumpAndSettle();

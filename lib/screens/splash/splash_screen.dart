@@ -1,44 +1,82 @@
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../auth/login_screen.dart';
-import '../home/home_screen.dart';
+import '../../navigation/app_entry_navigation.dart';
+import '../../services/app_entry.dart';
+import '../../services/firestore_service.dart';
 
+/// First screen after launch.
+///
+/// It resolves the post-authentication destination through the single
+/// [AppEntryResolver] instead of guessing, so an already-signed-in admin is sent
+/// to the admin app on a cold start exactly as they are after a fresh login.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.profileLoader, this.minimumDuration});
+
+  /// Production leaves this null so Firestore is used. Tests inject a fake.
+  final UserProfileLoader? profileLoader;
+
+  /// How long the branding stays on screen. Tests shorten it.
+  final Duration? minimumDuration;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  Timer? _timer;
+  static const Duration _defaultMinimumDuration = Duration(seconds: 3);
+
+  /// The branding delay, held so it can be cancelled when the screen goes away.
+  Timer? _brandingTimer;
+
+  Completer<void>? _brandingDone;
 
   @override
   void initState() {
     super.initState();
 
-    _timer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
+    unawaited(_resolveAndLeaveSplash());
+  }
 
-      final user = FirebaseAuth.instance.currentUser;
+  /// Waits out the branding delay, then routes by role.
+  ///
+  /// The role is resolved while the splash is still visible, so a slow profile
+  /// read does not add a second blank screen.
+  Future<void> _resolveAndLeaveSplash() async {
+    final minimum = widget.minimumDuration ?? _defaultMinimumDuration;
 
-      final destination = user == null
-          ? const LoginScreen()
-          : const HomeScreen();
+    final done = Completer<void>();
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => destination),
-      );
-    });
+    _brandingDone = done;
+    _brandingTimer = Timer(minimum, done.complete);
+
+    // Started before the wait, so the two overlap instead of adding up.
+    final entry = await AppEntryResolver(
+      profileLoader: widget.profileLoader,
+    ).resolveCurrentEntry();
+
+    await done.future;
+
+    if (!mounted) return;
+
+    unawaited(AppEntryNavigation.goToAppEntry(context, entry));
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    // The delay is cancelled so no timer outlives the screen. The completer is
+    // completed as well, so the suspended continuation finishes quietly instead
+    // of being left dangling.
+    _brandingTimer?.cancel();
+    _brandingTimer = null;
+
+    final done = _brandingDone;
+
+    _brandingDone = null;
+
+    if (done != null && !done.isCompleted) done.complete();
+
     super.dispose();
   }
 

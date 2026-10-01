@@ -1,11 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../navigation/app_entry_navigation.dart';
+import '../../services/app_entry.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
-import '../home/home_screen.dart';
 import 'login_screen.dart';
 
 /// Yatra Signup screen.
@@ -65,8 +68,7 @@ class _SignupScreenState extends State<SignupScreen> {
       return 'Email is required';
     }
 
-    final valid =
-        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+    final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
 
     return valid ? null : 'Enter a valid email address';
   }
@@ -167,9 +169,7 @@ class _SignupScreenState extends State<SignupScreen> {
       // ------------------------------------------------------------
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => const LoginScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
@@ -203,11 +203,9 @@ class _SignupScreenState extends State<SignupScreen> {
           message = e.message ?? 'Unable to create account.';
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (!mounted) {
         return;
@@ -216,11 +214,7 @@ class _SignupScreenState extends State<SignupScreen> {
       debugPrint('Unexpected signup error: $e');
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Unable to create account. Please try again.',
-          ),
-        ),
+        SnackBar(content: Text('Unable to create account. Please try again.')),
       );
     } finally {
       if (mounted) {
@@ -247,23 +241,24 @@ class _SignupScreenState extends State<SignupScreen> {
         return;
       }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
-      );
+      // Social sign-in also follows the central role rules, so an admin who
+      // signs in with a social provider is not dropped onto the tourist home.
+      final entry = await AppEntryResolver(
+        profileLoader: _firestore.getCurrentUserProfile,
+      ).resolveCurrentEntry();
+
+      if (!mounted) {
+        return;
+      }
+
+      unawaited(AppEntryNavigation.goToAppEntry(context, entry));
     } on UnsupportedError {
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Social login will be configured soon.',
-          ),
-        ),
+        const SnackBar(content: Text('Social login will be configured soon.')),
       );
     } finally {
       if (mounted) {
@@ -286,9 +281,7 @@ class _SignupScreenState extends State<SignupScreen> {
               vertical: AppSpacing.xxl,
             ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 420,
-              ),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -319,9 +312,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Full name',
                       hintText: 'Your full name',
-                      prefixIcon: const Icon(
-                        Icons.person_outline,
-                      ),
+                      prefixIcon: const Icon(Icons.person_outline),
                       errorText: _showErrors ? _nameError : null,
                     ),
                     onChanged: (_) => setState(() {}),
@@ -337,9 +328,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Email',
                       hintText: 'you@example.com',
-                      prefixIcon: const Icon(
-                        Icons.mail_outline,
-                      ),
+                      prefixIcon: const Icon(Icons.mail_outline),
                       errorText: _showErrors ? _emailError : null,
                     ),
                     onChanged: (_) => setState(() {}),
@@ -354,9 +343,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Password',
                       hintText: 'At least 6 characters',
-                      prefixIcon: const Icon(
-                        Icons.lock_outline,
-                      ),
+                      prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -364,12 +351,10 @@ class _SignupScreenState extends State<SignupScreen> {
                               : Icons.visibility_off_outlined,
                         ),
                         onPressed: () => setState(
-                          () => _obscurePassword =
-                              !_obscurePassword,
+                          () => _obscurePassword = !_obscurePassword,
                         ),
                       ),
-                      errorText:
-                          _showErrors ? _passwordError : null,
+                      errorText: _showErrors ? _passwordError : null,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -384,22 +369,17 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: InputDecoration(
                       labelText: 'Confirm password',
                       hintText: 'Re-enter your password',
-                      prefixIcon: const Icon(
-                        Icons.lock_outline,
-                      ),
+                      prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirm
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
                         ),
-                        onPressed: () => setState(
-                          () => _obscureConfirm =
-                              !_obscureConfirm,
-                        ),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
-                      errorText:
-                          _showErrors ? _confirmError : null,
+                      errorText: _showErrors ? _confirmError : null,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -411,17 +391,14 @@ class _SignupScreenState extends State<SignupScreen> {
                         ? 'Creating Account...'
                         : 'Create Account',
                     icon: Icons.person_add_alt,
-                    onPressed:
-                        _submitting || _socialSubmitting
-                            ? null
-                            : _createAccount,
+                    onPressed: _submitting || _socialSubmitting
+                        ? null
+                        : _createAccount,
                   ),
 
                   const SizedBox(height: AppSpacing.xl),
 
-                  const YatraDivider(
-                    label: 'or continue with',
-                  ),
+                  const YatraDivider(label: 'or continue with'),
 
                   const SizedBox(height: AppSpacing.xl),
 
@@ -430,10 +407,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     label: 'Continue with Google',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () =>
-                        _socialLogin(
-                      _auth.signInWithGoogle,
-                    ),
+                    onPressed: () => _socialLogin(_auth.signInWithGoogle),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -443,10 +417,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     label: 'Continue with Facebook',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () =>
-                        _socialLogin(
-                      _auth.signInWithFacebook,
-                    ),
+                    onPressed: () => _socialLogin(_auth.signInWithFacebook),
                   ),
 
                   const SizedBox(height: AppSpacing.md),
@@ -456,35 +427,29 @@ class _SignupScreenState extends State<SignupScreen> {
                     label: 'Continue with Apple',
                     loading: _socialSubmitting,
                     enabled: !_submitting,
-                    onPressed: () =>
-                        _socialLogin(
-                      _auth.signInWithApple,
-                    ),
+                    onPressed: () => _socialLogin(_auth.signInWithApple),
                   ),
 
                   const SizedBox(height: AppSpacing.xxl),
 
                   Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         'Already have an account?',
                         style: textTheme.bodyMedium,
                       ),
                       TextButton(
-                        onPressed:
-                            _submitting || _socialSubmitting
-                                ? null
-                                : () {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const LoginScreen(),
-                                      ),
-                                    );
-                                  },
+                        onPressed: _submitting || _socialSubmitting
+                            ? null
+                            : () {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const LoginScreen(),
+                                  ),
+                                );
+                              },
                         child: const Text('Log in'),
                       ),
                     ],
@@ -503,41 +468,27 @@ class _SignupScreenState extends State<SignupScreen> {
 class _BrandLogo extends StatelessWidget {
   final ColorScheme scheme;
 
-  const _BrandLogo({
-    required this.scheme,
-  });
+  const _BrandLogo({required this.scheme});
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(
-        AppRadius.xl,
-      ),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       child: Image.asset(
         'assets/images/yatra_logo.jpeg',
         width: 96,
         height: 96,
         fit: BoxFit.contain,
-        errorBuilder: (
-          context,
-          error,
-          stackTrace,
-        ) {
+        errorBuilder: (context, error, stackTrace) {
           return Container(
             width: 96,
             height: 96,
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(
-                AppRadius.xl,
-              ),
+              borderRadius: BorderRadius.circular(AppRadius.xl),
             ),
             alignment: Alignment.center,
-            child: Icon(
-              Icons.explore,
-              size: 48,
-              color: scheme.primary,
-            ),
+            child: Icon(Icons.explore, size: 48, color: scheme.primary),
           );
         },
       ),

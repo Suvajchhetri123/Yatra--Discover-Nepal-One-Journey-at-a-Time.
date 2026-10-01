@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/itinerary_booking.dart';
 import '../../models/travel_route_model.dart';
+import '../../services/preview_mode.dart';
 import '../../services/booking_repository.dart';
 import '../../services/firestore_booking_service.dart';
 import '../../services/recommendation_service.dart';
@@ -91,6 +92,11 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
     // Synchronous guard: the flag is set before the first await, so a second
     // tap in the same frame cannot start a second write.
     if (_submitting) return;
+
+    // An admin previewing the tourist app must not create a real booking
+    // request. The preview flag is a local one, so this is the only thing
+    // standing between a preview and a live write.
+    if (PreviewModeScope.guard(context)) return;
 
     setState(() => _submitting = true);
 

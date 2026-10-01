@@ -1,0 +1,67 @@
+rules_version = '2';
+
+// Firebase Storage rules for Yatra.
+//
+// The same source of truth as Firestore is used for the admin check:
+// users/{uid}.role == 'admin'. Storage rules can read that document through
+// firestore.get(), so there is no second, weaker definition of "admin" in the
+// project.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ------------------------------------------------------------
+    // HELPERS
+    // ------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && firestore.get(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        ).data.role == 'admin';
+    }
+
+    // A catalog image is a real photograph, not an arbitrary payload.
+    function isImageUnderFiveMegabytes() {
+      return request.resource != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ------------------------------------------------------------
+    // CATALOG PHOTOS
+    // places/{placeId}/{fileName}
+    //
+    // The path shape is fixed by the app (FirebasePlaceImageStorage), and the
+    // file name is generated with a unique suffix, so two uploads of the same
+    // original photo never overwrite each other.
+    // ------------------------------------------------------------
+
+    match /places/{placeId}/{fileName} {
+
+      // The tourist application renders these images, so any signed-in user
+      // may read them. They are never public-write.
+      allow read: if isSignedIn();
+
+      // Only an admin may upload a catalog photo, and only an image.
+      allow create, update: if isAdmin() && isImageUnderFiveMegabytes();
+
+      // Deletion is admin-only. The app is conservative here: it only deletes
+      // objects it uploaded itself and never a legacy external URL.
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------
+    // DEFAULT
+    // ------------------------------------------------------------
+
+    // No other bucket path is readable or writable from a client. A client
+    // cannot reach the user profile avatars, exports or any other object.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

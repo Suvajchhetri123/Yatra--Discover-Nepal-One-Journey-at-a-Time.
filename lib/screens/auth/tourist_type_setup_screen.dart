@@ -1,19 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../navigation/app_entry_navigation.dart';
+import '../../services/app_entry.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/yatra_components.dart';
-import '../home/home_screen.dart';
 
 class TouristTypeSetupScreen extends StatefulWidget {
   const TouristTypeSetupScreen({super.key});
 
   @override
-  State<TouristTypeSetupScreen> createState() =>
-      _TouristTypeSetupScreenState();
+  State<TouristTypeSetupScreen> createState() => _TouristTypeSetupScreenState();
 }
 
 class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
-  final FirestoreService _firestore = FirestoreService();
+  /// Resolved lazily so a widget test that only checks the routing never
+  /// constructs a Firestore client.
+  late final FirestoreService _firestore = FirestoreService();
 
   String? _selectedTouristType;
   bool _saving = false;
@@ -21,9 +25,7 @@ class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
   Future<void> _continue() async {
     if (_selectedTouristType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select your tourist type.'),
-        ),
+        const SnackBar(content: Text('Please select your tourist type.')),
       );
       return;
     }
@@ -33,25 +35,25 @@ class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
     });
 
     try {
-      await _firestore.updateUserProfile({
-        'touristType': _selectedTouristType,
-      });
+      await _firestore.updateUserProfile({'touristType': _selectedTouristType});
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
-      );
+      // The profile is re-read rather than assumed. Onboarding can also be
+      // reached by an admin who lacks a tourist type, and that admin belongs
+      // in the admin app, not on the tourist home screen.
+      final entry = await AppEntryResolver(
+        profileLoader: _firestore.getCurrentUserProfile,
+      ).resolveCurrentEntry();
+
+      if (!mounted) return;
+
+      unawaited(AppEntryNavigation.goToAppEntry(context, entry));
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to save tourist type: $e'),
-        ),
+        SnackBar(content: Text('Failed to save tourist type: $e')),
       );
 
       setState(() {
@@ -78,8 +80,8 @@ class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
               Text(
                 'What type of tourist are you?',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               const SizedBox(height: 10),
@@ -119,10 +121,7 @@ class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
     );
   }
 
-  Widget _buildOption({
-    required String title,
-    required String subtitle,
-  }) {
+  Widget _buildOption({required String title, required String subtitle}) {
     final isSelected = _selectedTouristType == title;
 
     return InkWell(
@@ -149,7 +148,9 @@ class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
         child: Row(
           children: [
             Icon(
-              isSelected ? Icons.radio_button_checked :Icons.radio_button_unchecked,
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
             ),
             const SizedBox(width: 8),
             Expanded(

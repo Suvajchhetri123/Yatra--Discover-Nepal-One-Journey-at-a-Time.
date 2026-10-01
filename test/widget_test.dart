@@ -6,9 +6,6 @@ void main() {
     await tester.pumpWidget(const YatraApp());
 
     expect(find.text('YATRA'), findsOneWidget);
-    expect(
-      find.text('Explore Nepal. Plan Your Journey.'),
-      findsOneWidget,
-    );
+    expect(find.text('Explore Nepal. Plan Your Journey.'), findsOneWidget);
   });
 }

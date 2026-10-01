@@ -36,11 +36,11 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final credential =
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
+    final credential = await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(
+          email: email.trim(),
+          password: password,
+        );
 
     // Save the user's display name in Firebase Authentication as well.
     final user = credential.user;
@@ -54,27 +54,21 @@ class AuthService {
   ///
   /// Google Authentication is not configured yet.
   Future<void> signInWithGoogle() async {
-    throw UnsupportedError(
-      'Google sign-in is not configured yet.',
-    );
+    throw UnsupportedError('Google sign-in is not configured yet.');
   }
 
   /// Signs in using Facebook.
   ///
   /// Facebook Authentication is not configured yet.
   Future<void> signInWithFacebook() async {
-    throw UnsupportedError(
-      'Facebook sign-in is not configured yet.',
-    );
+    throw UnsupportedError('Facebook sign-in is not configured yet.');
   }
 
   /// Signs in using Apple.
   ///
   /// Apple Authentication is not configured yet.
   Future<void> signInWithApple() async {
-    throw UnsupportedError(
-      'Apple sign-in is not configured yet.',
-    );
+    throw UnsupportedError('Apple sign-in is not configured yet.');
   }
 
   /// Sends a phone verification code.

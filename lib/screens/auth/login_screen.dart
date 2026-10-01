@@ -1,14 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../models/user_profile.dart';
+import '../../navigation/app_entry_navigation.dart';
+import '../../services/app_entry.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
-import '../home/home_screen.dart';
 import 'phone_auth_screen.dart';
 import 'signup_screen.dart';
-import 'tourist_type_setup_screen.dart';
 
 /// Yatra Login screen.
 ///
@@ -16,7 +19,21 @@ import 'tourist_type_setup_screen.dart';
 /// through [AuthService]. After successful login, the user's tourist type
 /// is checked from Firestore before deciding where to navigate.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.profileLoader, this.authenticate});
+
+  /// Overrides how the signed-in profile is read.
+  ///
+  /// Production leaves this null so Firestore is used; widget tests inject a
+  /// fake so no live Firebase app is required.
+  final UserProfileLoader? profileLoader;
+
+  /// Overrides the actual sign-in call.
+  ///
+  /// Production leaves this null so [AuthService] is used; tests inject a fake
+  /// so the post-login *routing* can be verified without Firebase Auth. The
+  /// routing is the part this screen is responsible for, and it is the part
+  /// that must never send an admin to the tourist home.
+  final Future<void> Function(String email, String password)? authenticate;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -24,7 +41,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final AuthService _auth = const AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+
+  /// Resolved lazily so a screen that was given a profile loader never
+  /// constructs a Firestore client, which keeps widget tests off Firebase.
+  late final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -32,6 +52,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showErrors = false;
   bool _submitting = false;
   bool _socialSubmitting = false;
+
+  UserProfileLoader? get _profileLoader => widget.profileLoader;
 
   @override
   void dispose() {
@@ -70,34 +92,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Decides where the user should go after successful authentication.
   ///
-  /// If the user has already selected a tourist type, go directly to Home.
-  /// If the tourist type is missing, show the tourist type setup screen.
+  /// The decision is delegated to [AppEntryNavigation], which is the same code
+  /// the splash screen and the tourist-type setup use. That is what keeps the
+  /// role rules in a single place: an admin goes to the admin app, a tourist
+  /// without a tourist type finishes onboarding, and a complete tourist goes
+  /// home. This screen has no role logic of its own.
   Future<void> _goAfterLogin() async {
-    try {
-      final profile = await _firestoreService.getCurrentUserProfile();
+    final entry = await AppEntryResolver(
+      profileLoader: _loadProfile,
+    ).resolveCurrentEntry();
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      final touristType = profile?.touristType;
-
-      if (touristType == null || touristType.trim().isEmpty) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const TouristTypeSetupScreen(),
-          ),
-        );
-        return;
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
-    } catch (e) {
-      debugPrint('Error loading user profile: $e');
-
-      if (!mounted) return;
+    if (entry == AppEntry.signedOut) {
+      debugPrint('Login succeeded but the profile could not be read.');
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -106,7 +114,24 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
+
+      return;
     }
+
+    // Not awaited: the future completes only when the pushed route is
+    // popped, so awaiting it would leave `_submitting` stuck in its
+    // finally block.
+    unawaited(AppEntryNavigation.goToAppEntry(context, entry));
+  }
+
+  /// Reads the profile through an injected loader when one is available, so a
+  /// widget test never needs Firebase.
+  Future<UserProfile?> _loadProfile() {
+    final loader = _profileLoader;
+
+    if (loader != null) return loader();
+
+    return _firestoreService.getCurrentUserProfile();
   }
 
   Future<void> _login() async {
@@ -117,10 +142,15 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _submitting = true);
 
     try {
-      await _auth.signInWithEmail(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      final authenticate = widget.authenticate;
+
+      if (authenticate != null) {
+        await authenticate(email, password);
+      } else {
+        await _auth.signInWithEmail(email: email, password: password);
+      }
 
       if (!mounted) return;
 
@@ -341,9 +371,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        "Don't have an account?",
-                        style: textTheme.bodyMedium,
+                      // Flexible so the row can shrink on a narrow device
+                      // instead of overflowing.
+                      Flexible(
+                        child: Text(
+                          "Don't have an account?",
+                          style: textTheme.bodyMedium,
+                          textAlign: TextAlign.end,
+                        ),
                       ),
                       TextButton(
                         onPressed: _submitting || _socialSubmitting

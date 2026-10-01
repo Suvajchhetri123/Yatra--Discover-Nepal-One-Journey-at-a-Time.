@@ -365,12 +365,71 @@ void main() {
     final admin = sources['lib/screens/admin/admin_screen.dart']!;
     expect(admin, contains('profile?.isAdmin ?? false'));
     expect(admin, isNot(contains('.email')));
-    expect(admin, isNot(contains('.uid')));
+
+    // The one permitted use of a uid is passing the signed-in account's own uid
+    // to the user list, purely to hide the actions the backend refuses. It is
+    // still read from the verified profile, never hard-coded, and it never
+    // participates in an access decision.
+    final uidUses = RegExp(
+      r'.*\.uid.*',
+    ).allMatches(admin).map((match) => match.group(0)!.trim());
+
+    for (final use in uidUses) {
+      expect(
+        use,
+        contains('currentUid'),
+        reason: 'a uid may only identify the signed-in admin for the UI',
+      );
+    }
     expect(admin, isNot(contains('touristType')));
 
-    // The profile entry point is gated on the same exact role.
+    // The profile entry point is gated on the same exact role, and is hidden
+    // while an admin is previewing the tourist app.
     final profile = sources['lib/screens/profile/profile_screen.dart']!;
-    expect(profile, contains('if (_profile?.isAdmin ?? false)'));
+    expect(profile, contains('_profile?.isAdmin ?? false'));
+    expect(profile, contains('PreviewModeScope.isActive(context)'));
+  });
+
+  test('TEST 9b: the account-status mirror cannot be written by a client', () {
+    // `accountDisabled` and `accountDeleted` decide whether an admin counts as
+    // usable, so they are part of the security boundary. The Firestore rules
+    // deny them to clients, and the trusted backend is the only writer.
+    final rules = _stripped(File('firestore.rules').readAsStringSync());
+
+    for (final field in <String>['accountDisabled', 'accountDeleted']) {
+      expect(
+        rules,
+        isNot(contains("'$field'")),
+        reason: '$field must not appear in a client-writable field list',
+      );
+    }
+
+    // The field list a tourist may update must stay narrow.
+    expect(rules, contains("'touristType'"));
+  });
+
+  test('TEST 9c: the admin guard is server-owned state', () {
+    // The serialized last-admin guard document is created and advanced by the
+    // backend. No client may write it, and no client-side code should reach for
+    // it either.
+    final sources = _libSources();
+
+    final rules = _stripped(File('firestore.rules').readAsStringSync());
+
+    expect(rules, isNot(contains('admin-guard')));
+
+    for (final path in <String>[
+      'lib/services/app_entry.dart',
+      'lib/services/admin_user_repository.dart',
+      'lib/services/admin_user_actions.dart',
+      'lib/services/functions_admin_user_actions.dart',
+    ]) {
+      expect(
+        sources[path],
+        isNot(contains('admin-guard')),
+        reason: '$path must not reference the server guard',
+      );
+    }
   });
 
   test('TEST 10: signup and profile updates cannot choose or change role', () {

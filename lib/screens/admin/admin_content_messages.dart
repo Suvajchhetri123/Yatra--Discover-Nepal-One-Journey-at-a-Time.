@@ -20,3 +20,12 @@ const String kAdminCatalogInvalidNumberMessage =
 
 const String kAdminCatalogMigrationFailureMessage =
     'Could not migrate the travel catalog. Please try again.';
+
+const String kAdminUserActionFailureMessage =
+    'Could not complete that account change. Please try again.';
+
+const String kAdminUserLoadFailureMessage =
+    'Could not load users. Please try again.';
+
+const String kAdminPasswordResetFailureMessage =
+    'Could not send the password reset email. Please try again.';

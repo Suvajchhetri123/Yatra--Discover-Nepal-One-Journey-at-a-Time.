@@ -33,7 +33,8 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   }
 
   /// Digits only, without the leading country code.
-  String get _digits => _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+  String get _digits =>
+      _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
 
   String? get _phoneError {
     if (_digits.isEmpty) return 'Phone number is required';
