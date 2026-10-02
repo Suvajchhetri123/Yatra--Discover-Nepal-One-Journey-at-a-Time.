@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../navigation/app_entry_navigation.dart';
 import '../../services/app_entry.dart';
 import '../../services/firestore_service.dart';
+import '../../services/profile_session.dart';
 import '../../widgets/yatra_components.dart';
 
 class TouristTypeSetupScreen extends StatefulWidget {
@@ -44,7 +45,7 @@ class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
       // in the admin app, not on the tourist home screen.
       final entry = await AppEntryResolver(
         profileLoader: _firestore.getCurrentUserProfile,
-      ).resolveCurrentEntry();
+      ).resolveCurrentEntry(session: _session);
 
       if (!mounted) return;
 
@@ -61,6 +62,9 @@ class _TouristTypeSetupScreenState extends State<TouristTypeSetupScreen> {
       });
     }
   }
+
+  /// The app-wide profile session, or null in an isolated widget test.
+  ProfileSession? get _session => ProfileSessionScope.maybeOf(context);
 
   @override
   Widget build(BuildContext context) {

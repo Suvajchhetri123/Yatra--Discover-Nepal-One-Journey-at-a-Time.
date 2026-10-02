@@ -8,6 +8,7 @@ import '../../navigation/app_entry_navigation.dart';
 import '../../services/app_entry.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/profile_session.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import 'phone_auth_screen.dart';
@@ -100,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _goAfterLogin() async {
     final entry = await AppEntryResolver(
       profileLoader: _loadProfile,
-    ).resolveCurrentEntry();
+    ).resolveCurrentEntry(session: _session);
 
     if (!mounted) return;
 
@@ -227,6 +228,9 @@ class _LoginScreenState extends State<LoginScreen> {
       MaterialPageRoute(builder: (context) => const PhoneAuthScreen()),
     );
   }
+
+  /// The app-wide profile session, or null in an isolated widget test.
+  ProfileSession? get _session => ProfileSessionScope.maybeOf(context);
 
   @override
   Widget build(BuildContext context) {

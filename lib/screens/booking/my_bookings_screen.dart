@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/itinerary_booking.dart';
 import '../../services/booking_repository.dart';
-import '../../services/demo_profile_store.dart';
+import '../../services/profile_session.dart';
 import '../../services/firestore_booking_service.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
@@ -142,7 +142,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final language = DemoProfileStore.instance.language;
+    final language = ProfileSessionScope.languageOf(context);
 
     return Scaffold(
       appBar: AppBar(

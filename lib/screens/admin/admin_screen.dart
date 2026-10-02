@@ -13,7 +13,7 @@ import '../../services/app_entry.dart';
 import '../../services/auth_service.dart';
 import '../../services/catalog_seed_service.dart';
 import '../../services/coordinator_repository.dart';
-import '../../services/demo_profile_store.dart';
+import '../../services/profile_session.dart';
 import '../../services/firestore_admin_booking_service.dart';
 import '../../services/firestore_coordinator_service.dart';
 import '../../services/firestore_package_service.dart';
@@ -347,7 +347,13 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   /// Signs the administrator out and returns to the login screen.
+  ///
+  /// The cached profile is dropped as part of signing out, so the next account
+  /// to sign in on this device never inherits the previous one's language or
+  /// contact details.
   Future<void> _signOut() async {
+    ProfileSessionScope.maybeOf(context)?.clear();
+
     final signOut = widget.onSignOut;
 
     if (signOut != null) {
@@ -436,7 +442,7 @@ class _AdminScreenState extends State<AdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final language = DemoProfileStore.instance.language;
+    final language = ProfileSessionScope.languageOf(context);
 
     return Scaffold(
       appBar: AppBar(

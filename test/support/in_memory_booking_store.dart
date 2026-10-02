@@ -1,19 +1,19 @@
-import '../models/itinerary_booking.dart';
-import '../models/travel_coordinator.dart';
-import '../models/travel_route_model.dart';
-import 'recommendation_service.dart';
+import 'package:yatra/models/itinerary_booking.dart';
+import 'package:yatra/models/travel_coordinator.dart';
+import 'package:yatra/models/travel_route_model.dart';
+import 'package:yatra/services/recommendation_service.dart';
 
-/// An in-memory store for itinerary booking requests.
+/// An in-memory booking collection for tests.
 ///
-/// DEMO/FRONTEND STATE ONLY — bookings survive navigation within the current
-/// app session so the tourist and the admin frontend share the same data, but
-/// nothing is written to a database.
-///
-/// TODO: Replace DemoBookingStore with a Firestore repository (backend phase).
-class DemoBookingStore {
-  DemoBookingStore._();
+/// This used to be production frontend state shared between the tourist and
+/// admin apps. Bookings are now persisted through [BookingRepository], so this
+/// lives in `test/support` as a fixture: it still models status transitions,
+/// coordinator assignment and booking-number generation so flow tests can
+/// assert on realistic objects, but no application code depends on it.
+class InMemoryBookingStore {
+  InMemoryBookingStore._();
 
-  static final DemoBookingStore instance = DemoBookingStore._();
+  static final InMemoryBookingStore instance = InMemoryBookingStore._();
 
   final List<ItineraryBooking> _bookings = [];
 
@@ -92,8 +92,8 @@ class DemoBookingStore {
     byId(id)?.assignedCoordinator = coordinator;
   }
 
-  /// Demo id in the form YT-2026-001. The backend replaces this with a
-  /// server-guaranteed booking number.
+  /// Test booking id in the form YT-2026-001, matching the shape the backend
+  /// returns for a freshly created booking.
   String _nextBookingId() {
     _sequence += 1;
     final year = DateTime.now().year;
@@ -101,8 +101,8 @@ class DemoBookingStore {
     return 'YT-$year-${_sequence.toString().padLeft(3, '0')}';
   }
 
-  /// Clears all demo bookings and resets the id sequence. Used by tests and
-  /// by an explicit demo reset; not part of normal user flow.
+  /// Clears all bookings and resets the id sequence, so each test starts from
+  /// a known state.
   void clear() {
     _bookings.clear();
     _sequence = 0;

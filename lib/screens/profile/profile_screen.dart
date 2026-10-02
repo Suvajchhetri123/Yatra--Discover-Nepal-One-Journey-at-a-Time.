@@ -4,10 +4,9 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/user_profile.dart';
 import '../../services/auth_service.dart';
-import '../../services/demo_booking_store.dart';
-import '../../services/demo_profile_store.dart';
 import '../../services/firestore_service.dart';
 import '../../services/preview_mode.dart';
+import '../../services/profile_session.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/sos_action.dart';
 import '../../widgets/yatra_components.dart';
@@ -19,12 +18,12 @@ import '../offline/offline_access_screen.dart';
 /// Profile screen backed by the authenticated user's Firestore profile.
 ///
 /// The Admin entry is only offered when users/{uid}.role is exactly 'admin',
-/// and the role is never taken from DemoProfileStore. AdminScreen verifies the
+/// and the role is never taken from any local cache. AdminScreen verifies the
 /// same role again, so hiding this entry is not the only protection.
 ///
-/// DemoProfileStore is temporarily kept as a compatibility cache because
-/// several language-aware and fallback screens still depend on it.
-/// It will be removed after those screens are migrated to Firestore.
+/// Language-aware read-only screens (offline access, booking details) read
+/// the same snapshot through [ProfileSessionScope] instead of their own copy
+/// of the profile, so there is a single in-memory representation.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.profileLoader});
 
@@ -47,6 +46,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loadingProfile = false;
   String? _profileError;
 
+  /// Local edits applied while no Firestore backend is available.
+  ///
+  /// Widget tests and a bootstrap failure have nowhere to persist a write, so
+  /// the screen keeps the value in memory and says nothing was saved. With
+  /// Firestore present this stays null and the profile document is the record.
+  UserProfile? _localProfile;
+
   @override
   void initState() {
     super.initState();
@@ -56,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Creates the Firestore service when Firebase is available.
   ///
   /// Widget tests currently run without a Firebase app, so in that
-  /// environment the screen falls back to DemoProfileStore.
+  /// environment the screen keeps edits in memory only.
   Future<void> _initializeProfileBackend() async {
     if (widget.profileLoader == null) {
       try {
@@ -95,7 +101,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       if (profile != null) {
-        _syncDemoProfile(profile);
+        // Publish to the shared session so read-only screens (offline, booking
+        // details) see the same language without their own Firestore read.
+        ProfileSessionScope.maybeOf(context)?.publish(profile);
       }
 
       setState(() {
@@ -113,25 +121,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// Temporary bridge while the rest of the frontend is still using
-  /// DemoProfileStore for language compatibility.
-  void _syncDemoProfile(UserProfile profile) {
-    final demo = DemoProfileStore.instance;
+  /// The profile the screen renders: Firestore first, local edits second.
+  ///
+  /// `_localProfile` is only populated when there is no Firestore backend to
+  /// write to, so in the app this is always the stored profile.
+  UserProfile? get _effectiveProfile => _profile ?? _localProfile;
 
-    demo.setProfile(
-      name: profile.name,
-      phone: profile.phone,
-      clearMissing: true,
-    );
+  /// A neutral base for local edits before any profile has loaded.
+  ///
+  /// Only used when there is no Firestore backend, so the uid/email fall back
+  /// to whatever Firebase Auth reports (or empty when it is unavailable).
+  UserProfile get _emptyProfile =>
+      UserProfile(uid: _firebaseUid(), name: '', email: _firebaseEmail());
 
-    demo.setEmergencyContact(
-      name: profile.emergencyContactName,
-      phone: profile.emergencyContactPhone,
-      clearMissing: true,
-    );
-
-    demo.setTouristType(profile.touristType);
-    demo.setLanguage(profile.language);
+  /// The signed-in uid, or an empty string when Firebase is unavailable.
+  String _firebaseUid() {
+    try {
+      return FirebaseAuth.instance.currentUser?.uid ?? '';
+    } catch (_) {
+      return '';
+    }
   }
 
   Future<void> _editProfile() async {
@@ -139,13 +148,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // an administrator is previewing the tourist app.
     if (PreviewModeScope.guard(context)) return;
 
-    final demo = DemoProfileStore.instance;
+    final profile = _effectiveProfile;
 
-    final currentName = _profile?.name.isNotEmpty == true
-        ? _profile!.name
-        : demo.name ?? _firebaseName();
+    final currentName = profile != null && profile.name.isNotEmpty
+        ? profile.name
+        : _firebaseName();
 
-    final currentPhone = _profile?.phone ?? demo.phone ?? '';
+    final currentPhone = profile?.phone ?? '';
 
     final result = await _showTextFields(
       title: 'Edit Profile',
@@ -165,11 +174,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // Used by widget tests or environments without initialized Firebase.
     if (firestore == null) {
-      demo.setProfile(name: result.$1, phone: result.$2);
-
-      if (mounted) {
-        setState(() {});
-      }
+      setState(() {
+        _localProfile = (_localProfile ?? _emptyProfile).copyWith(
+          name: result.$1,
+          phone: result.$2,
+        );
+      });
 
       return;
     }
@@ -198,20 +208,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _editEmergencyContact() async {
     if (PreviewModeScope.guard(context)) return;
 
-    final demo = DemoProfileStore.instance;
+    final profile = _effectiveProfile;
 
     final result = await _showTextFields(
       title: 'Emergency Contact',
       fields: (
         label: 'Name',
-        initial:
-            _profile?.emergencyContactName ?? demo.emergencyContactName ?? '',
+        initial: profile?.emergencyContactName ?? '',
         icon: Icons.person_outline,
       ),
       fieldsB: (
         label: 'Phone',
-        initial:
-            _profile?.emergencyContactPhone ?? demo.emergencyContactPhone ?? '',
+        initial: profile?.emergencyContactPhone ?? '',
         icon: Icons.phone_outlined,
       ),
     );
@@ -224,11 +232,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // Used by widget tests or environments without initialized Firebase.
     if (firestore == null) {
-      demo.setEmergencyContact(name: result.$1, phone: result.$2);
-
-      if (mounted) {
-        setState(() {});
-      }
+      setState(() {
+        _localProfile = (_localProfile ?? _emptyProfile).copyWith(
+          emergencyContactName: result.$1,
+          emergencyContactPhone: result.$2,
+        );
+      });
 
       return;
     }
@@ -259,23 +268,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _changeLanguage(String language) async {
     final firestore = _firestore;
 
-    // Test/frontend fallback.
+    // Test/frontend fallback: nothing to persist, so the choice is local.
     if (firestore == null) {
-      DemoProfileStore.instance.setLanguage(language);
-
-      if (mounted) {
-        setState(() {});
-      }
+      setState(() {
+        _localProfile = (_localProfile ?? _emptyProfile).copyWith(
+          language: language,
+        );
+      });
 
       return;
     }
 
     try {
       await firestore.updateLanguage(language);
-
-      // Temporary compatibility cache for screens that have not yet
-      // migrated away from DemoProfileStore.
-      DemoProfileStore.instance.setLanguage(language);
 
       await _loadProfile();
     } catch (_) {
@@ -326,12 +331,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    // Resolve the session before awaiting, so no BuildContext is read across an
+    // async gap.
+    final session = ProfileSessionScope.maybeOf(context);
+
     await _auth.signOut();
 
-    // These are only local runtime caches.
-    // Firestore profile data is NOT deleted on logout.
-    DemoBookingStore.instance.clear();
-    DemoProfileStore.instance.clear();
+    // Firestore profile data is NOT deleted on logout; only the in-memory
+    // snapshot is dropped.
+    //
+    // Drops the cached snapshot only; `users/{uid}` keeps the profile, so the
+    // next sign-in restores the same language and contact details.
+    session?.clear();
 
     if (!mounted) return;
 
@@ -369,27 +380,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final demoProfile = DemoProfileStore.instance;
+    final profile = _effectiveProfile;
 
-    final language = _profile?.language ?? demoProfile.language;
+    final language = profile?.language ?? 'English';
 
-    final displayName = _profile?.name.isNotEmpty == true
-        ? _profile!.name
-        : demoProfile.name ?? _firebaseName();
+    final displayName = profile != null && profile.name.isNotEmpty
+        ? profile.name
+        : _firebaseName();
 
-    final email = (_profile?.email.isNotEmpty == true)
-        ? _profile!.email
+    final email = profile != null && profile.email.isNotEmpty
+        ? profile.email
         : _firebaseEmail();
 
-    final phone = _profile?.phone ?? demoProfile.phone;
+    final phone = profile?.phone;
 
-    final touristType = _profile?.touristType ?? demoProfile.touristType;
+    final touristType = profile?.touristType;
 
-    final emergencyContactName =
-        _profile?.emergencyContactName ?? demoProfile.emergencyContactName;
+    final emergencyContactName = profile?.emergencyContactName;
 
-    final emergencyContactPhone =
-        _profile?.emergencyContactPhone ?? demoProfile.emergencyContactPhone;
+    final emergencyContactPhone = profile?.emergencyContactPhone;
 
     final displayPhone = phone == null || phone.trim().isEmpty
         ? 'Not set'

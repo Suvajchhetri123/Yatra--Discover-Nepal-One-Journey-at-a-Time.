@@ -9,7 +9,6 @@ import 'package:yatra/models/travel_route_model.dart';
 import 'package:yatra/models/user_profile.dart';
 import 'package:yatra/screens/admin/admin_screen.dart';
 import 'package:yatra/screens/profile/profile_screen.dart';
-import 'package:yatra/services/demo_profile_store.dart';
 import 'package:yatra/services/firestore_service.dart';
 import 'package:yatra/services/recommendation_service.dart';
 
@@ -114,7 +113,7 @@ String _slice(String source, int start, [int length = 400]) {
 
 void main() {
   setUp(() {
-    DemoProfileStore.instance.clear();
+    // No local profile cache exists any more: Firestore is the only source.
   });
 
   testWidgets('TEST 1: a tourist profile has no Admin entry', (tester) async {

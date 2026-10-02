@@ -36,6 +36,37 @@ class UserProfile {
     this.updatedAt,
   });
 
+  /// Returns a copy with the given fields replaced.
+  ///
+  /// Used when a write has already been persisted and the local snapshot needs
+  /// to reflect it without re-reading Firestore. Omitted arguments keep their
+  /// current value.
+  UserProfile copyWith({
+    String? name,
+    String? email,
+    String? phone,
+    String? touristType,
+    String? language,
+    String? role,
+    String? emergencyContactName,
+    String? emergencyContactPhone,
+  }) {
+    return UserProfile(
+      uid: uid,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      touristType: touristType ?? this.touristType,
+      language: language ?? this.language,
+      role: role ?? this.role,
+      emergencyContactName: emergencyContactName ?? this.emergencyContactName,
+      emergencyContactPhone:
+          emergencyContactPhone ?? this.emergencyContactPhone,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
   /// Exact role check used for admin entry points and admin screens.
   ///
   /// Only the literal application role [kAdminRole] counts. Roles are never

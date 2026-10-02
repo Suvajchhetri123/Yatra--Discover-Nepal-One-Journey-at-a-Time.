@@ -1,5 +1,6 @@
 import '../models/user_profile.dart';
 import 'firestore_service.dart';
+import 'profile_session.dart';
 
 /// Where the application should take a user once authentication is resolved.
 ///
@@ -66,7 +67,12 @@ class AppEntryResolver {
   /// Production leaves this null so [FirestoreService] is used.
   final UserProfileLoader? profileLoader;
 
-  Future<AppEntry> resolveCurrentEntry() async {
+  ///
+  /// [session] is updated with the profile that was read, so entry points do
+  /// not need a second Firestore round trip to populate [ProfileSession]. The
+  /// routing decision and the session snapshot always come from the same read,
+  /// so they cannot disagree.
+  Future<AppEntry> resolveCurrentEntry({ProfileSession? session}) async {
     try {
       final loader = profileLoader;
 
@@ -74,7 +80,17 @@ class AppEntryResolver {
           ? await FirestoreService().getCurrentUserProfile()
           : await loader();
 
-      return resolveAppEntry(profile);
+      final entry = resolveAppEntry(profile);
+
+      if (profile != null) {
+        session?.publish(profile);
+      } else {
+        // A signed-out user must not keep the previous account's language in
+        // memory after a sign-out and cold start.
+        session?.clear();
+      }
+
+      return entry;
     } catch (_) {
       return AppEntry.signedOut;
     }

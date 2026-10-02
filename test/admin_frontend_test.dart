@@ -9,7 +9,6 @@ import 'package:yatra/screens/admin/admin_booking_details_screen.dart';
 import 'package:yatra/screens/admin/admin_booking_list_screen.dart';
 import 'package:yatra/screens/admin/admin_screen.dart';
 import 'package:yatra/screens/booking/my_bookings_screen.dart';
-import 'package:yatra/services/demo_profile_store.dart';
 import 'package:yatra/services/firestore_service.dart';
 import 'package:yatra/services/recommendation_service.dart';
 
@@ -89,7 +88,7 @@ Future<void> _pumpAdmin(
 
 void main() {
   setUp(() {
-    DemoProfileStore.instance.clear();
+    // No local profile cache exists any more: Firestore is the only source.
   });
 
   test('the admin repository returns every booking regardless of owner', () {

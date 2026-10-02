@@ -31,7 +31,11 @@ class FirestorePackageService implements PackageRepository {
   }) async {
     _requireUser();
 
-    final snapshot = await _collection.get();
+    final Query<Map<String, dynamic>> query = includeInactive
+        ? _collection
+        : _collection.where('active', isEqualTo: true);
+
+    final snapshot = await query.get();
 
     final packages = snapshot.docs
         .map(

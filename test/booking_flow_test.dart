@@ -6,7 +6,7 @@ import 'package:yatra/models/travel_route_model.dart';
 import 'package:yatra/screens/booking/booking_details_screen.dart';
 import 'package:yatra/screens/booking/booking_review_screen.dart';
 import 'package:yatra/screens/booking/my_bookings_screen.dart';
-import 'package:yatra/services/demo_booking_store.dart';
+import 'support/in_memory_booking_store.dart';
 import 'package:yatra/services/recommendation_service.dart';
 import 'package:yatra/services/trip_cost_estimator.dart';
 
@@ -30,7 +30,7 @@ ItineraryBooking _createBooking({
   BookingStatus? status,
   String? packageTitle,
 }) {
-  final booking = DemoBookingStore.instance.create(
+  final booking = InMemoryBookingStore.instance.create(
     destination: destination,
     startDate: DateTime(2026, 9, 1),
     endDate: DateTime(2026, 9, 4),
@@ -51,7 +51,7 @@ ItineraryBooking _createBooking({
   );
 
   if (status != null) {
-    DemoBookingStore.instance.updateStatus(booking.id, status);
+    InMemoryBookingStore.instance.updateStatus(booking.id, status);
   }
 
   return booking;
@@ -129,7 +129,7 @@ Future<void> _pumpReview(
 
 void main() {
   setUp(() {
-    DemoBookingStore.instance.clear();
+    InMemoryBookingStore.instance.clear();
   });
 
   test(
@@ -169,14 +169,14 @@ void main() {
     final booking = _createBooking();
 
     expect(
-      DemoBookingStore.instance
+      InMemoryBookingStore.instance
           .bookingsWithStatus(BookingStatus.pending)
           .map((b) => b.id),
       contains(booking.id),
     );
     expect(booking.status, isNot(BookingStatus.confirmed));
     expect(
-      DemoBookingStore.instance.bookingsWithStatus(BookingStatus.confirmed),
+      InMemoryBookingStore.instance.bookingsWithStatus(BookingStatus.confirmed),
       isEmpty,
     );
   });
@@ -212,21 +212,24 @@ void main() {
 
       // The demo store is not dual-written: it stays empty until the
       // My Bookings migration step.
-      expect(DemoBookingStore.instance.bookings, isEmpty);
+      expect(InMemoryBookingStore.instance.bookings, isEmpty);
     },
   );
 
   test('booking can be cancelled from pending', () {
     final booking = _createBooking();
 
-    DemoBookingStore.instance.updateStatus(booking.id, BookingStatus.cancelled);
+    InMemoryBookingStore.instance.updateStatus(
+      booking.id,
+      BookingStatus.cancelled,
+    );
 
     expect(
-      DemoBookingStore.instance.byId(booking.id)?.status,
+      InMemoryBookingStore.instance.byId(booking.id)?.status,
       BookingStatus.cancelled,
     );
     expect(
-      DemoBookingStore.instance.bookingsWithStatus(BookingStatus.cancelled),
+      InMemoryBookingStore.instance.bookingsWithStatus(BookingStatus.cancelled),
       hasLength(1),
     );
   });

@@ -3,10 +3,12 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../theme/app_theme.dart';
 import '../../models/package_model.dart';
+import '../../models/place_model.dart';
 import '../../models/journey_stop_plan.dart';
 import '../../models/travel_route_model.dart';
 import '../../data/transportation_data.dart';
 import '../../services/recommendation_service.dart';
+import '../../services/tourist_catalog_controller.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../widgets/yatra_components.dart';
 import '../recommendation/recommendation_screen.dart';
@@ -34,6 +36,13 @@ class BoardingScreen extends StatefulWidget {
   /// the booking request can keep the package title.
   final TourPackage? package;
 
+  /// Active place catalog used for the itinerary's attractions.
+  ///
+  /// Left null the screen reads the catalog from the enclosing
+  /// [TouristCatalogScope], which is how the app supplies it; tests can pass a
+  /// fixed list instead.
+  final List<Place>? places;
+
   const BoardingScreen({
     super.key,
     required this.touristType,
@@ -52,6 +61,7 @@ class BoardingScreen extends StatefulWidget {
     required this.groupSize,
     required this.seasonMessage,
     this.package,
+    this.places,
   });
 
   @override
@@ -59,6 +69,11 @@ class BoardingScreen extends StatefulWidget {
 }
 
 class _BoardingScreenState extends State<BoardingScreen> {
+  /// The catalog to plan with, preferring an explicitly injected list.
+  List<Place> _catalogFor(BuildContext context) {
+    return widget.places ?? TouristCatalogScope.placesOf(context);
+  }
+
   Position? currentPosition;
   bool isLoadingCurrentLOcation = false;
   String? selectedBoardingPoint;
@@ -451,7 +466,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
       return null;
     }
 
-    return RecommendationService.minimumDaysFor(route: buildRoute());
+    return RecommendationService.minimumDaysFor(
+      route: buildRoute(),
+      places: _catalogFor(context),
+    );
   }
 
   /// True when the user's selected calendar dates are shorter than what the
@@ -1108,6 +1126,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
           groupSize: widget.groupSize,
           seasonMessage: widget.seasonMessage,
           route: route,
+          places: _catalogFor(context),
           package: widget.package,
         ),
       ),

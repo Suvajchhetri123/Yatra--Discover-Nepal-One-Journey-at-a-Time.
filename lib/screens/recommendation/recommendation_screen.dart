@@ -4,7 +4,6 @@ import '../../theme/app_theme.dart';
 import '../../services/google_maps_launcher.dart';
 import '../../services/recommendation_service.dart';
 import '../../services/trip_cost_estimator.dart';
-import '../../data/places_data.dart';
 import '../../widgets/yatra_components.dart';
 import '../booking/booking_review_screen.dart';
 import '../place_details/place_details_screen.dart';
@@ -33,6 +32,13 @@ class RecommendationScreen extends StatefulWidget {
   /// a package (used to keep the package title on the booking request).
   final TourPackage? package;
 
+  /// The active place catalog the itinerary and its attractions are built
+  /// from, supplied by the caller (a [TouristCatalogScope] in production).
+  ///
+  /// The screen never reads the catalog itself, so the same widget can be
+  /// rendered from Firestore data in the app and from a fake in tests.
+  final List<Place> places;
+
   const RecommendationScreen({
     super.key,
     required this.touristType,
@@ -51,6 +57,7 @@ class RecommendationScreen extends StatefulWidget {
     required this.seasonMessage,
     required this.route,
     this.package,
+    this.places = const <Place>[],
   });
 
   @override
@@ -135,6 +142,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
     _duration = rawDuration > 0 ? rawDuration : 1;
 
     _recommendation = RecommendationService.generate(
+      places: widget.places,
       touristType: touristType,
       destination: destination,
       season: season,
@@ -288,13 +296,28 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
     });
   }
 
+  /// Resolves an attraction name against the injected catalog.
+  ///
+  /// Returns null when the place is not in the active catalog, and the UI then
+  /// shows its "details unavailable" state rather than linking to content the
+  /// admin has removed.
+  Place? _findPlace(String name) {
+    final target = name.trim().toLowerCase();
+
+    for (final place in widget.places) {
+      if (place.name.trim().toLowerCase() == target) return place;
+    }
+
+    return null;
+  }
+
   void _addAttraction(DayPlan dayPlan) {
     final dayIndex = _visibleDayPlans.indexOf(dayPlan);
     if (dayIndex < 0 || !_editing) return;
 
     final places = <Place>[];
     for (final name in _recommendation.suggestedPlaces) {
-      final place = findPlaceByName(name);
+      final place = _findPlace(name);
       if (place != null) {
         places.add(place);
       }
@@ -928,7 +951,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 ),
 
               ...recommendation.suggestedPlaces.map((placeName) {
-                final place = findPlaceByName(placeName);
+                final place = _findPlace(placeName);
 
                 if (place == null) {
                   return Card(

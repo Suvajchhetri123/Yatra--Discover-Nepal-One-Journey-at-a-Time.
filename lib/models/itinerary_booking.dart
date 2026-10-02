@@ -25,9 +25,7 @@ extension BookingStatusLabel on BookingStatus {
 
 /// Snapshot of a trip at the moment the tourist submits a booking request.
 ///
-/// [id] is the internal record identifier.
-/// - DemoBookingStore may still use a readable YT-* value.
-/// - Firestore uses the Firestore document ID.
+/// [id] is the internal record identifier. Firestore uses the document ID.
 ///
 /// [bookingCode] is the user-facing booking reference.
 ///
@@ -44,6 +42,11 @@ class ItineraryBooking {
   ///
   /// Empty only for legacy/demo bookings created before Firestore migration.
   final String userId;
+
+  /// Name of the tourist when the booking was submitted.
+  ///
+  /// Null for legacy bookings created before customer-name snapshots existed.
+  final String? customerName;
 
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -89,6 +92,7 @@ class ItineraryBooking {
     required this.id,
     String? bookingCode,
     this.userId = '',
+    this.customerName,
     required this.createdAt,
     this.updatedAt,
     required this.status,

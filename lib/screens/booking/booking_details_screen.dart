@@ -7,7 +7,7 @@ import '../../models/travel_coordinator.dart';
 import '../../models/travel_route_model.dart';
 import '../../services/booking_repository.dart';
 import '../../services/preview_mode.dart';
-import '../../services/demo_profile_store.dart';
+import '../../services/profile_session.dart';
 import '../../services/firestore_booking_service.dart';
 import '../../services/google_maps_launcher.dart';
 import '../../services/trip_cost_estimator.dart';
@@ -204,7 +204,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final language = DemoProfileStore.instance.language;
+    final language = ProfileSessionScope.languageOf(context);
 
     if (_loadingBooking) {
       return Scaffold(

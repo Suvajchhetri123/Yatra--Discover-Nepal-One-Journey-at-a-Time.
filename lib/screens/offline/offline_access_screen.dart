@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_strings.dart';
-import '../../services/demo_profile_store.dart';
+import '../../services/profile_session.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/sos_action.dart';
 import '../../widgets/yatra_components.dart';
@@ -14,7 +14,7 @@ class OfflineAccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final language = DemoProfileStore.instance.language;
+    final language = ProfileSessionScope.languageOf(context);
 
     return Scaffold(
       appBar: AppBar(

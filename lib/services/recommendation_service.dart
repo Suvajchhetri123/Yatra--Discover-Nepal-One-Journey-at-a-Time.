@@ -1,4 +1,3 @@
-import '../data/places_data.dart';
 import '../models/journey_stop_plan.dart';
 import '../models/place_model.dart';
 import '../models/travel_route_model.dart';
@@ -330,7 +329,18 @@ class RecommendationService {
   // MAIN METHOD
   // ============================================================
 
+  /// Builds an itinerary recommendation for [route].
+  ///
+  /// [places] is the destination catalog this recommendation is built from. It
+  /// is supplied by the caller, which reads it from [PlaceRepository], so the
+  /// algorithm stays deterministic and free of any global catalog: the same
+  /// input always produces the same result, and an admin catalog edit changes
+  /// the output because the *input* changed, not because the code did.
+  ///
+  /// When omitted the recommendation still produces a valid day plan, with no
+  /// destination attractions to suggest.
   static RecommendationResult generate({
+    List<Place> places = const <Place>[],
     required String touristType,
     required String destination,
     required String season,
@@ -414,6 +424,7 @@ class RecommendationService {
     // 38 available days but this route needs only 3 days, dayPlans should
     // contain 3 days and the other 35 days should appear as extra days.
     final List<DayPlan> dayPlans = _generateDayPlans(
+      catalog: places,
       route: route,
       travelDays: travelDays,
       visitDays: visitDays,
@@ -430,6 +441,7 @@ class RecommendationService {
 
     final List<Place> destinationPlaces = _getDestinationPlaces(
       route.destination,
+      places,
     );
 
     final List<String> suggestedPlaces = destinationPlaces
@@ -782,6 +794,7 @@ class RecommendationService {
   // ============================================================
 
   static List<DayPlan> _generateDayPlans({
+    List<Place> catalog = const <Place>[],
     required TravelRoute route,
     required int travelDays,
     required int visitDays,
@@ -809,7 +822,7 @@ class RecommendationService {
     // Local exploration has no intercity route segments.
     if (route.segments.isEmpty) {
       return _createVisitPlans(
-        places: _getDestinationPlaces(route.destination),
+        places: _getDestinationPlaces(route.destination, catalog),
         numberOfDays: totalPlanDays,
         startingDay: 1,
         ages: ages,
@@ -1014,6 +1027,7 @@ class RecommendationService {
 
         if (destStopDays != null && destStopDays > 0) {
           final List<DayPlan> stopPlans = _createStopPlans(
+            catalog: catalog,
             stops: [
               JourneyStopPlan(
                 location: segment.to,
@@ -1036,7 +1050,7 @@ class RecommendationService {
         // DESTINATION VISIT DAYS (the core stay at the destination)
         if (destinationDays > 0) {
           final List<DayPlan> visitPlans = _createVisitPlans(
-            places: _getDestinationPlaces(route.destination),
+            places: _getDestinationPlaces(route.destination, catalog),
             numberOfDays: destinationDays,
             startingDay: currentDay,
             ages: ages,
@@ -1053,6 +1067,7 @@ class RecommendationService {
 
         if (stopDays != null && stopDays > 0) {
           final List<DayPlan> stopPlans = _createStopPlans(
+            catalog: catalog,
             stops: [
               JourneyStopPlan(location: segment.to, explorationDays: stopDays),
             ],
@@ -1128,6 +1143,7 @@ class RecommendationService {
 
           if (stopDays != null && stopDays > 0) {
             final List<DayPlan> stopPlans = _createStopPlans(
+              catalog: catalog,
               stops: [
                 JourneyStopPlan(
                   location: segment.to,
@@ -1169,6 +1185,7 @@ class RecommendationService {
   /// activity otherwise. Works for both outbound stops ([TravelRoute.stopPlans])
   /// and stops introduced on a custom return route ([TravelRoute.returnStopPlans]).
   static List<DayPlan> _createStopPlans({
+    List<Place> catalog = const <Place>[],
     required List<JourneyStopPlan> stops,
     required int numberOfDays,
     required int startingDay,
@@ -1194,7 +1211,7 @@ class RecommendationService {
           ? plan.explorationDays
           : numberOfDays - allocated;
 
-      final places = _getDestinationPlaces(plan.location);
+      final places = _getDestinationPlaces(plan.location, catalog);
 
       for (int i = 0; i < daysToUse; i++) {
         final List<DayPlanItem> items = [];
@@ -1225,10 +1242,17 @@ class RecommendationService {
   // GET DESTINATION PLACES
   // ============================================================
 
-  static List<Place> _getDestinationPlaces(String destination) {
+  static List<Place> _getDestinationPlaces(
+    String destination,
+    List<Place> catalog,
+  ) {
     final String destinationLower = destination.toLowerCase().trim();
 
-    final List<Place> exactMatches = nepalPlaces.where((place) {
+    if (catalog.isEmpty) {
+      return const <Place>[];
+    }
+
+    final List<Place> exactMatches = catalog.where((place) {
       return place.location.toLowerCase().trim() == destinationLower;
     }).toList();
 
@@ -1236,7 +1260,7 @@ class RecommendationService {
       return exactMatches;
     }
 
-    return nepalPlaces.where((place) {
+    return catalog.where((place) {
       final String location = place.location.toLowerCase();
 
       return destinationLower.contains(location) ||
@@ -2186,8 +2210,12 @@ class RecommendationService {
   // CONVENIENCE METHODS
   // ============================================================
 
-  static String getRecommendedTime({required TravelRoute route}) {
+  static String getRecommendedTime({
+    required TravelRoute route,
+    List<Place> places = const <Place>[],
+  }) {
     return generate(
+      places: places,
       touristType: 'Domestic Tourist',
       destination: route.destination,
       season: '',
@@ -2207,8 +2235,12 @@ class RecommendationService {
   /// Minimum number of days this route needs, including any extra
   /// exploration/stay days chosen by the traveller on top of the core
   /// journey. Used for date validation before the itinerary is generated.
-  static int minimumDaysFor({required TravelRoute route}) {
+  static int minimumDaysFor({
+    required TravelRoute route,
+    List<Place> places = const <Place>[],
+  }) {
     return generate(
+      places: places,
       touristType: 'Domestic Tourist',
       destination: route.destination,
       season: '',
@@ -2225,8 +2257,12 @@ class RecommendationService {
     ).minimumDays;
   }
 
-  static List<DayPlan> getDayPlans({required TravelRoute route}) {
+  static List<DayPlan> getDayPlans({
+    required TravelRoute route,
+    List<Place> places = const <Place>[],
+  }) {
     return generate(
+      places: places,
       touristType: 'Domestic Tourist',
       destination: route.destination,
       season: '',

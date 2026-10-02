@@ -91,6 +91,54 @@ test.before(async () => {
       userId: TOURIST_UID,
       status: 'pending',
     });
+
+    // Dedicated active records for the read-path tests. They are separate from
+    // the records the write tests mutate, so these tests do not depend on
+    // test order.
+    await setDoc(doc(db, 'places', 'pokhara-phewa'), {
+      name: 'Phewa Lake',
+      location: 'Pokhara',
+      entryFee: 0,
+      active: true,
+    });
+
+    await setDoc(doc(db, 'packages', 'pkg-read'), {
+      title: 'Read Path Trek',
+      region: 'Baglung',
+      price: 12000,
+      durationDays: 5,
+      active: true,
+    });
+
+    await setDoc(doc(db, 'coordinators', 'c-active'), {
+      name: 'Active Coordinator',
+      phone: '9800000002',
+      email: 'active@yatra.test',
+      active: true,
+    });
+
+    // An inactive catalog record, so active-only reads can be proven.
+    await setDoc(doc(db, 'places', 'pokhara-retired'), {
+      name: 'Retired Spring',
+      location: 'Pokhara',
+      entryFee: 0,
+      active: false,
+    });
+
+    await setDoc(doc(db, 'packages', 'pkg-retired'), {
+      title: 'Retired Trek',
+      region: 'Baglung',
+      price: 9000,
+      durationDays: 4,
+      active: false,
+    });
+
+    await setDoc(doc(db, 'coordinators', 'c-retired'), {
+      name: 'Inactive Coordinator',
+      phone: '9800000001',
+      email: 'inactive@yatra.test',
+      active: false,
+    });
   });
 });
 
@@ -219,6 +267,57 @@ test('Firestore: a tourist reads only their own bookings', async () => {
   const db = asUser(TOURIST_UID);
 
   await assertSucceeds(getDoc(doc(db, 'bookings', 'booking-1')));
+});
+
+test('Firestore: a tourist reads the active catalog and nothing else', async () => {
+  // This is the read path the tourist app depends on after the Firestore
+  // migration, so the rules are where it has to be proven.
+  const db = asUser(TOURIST_UID);
+
+  await assertSucceeds(getDoc(doc(db, 'places', 'pokhara-phewa')));
+  await assertSucceeds(getDoc(doc(db, 'packages', 'pkg-read')));
+  await assertSucceeds(getDoc(doc(db, 'coordinators', 'c-active')));
+
+  // Deactivated records stay unreadable to tourists, which is what keeps a
+  // removed package out of discovery and out of the planner.
+  await assertFails(getDoc(doc(db, 'places', 'pokhara-retired')));
+  await assertFails(getDoc(doc(db, 'packages', 'pkg-retired')));
+  await assertFails(getDoc(doc(db, 'coordinators', 'c-retired')));
+});
+
+test('Firestore: an admin still reads deactivated catalog records', async () => {
+  // Soft deactivation must not hide a record from the CMS, otherwise an admin
+  // cannot inspect or reactivate it.
+  const db = asUser(ADMIN_UID);
+
+  await assertSucceeds(getDoc(doc(db, 'places', 'pokhara-retired')));
+  await assertSucceeds(getDoc(doc(db, 'packages', 'pkg-retired')));
+});
+
+test('Firestore: a tourist reads only their own profile', async () => {
+  // Profile state moved into Firestore and is now read through the session.
+  const db = asUser(TOURIST_UID);
+
+  await assertSucceeds(getDoc(doc(db, 'users', TOURIST_UID)));
+  await assertFails(getDoc(doc(db, 'users', ADMIN_UID)));
+  await assertFails(getDoc(doc(asAnonymous(), 'users', TOURIST_UID)));
+});
+
+test('Firestore: a tourist may store their own language preference', async () => {
+  // Language is a profile field, so persisting it needs to be permitted.
+  const db = asUser(TOURIST_UID);
+
+  await assertSucceeds(
+    setDoc(
+      doc(db, 'users', TOURIST_UID),
+      { language: 'ne' },
+      { merge: true },
+    ),
+  );
+
+  await assertFails(
+    setDoc(doc(db, 'users', TOURIST_UID), { role: 'admin' }, { merge: true }),
+  );
 });
 
 test('Storage: a signed-out visitor cannot read place photos', async () => {

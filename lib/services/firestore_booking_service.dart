@@ -15,8 +15,6 @@ import 'recommendation_service.dart';
 /// - read current tourist's bookings
 /// - read one owned booking
 /// - cancel a pending owned booking
-///
-/// Admin operations are intentionally handled in a later backend phase.
 class FirestoreBookingService implements BookingRepository {
   FirestoreBookingService({FirebaseFirestore? firestore, FirebaseAuth? auth})
     : _firestore = firestore ?? FirebaseFirestore.instance,
@@ -52,16 +50,18 @@ class FirestoreBookingService implements BookingRepository {
   }) async {
     final user = _requireUser();
 
+    // Snapshot the traveller's profile name at booking time.
+    final customerName = await _readCustomerName(user);
+
     final document = _bookings.doc();
-
     final bookingCode = _buildBookingCode(document.id);
-
     final now = DateTime.now();
 
     final booking = ItineraryBooking(
       id: document.id,
       bookingCode: bookingCode,
       userId: user.uid,
+      customerName: customerName,
       createdAt: now,
       updatedAt: now,
       status: BookingStatus.pending,
@@ -86,15 +86,13 @@ class FirestoreBookingService implements BookingRepository {
 
     // Server timestamps are authoritative for database audit fields.
     data['createdAt'] = FieldValue.serverTimestamp();
-
     data['updatedAt'] = FieldValue.serverTimestamp();
 
     await document.set(data);
 
-    // Read back the written document so server timestamps are reflected
-    // in the model returned to the UI.
+    // Read the document again so the returned model contains the server
+    // timestamps written by Firestore.
     final createdSnapshot = await document.get();
-
     final createdData = createdSnapshot.data();
 
     if (createdData == null) {
@@ -109,8 +107,8 @@ class FirestoreBookingService implements BookingRepository {
 
   /// Returns all bookings owned by the currently authenticated tourist.
   ///
-  /// Sorting is performed in Dart for now. This avoids requiring a composite
-  /// Firestore index during the first backend phase.
+  /// Sorting is performed in Dart to avoid requiring an additional composite
+  /// Firestore index for this query.
   @override
   Future<List<ItineraryBooking>> getCurrentUserBookings() async {
     final user = _requireUser();
@@ -132,9 +130,6 @@ class FirestoreBookingService implements BookingRepository {
   }
 
   /// Reads a single booking only when it belongs to the authenticated user.
-  ///
-  /// Security Rules will enforce ownership server-side later; this client-side
-  /// check is still useful for application correctness.
   @override
   Future<ItineraryBooking?> getBookingById(String bookingId) async {
     final user = _requireUser();
@@ -163,12 +158,11 @@ class FirestoreBookingService implements BookingRepository {
 
   /// Cancels one pending booking owned by the current user.
   ///
-  /// It does NOT delete the booking. Historical booking records remain in
+  /// The booking is not deleted. Historical booking information remains in
   /// Firestore with status = cancelled.
   @override
   Future<void> cancelBooking(String bookingId) async {
     final user = _requireUser();
-
     final reference = _bookings.doc(bookingId);
 
     await _firestore.runTransaction((transaction) async {
@@ -203,12 +197,44 @@ class FirestoreBookingService implements BookingRepository {
     });
   }
 
-  /// Creates a readable reference without a global sequential counter.
+  /// Reads the traveller's Firestore profile name so a booking keeps a
+  /// historical snapshot of the person who submitted it.
+  ///
+  /// A missing name does not prevent booking creation. Firebase Auth's
+  /// displayName is used as a fallback when available.
+  Future<String?> _readCustomerName(User user) async {
+    try {
+      final snapshot = await _firestore.collection('users').doc(user.uid).get();
+
+      final rawName = snapshot.data()?['name'];
+
+      if (rawName is String) {
+        final name = rawName.trim();
+
+        if (name.isNotEmpty) {
+          return name;
+        }
+      }
+    } catch (_) {
+      // Customer name is useful snapshot metadata, but failure to retrieve
+      // it must not prevent an otherwise valid booking from being created.
+    }
+
+    final authName = user.displayName?.trim();
+
+    if (authName != null && authName.isNotEmpty) {
+      return authName;
+    }
+
+    return null;
+  }
+
+  /// Creates a readable booking reference without a global sequential counter.
   ///
   /// Example:
   /// YT-2026-A1B2C3
   ///
-  /// The actual Firestore document ID remains the canonical unique record ID.
+  /// The Firestore document ID remains the canonical record identifier.
   String _buildBookingCode(String documentId) {
     final year = DateTime.now().year;
 

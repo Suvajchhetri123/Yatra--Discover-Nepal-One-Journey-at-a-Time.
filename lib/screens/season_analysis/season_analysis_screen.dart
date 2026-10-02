@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../data/packages_data.dart';
 import '../../models/package_model.dart';
 import '../../models/travel_route_model.dart';
 import '../../services/season_service.dart';
+import '../../services/tourist_catalog_controller.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
@@ -51,7 +51,14 @@ class SeasonAnalysisScreen extends StatelessWidget {
     required this.groupSize,
     this.selectedTransport,
     this.package,
+    this.packages,
   });
+
+  /// Overrides the package catalog used for the destination's image and title.
+  ///
+  /// Production reads the catalog published by the enclosing
+  /// [TouristCatalogScope]; tests can pass a fixed list instead.
+  final List<TourPackage>? packages;
 
   String formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
@@ -62,8 +69,8 @@ class SeasonAnalysisScreen extends StatelessWidget {
   /// Reuses an existing package image for this destination region, if any.
   /// Returns null when no reference image exists (hero falls back to a
   /// branded gradient placeholder).
-  String? _imageForDestination() {
-    for (final package in tourPackages) {
+  String? _imageForDestination(BuildContext context) {
+    for (final package in _packagesFor(context)) {
       if (package.region == destination) {
         return package.imageUrl;
       }
@@ -71,13 +78,22 @@ class SeasonAnalysisScreen extends StatelessWidget {
     return null;
   }
 
-  String _packageTitleForDestination() {
-    for (final package in tourPackages) {
+  String _packageTitleForDestination(BuildContext context) {
+    for (final package in _packagesFor(context)) {
       if (package.region == destination) {
         return package.title;
       }
     }
     return '';
+  }
+
+  /// The active package catalog in scope, or an injected list.
+  ///
+  /// Only used for presentation (a destination hero image and a package title),
+  /// never for pricing: cost comes from [TripCostEstimator] and an injected
+  /// package price, which stay deterministic.
+  List<TourPackage> _packagesFor(BuildContext context) {
+    return packages ?? TouristCatalogScope.packagesOf(context);
   }
 
   String get _ageText {
@@ -159,8 +175,8 @@ class SeasonAnalysisScreen extends StatelessWidget {
 
                     _DestinationHero(
                       destination: destination,
-                      packageTitle: _packageTitleForDestination(),
-                      imageUrl: _imageForDestination(),
+                      packageTitle: _packageTitleForDestination(context),
+                      imageUrl: _imageForDestination(context),
                       season: result.season,
                       suitability: result.suitability,
                     ),

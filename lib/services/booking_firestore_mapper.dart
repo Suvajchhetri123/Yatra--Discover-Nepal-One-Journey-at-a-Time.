@@ -23,6 +23,7 @@ class BookingFirestoreMapper {
     return {
       'bookingCode': booking.bookingCode,
       'userId': booking.userId,
+      'customerName': booking.customerName,
       'status': booking.status.name,
       'destination': booking.destination,
       'startDate': Timestamp.fromDate(booking.startDate),
@@ -72,6 +73,7 @@ class BookingFirestoreMapper {
       id: documentId,
       bookingCode: _string(data['bookingCode']) ?? documentId,
       userId: _string(data['userId']) ?? '',
+      customerName: _string(data['customerName']),
       createdAt:
           _date(data['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       updatedAt: _date(data['updatedAt']),

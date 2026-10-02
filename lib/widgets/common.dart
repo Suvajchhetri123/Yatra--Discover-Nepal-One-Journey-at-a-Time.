@@ -32,10 +32,7 @@ class SectionHeader extends StatelessWidget {
         Text(title, style: textTheme.headlineSmall),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
-          Text(
-            subtitle!,
-            style: textTheme.bodySmall?.copyWith(height: 1.4),
-          ),
+          Text(subtitle!, style: textTheme.bodySmall?.copyWith(height: 1.4)),
         ],
       ],
     );
@@ -77,7 +74,9 @@ class EmptyState extends StatelessWidget {
             Text(
               hint!,
               textAlign: TextAlign.center,
-              style: textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
+              style: textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade600,
+              ),
             ),
           ],
         ],
@@ -109,7 +108,8 @@ class InfoBox extends StatelessWidget {
         color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: border?.call(scheme.outlineVariant).color ??
+          color:
+              border?.call(scheme.outlineVariant).color ??
               scheme.outlineVariant,
           width: border?.call(scheme.outlineVariant).width ?? 1,
         ),
@@ -121,6 +121,52 @@ class InfoBox extends StatelessWidget {
 
 /// A package/place cover image that falls back to a branded gradient
 /// placeholder when the asset is missing.
+class YatraImage extends StatelessWidget {
+  final String imageUrl;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final ImageErrorWidgetBuilder? errorBuilder;
+
+  const YatraImage({
+    super.key,
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.errorBuilder,
+  });
+
+  bool get _isNetworkImage {
+    final uri = Uri.tryParse(imageUrl);
+
+    return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isNetworkImage) {
+      return Image.network(
+        imageUrl,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: errorBuilder,
+      );
+    }
+
+    return Image.asset(
+      imageUrl,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: errorBuilder,
+    );
+  }
+}
+
+/// A package/place cover image that falls back to a branded gradient
+/// placeholder when the source cannot be displayed.
 class CoverImage extends StatelessWidget {
   final String imageUrl;
   final double height;
@@ -137,8 +183,8 @@ class CoverImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    final image = Image.asset(
-      imageUrl,
+    final image = YatraImage(
+      imageUrl: imageUrl,
       width: double.infinity,
       height: height,
       fit: BoxFit.cover,

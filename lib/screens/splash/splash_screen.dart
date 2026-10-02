@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../navigation/app_entry_navigation.dart';
 import '../../services/app_entry.dart';
 import '../../services/firestore_service.dart';
+import '../../services/profile_session.dart';
 
 /// First screen after launch.
 ///
@@ -54,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Started before the wait, so the two overlap instead of adding up.
     final entry = await AppEntryResolver(
       profileLoader: widget.profileLoader,
-    ).resolveCurrentEntry();
+    ).resolveCurrentEntry(session: _session);
 
     await done.future;
 
@@ -79,6 +80,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
     super.dispose();
   }
+
+  /// The app-wide profile session, or null in an isolated widget test.
+  ProfileSession? get _session => ProfileSessionScope.maybeOf(context);
 
   @override
   Widget build(BuildContext context) {

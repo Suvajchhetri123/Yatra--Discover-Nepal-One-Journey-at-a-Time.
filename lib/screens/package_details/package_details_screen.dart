@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/places_data.dart';
 import '../../models/package_model.dart';
+import '../../models/place_model.dart';
+import '../../services/tourist_catalog_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/yatra_components.dart';
@@ -21,7 +22,29 @@ import '../travel_dates/travel_dates_screen.dart';
 class PackageDetailsScreen extends StatelessWidget {
   final TourPackage package;
 
-  const PackageDetailsScreen({super.key, required this.package});
+  /// Overrides the place catalog used to resolve included-place chips.
+  ///
+  /// Production leaves this null and reads the catalog published by the
+  /// enclosing [TouristCatalogScope]; tests inject a fixed list.
+  final List<Place>? places;
+
+  const PackageDetailsScreen({super.key, required this.package, this.places});
+
+  /// Resolves a place name against the active catalog.
+  ///
+  /// A package may reference a place an admin has since removed; that chip then
+  /// renders as unavailable instead of linking to content that is no longer
+  /// part of the catalog.
+  Place? _resolvePlace(BuildContext context, String name) {
+    final target = name.trim().toLowerCase();
+    final catalog = places ?? TouristCatalogScope.placesOf(context);
+
+    for (final place in catalog) {
+      if (place.name.trim().toLowerCase() == target) return place;
+    }
+
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +139,7 @@ class PackageDetailsScreen extends StatelessWidget {
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.sm,
       children: package.includedPlaces.map((name) {
-        final place = findPlaceByName(name);
+        final place = _resolvePlace(context, name);
 
         return ActionChip(
           avatar: Icon(
@@ -165,8 +188,8 @@ class _Hero extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              package.imageUrl,
+            YatraImage(
+              imageUrl: package.imageUrl,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return Container(

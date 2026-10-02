@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:yatra/data/places_data.dart';
 import 'package:yatra/models/travel_route_model.dart';
 import 'package:yatra/screens/recommendation/recommendation_screen.dart';
 
@@ -36,6 +37,7 @@ Future<void> _pump(WidgetTester tester) async {
         groupSize: 1,
         seasonMessage: 'msg',
         route: _route,
+        places: nepalPlaces,
       ),
     ),
   );

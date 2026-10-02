@@ -4,7 +4,7 @@ import '../../l10n/app_strings.dart';
 import '../../models/itinerary_booking.dart';
 import '../../services/admin_booking_repository.dart';
 import '../../services/coordinator_repository.dart';
-import '../../services/demo_profile_store.dart';
+import '../../services/profile_session.dart';
 import '../../services/firestore_admin_booking_service.dart';
 import '../../services/firestore_coordinator_service.dart';
 import '../../services/trip_cost_estimator.dart';
@@ -139,7 +139,7 @@ class _AdminBookingListScreenState extends State<AdminBookingListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final language = DemoProfileStore.instance.language;
+    final language = ProfileSessionScope.languageOf(context);
 
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.tr(language, 'admin.bookings'))),
@@ -272,11 +272,21 @@ class _AdminBookingCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  // The user-facing reference is the booking code. The
-                  // Firestore document ID is never rendered.
-                  booking.bookingCode,
-                  style: textTheme.titleMedium,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (booking.customerName?.trim().isNotEmpty ?? false)
+                          ? booking.customerName!.trim()
+                          : 'Traveller',
+                      style: textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+
+                    const SizedBox(height: 2),
+                    Text(booking.bookingCode, style: textTheme.bodySmall),
+                  ],
                 ),
               ),
               BookingStatusChip(status: booking.status),

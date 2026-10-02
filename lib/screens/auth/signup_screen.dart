@@ -7,6 +7,7 @@ import '../../navigation/app_entry_navigation.dart';
 import '../../services/app_entry.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/profile_session.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import 'login_screen.dart';
@@ -245,7 +246,7 @@ class _SignupScreenState extends State<SignupScreen> {
       // signs in with a social provider is not dropped onto the tourist home.
       final entry = await AppEntryResolver(
         profileLoader: _firestore.getCurrentUserProfile,
-      ).resolveCurrentEntry();
+      ).resolveCurrentEntry(session: _session);
 
       if (!mounted) {
         return;
@@ -266,6 +267,9 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     }
   }
+
+  /// The app-wide profile session, or null in an isolated widget test.
+  ProfileSession? get _session => ProfileSessionScope.maybeOf(context);
 
   @override
   Widget build(BuildContext context) {

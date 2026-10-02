@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:yatra/data/places_data.dart';
 import 'package:yatra/models/travel_route_model.dart';
 import 'package:yatra/services/recommendation_service.dart';
 
@@ -19,6 +20,7 @@ TravelRoute _mustangRoute() {
 
 RecommendationResult _generate(int duration) {
   return RecommendationService.generate(
+    places: nepalPlaces,
     touristType: 'Domestic Tourist',
     destination: 'Mustang',
     season: 'Autumn',
@@ -89,6 +91,7 @@ void main() {
       );
 
       final result = RecommendationService.generate(
+        places: nepalPlaces,
         touristType: 'Domestic Tourist',
         destination: 'Pokhara',
         season: 'Autumn',

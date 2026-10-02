@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:yatra/data/transportation_data.dart';
 import 'package:yatra/models/journey_stop_plan.dart';
+import 'package:yatra/data/places_data.dart';
 import 'package:yatra/models/travel_route_model.dart';
 import 'package:yatra/services/recommendation_service.dart';
 import 'package:yatra/services/trip_cost_estimator.dart';
@@ -312,10 +313,13 @@ void main() {
       final automatic = _route(segments: _outbound);
 
       final customPairs = travelPairs(
-        RecommendationService.getDayPlans(route: custom),
+        RecommendationService.getDayPlans(route: custom, places: nepalPlaces),
       );
       final automaticPairs = travelPairs(
-        RecommendationService.getDayPlans(route: automatic),
+        RecommendationService.getDayPlans(
+          route: automatic,
+          places: nepalPlaces,
+        ),
       );
 
       // Custom return legs appear after the outbound journey.
@@ -379,7 +383,9 @@ void main() {
         ],
       );
 
-      final sig = signatures(RecommendationService.getDayPlans(route: route));
+      final sig = signatures(
+        RecommendationService.getDayPlans(route: route, places: nepalPlaces),
+      );
 
       // Outbound travel comes first, then the destination visit days.
       expect(sig[0], 'travel Kathmandu->Pokhara');
@@ -420,7 +426,9 @@ void main() {
       // 1 travel + 3 Chitwan visit + 2 return travel + 2 Pokhara stay = 8.
       expect(RecommendationService.minimumDaysFor(route: route), 8);
 
-      final sig = signatures(RecommendationService.getDayPlans(route: route));
+      final sig = signatures(
+        RecommendationService.getDayPlans(route: route, places: nepalPlaces),
+      );
 
       final iK2C = sig.indexOf('travel Kathmandu->Chitwan');
       final iC2P = sig.indexOf('travel Chitwan->Pokhara');
@@ -453,7 +461,9 @@ void main() {
       // stay + 1 return Jomsom stay.
       expect(RecommendationService.minimumDaysFor(route: route), 12);
 
-      final sig = signatures(RecommendationService.getDayPlans(route: route));
+      final sig = signatures(
+        RecommendationService.getDayPlans(route: route, places: nepalPlaces),
+      );
 
       // Pokhara sits between the outbound legs: its stay days follow the
       // Kathmandu->Pokhara leg and precede the Pokhara->Mustang leg.
@@ -486,7 +496,9 @@ void main() {
       expect(route.stopPlans.single.location, 'Pokhara');
       expect(route.returnStopPlans.single.location, 'Pokhara');
 
-      final sig = signatures(RecommendationService.getDayPlans(route: route));
+      final sig = signatures(
+        RecommendationService.getDayPlans(route: route, places: nepalPlaces),
+      );
 
       // Outbound Pokhara: 1 day between Kathmandu->Pokhara and
       // Pokhara->Mustang.

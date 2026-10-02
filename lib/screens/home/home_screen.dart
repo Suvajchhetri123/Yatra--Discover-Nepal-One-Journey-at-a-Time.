@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../data/packages_data.dart';
 import '../../models/package_model.dart';
+import '../../services/tourist_catalog_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/sos_action.dart';
@@ -20,7 +20,14 @@ import '../profile/profile_screen.dart';
 ///   - destination card / chip     -> filters packages in place (no route)
 ///   - package card                -> PackageDetailsScreen
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.catalog});
+
+  /// Overrides the shared tourist catalog.
+  ///
+  /// Production normally leaves this null and reads the app-level
+  /// [TouristCatalogScope]. Widget tests can inject a controller built on
+  /// fakes instead of booting Firebase.
+  final TouristCatalogController? catalog;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -31,13 +38,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _selectedRegion = _allRegions;
 
-  List<String> get _regions => [_allRegions, ...packageRegions];
+  TouristCatalogController? _scopeCatalog;
+  bool _catalogLoadRequested = false;
 
-  List<TourPackage> get _visiblePackages => _selectedRegion == _allRegions
-      ? tourPackages
-      : tourPackages
-            .where((package) => package.region == _selectedRegion)
-            .toList();
+  TouristCatalogController? get _catalog => widget.catalog ?? _scopeCatalog;
+
+  /// The active package catalog, or an empty list before the first load.
+  List<TourPackage> get _packages => _catalog?.packages ?? const [];
+
+  List<String> get _regions => [_allRegions, ...?_catalog?.regions];
+
+  List<TourPackage> get _visiblePackages {
+    final packages = _packages;
+
+    if (_selectedRegion == _allRegions) return packages;
+
+    return packages
+        .where((package) => package.region == _selectedRegion)
+        .toList();
+  }
 
   /// Distinct destinations (one per region) derived from real package data —
   /// never invented. Each carries the image of its first package.
@@ -45,14 +64,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final seen = <String>[];
     final result = <_Destination>[];
 
-    for (final package in tourPackages) {
+    final packages = _packages;
+
+    for (final package in packages) {
       if (!seen.contains(package.region)) {
         seen.add(package.region);
         result.add(
           _Destination(
             name: package.region,
             imageUrl: package.imageUrl,
-            packageCount: tourPackages
+            packageCount: packages
                 .where((p) => p.region == package.region)
                 .length,
           ),
@@ -75,16 +96,74 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openPackage(TourPackage package) {
+    // Places are passed explicitly so the detail screen resolves its chips
+    // against the same catalog snapshot the user was just looking at.
+    final places = _catalog?.places ?? const [];
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PackageDetailsScreen(package: package),
+        builder: (context) =>
+            PackageDetailsScreen(package: package, places: places),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext content) {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (widget.catalog == null) {
+      _scopeCatalog = TouristCatalogScope.maybeOf(context);
+    }
+
+    final catalog = _catalog;
+
+    if (catalog == null || _catalogLoadRequested) {
+      return;
+    }
+
+    _catalogLoadRequested = true;
+
+    // Production uses the shared app-level controller and refreshes when a new
+    // Home/Preview session opens so recent Admin catalog edits become visible.
+    //
+    // Injected test controllers keep the existing cached-load behavior.
+    Future<void>.microtask(() => catalog.load(force: widget.catalog == null));
+  }
+
+  void _retry() {
+    _catalog?.refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final catalog = _catalog;
+
+    if (catalog == null) {
+      return _buildScaffold(null);
+    }
+
+    // Listen to the shared controller so Home rebuilds after catalog loading,
+    // refreshes, admin-managed changes, or failures.
+    return ListenableBuilder(
+      listenable: catalog,
+      builder: (context, _) {
+        final child = _buildScaffold(catalog);
+
+        // Production already has TouristCatalogScope above MaterialApp.
+        // An injected catalog is mainly used by isolated widget tests, where
+        // there may be no app-level scope, so publish it locally in that case.
+        if (widget.catalog != null) {
+          return TouristCatalogScope(controller: catalog, child: child);
+        }
+
+        return child;
+      },
+    );
+  }
+
+  Widget _buildScaffold(TouristCatalogController? catalog) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Yatra'),
@@ -103,19 +182,35 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.zero,
+        child: Column(
           children: [
-            _Hero(onPlanTrip: _openPlanTrip),
-            const SizedBox(height: AppSpacing.xl),
-            _PlanTripCard(onTap: _openPlanTrip),
-            const SizedBox(height: AppSpacing.xl),
-            _QuickActions(onPlanTrip: _openPlanTrip),
-            const SizedBox(height: AppSpacing.xxl),
-            _buildDestinationSection(),
-            const SizedBox(height: AppSpacing.xxl),
-            _buildPackagesSection(),
-            const SizedBox(height: AppSpacing.xxl),
+            if (catalog != null && catalog.errorMessage != null)
+              _CatalogErrorBanner(
+                message: catalog.errorMessage!,
+                onRetry: _retry,
+              ),
+            Expanded(
+              child: catalog != null && catalog.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: () => _catalog?.refresh() ?? Future.value(),
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: [
+                          _Hero(onPlanTrip: _openPlanTrip),
+                          const SizedBox(height: AppSpacing.xl),
+                          _PlanTripCard(onTap: _openPlanTrip),
+                          const SizedBox(height: AppSpacing.xl),
+                          _QuickActions(onPlanTrip: _openPlanTrip),
+                          const SizedBox(height: AppSpacing.xxl),
+                          _buildDestinationSection(),
+                          const SizedBox(height: AppSpacing.xxl),
+                          _buildPackagesSection(),
+                          const SizedBox(height: AppSpacing.xxl),
+                        ],
+                      ),
+                    ),
+            ),
           ],
         ),
       ),
@@ -203,6 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: AppSpacing.lg),
               itemBuilder: (context, index) {
                 final package = packages[index];
+
                 return _PackageCard(
                   package: package,
                   onTap: () => _openPackage(package),
@@ -233,6 +329,38 @@ class _HomeScreenState extends State<HomeScreen> {
             isFilter: true,
           );
         },
+      ),
+    );
+  }
+}
+
+// ==================================================
+// CATALOG ERROR BANNER
+// ==================================================
+
+/// Explains that the catalog could not be loaded and offers a retry.
+///
+/// A failed refresh keeps the previously loaded packages on screen, so this
+/// banner is added above the content rather than replacing existing data.
+class _CatalogErrorBanner extends StatelessWidget {
+  const _CatalogErrorBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.danger.withValues(alpha: 0.12),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.screen, 12, 12, 12),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message, style: const TextStyle(fontSize: 13))),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }
@@ -313,7 +441,7 @@ class _Hero extends StatelessWidget {
                             height: 34,
                             color: Colors.white.withValues(alpha: 0.2),
                             alignment: Alignment.center,
-                            child: Icon(
+                            child: const Icon(
                               Icons.explore,
                               color: Colors.white,
                               size: 22,
@@ -335,7 +463,7 @@ class _Hero extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                Text(
+                const Text(
                   'Explore Nepal.\nPlan Your Journey.',
                   style: TextStyle(
                     fontSize: 30,
@@ -570,8 +698,8 @@ class _DestinationCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.asset(
-                      destination.imageUrl,
+                    YatraImage(
+                      imageUrl: destination.imageUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
@@ -711,7 +839,7 @@ class _PackageCard extends StatelessWidget {
                     const Spacer(),
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.calendar_today,
                           size: 15,
                           color: AppColors.onSurfaceHint,
@@ -719,16 +847,27 @@ class _PackageCard extends StatelessWidget {
                         const SizedBox(width: AppSpacing.xs + 2),
                         Text(
                           '${package.durationDays} days',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 13),
                         ),
-                        const SizedBox(width: AppSpacing.md),
-                        DifficultyBadge(difficulty: package.difficulty),
-                        const Spacer(),
-                        Text(
-                          formatNpr(package.price),
-                          style: AppType.label.copyWith(
-                            fontSize: 15,
-                            color: scheme.primary,
+                        const SizedBox(width: AppSpacing.sm),
+                        Flexible(
+                          child: DifficultyBadge(
+                            difficulty: package.difficulty,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            formatNpr(package.price),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: AppType.label.copyWith(
+                              fontSize: 15,
+                              color: scheme.primary,
+                            ),
                           ),
                         ),
                       ],
@@ -756,8 +895,8 @@ class _CoverThumb extends StatelessWidget {
     return SizedBox(
       height: 150,
       width: double.infinity,
-      child: Image.asset(
-        imageUrl,
+      child: YatraImage(
+        imageUrl: imageUrl,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           return Container(
@@ -780,6 +919,7 @@ class _Rating extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = onDark ? Colors.white : AppColors.onSurface;
+
     final shadow = onDark
         ? Colors.black.withValues(alpha: 0.4)
         : Colors.transparent;
@@ -842,8 +982,8 @@ class _RegionPill extends StatelessWidget {
   }
 }
 
-/// Difficulty label with a semantic color: Easy (green), Moderate (orange),
-/// Challenging (red).
+/// Difficulty label with a semantic color:
+/// Easy (green), Moderate (orange), Challenging (red).
 class DifficultyBadge extends StatelessWidget {
   final String difficulty;
 
@@ -861,6 +1001,8 @@ class DifficultyBadge extends StatelessWidget {
       ),
       child: Text(
         difficulty,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
