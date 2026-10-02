@@ -1457,6 +1457,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
           DropdownButtonFormField<String>(
             initialValue: selectedReturnTransportation,
             isExpanded: true,
+            itemHeight: null,
+            selectedItemBuilder: (context) => _selectedTransportItems(
+              transportOptionsForRoute(from, selectedReturnNextPoint!),
+            ),
             decoration: const InputDecoration(
               hintText: 'Choose transportation',
               prefixIcon: Icon(Icons.directions_bus_outlined),
@@ -1626,6 +1630,32 @@ class _BoardingScreenState extends State<BoardingScreen> {
             ),
           ],
         ),
+      );
+    }).toList();
+  }
+
+  /// Compact representation used when a transportation option is selected.
+  ///
+  /// The dropdown menu itself may show transfer information on multiple lines,
+  /// but the closed form field intentionally stays single-line to avoid
+  /// vertical overflow.
+  List<Widget> _selectedTransportItems(List<RouteTransport> transports) {
+    return transports.map((rt) {
+      final option = rt.option;
+
+      return Row(
+        children: [
+          Icon(option.icon, size: 20, color: AppColors.onSurfaceMuted),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              option.name,
+              style: AppType.bodyEmphasis,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       );
     }).toList();
   }
@@ -2400,6 +2430,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
                         DropdownButtonFormField<String>(
                           initialValue: selectedTransportation,
                           isExpanded: true,
+                          itemHeight: null,
+                          selectedItemBuilder: (context) =>
+                              _selectedTransportItems(
+                                transportOptionsForRoute(
+                                  currentLocation!,
+                                  selectedNextPoint!,
+                                ),
+                              ),
                           decoration: const InputDecoration(
                             hintText: 'Choose transportation',
                             prefixIcon: Icon(Icons.directions_bus_outlined),
