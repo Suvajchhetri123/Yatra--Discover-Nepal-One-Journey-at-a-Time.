@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/package_model.dart';
 import '../../services/firestore_package_service.dart';
 import '../../services/package_repository.dart';
+import '../../services/place_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import 'admin_content_messages.dart';
@@ -14,8 +15,13 @@ import 'admin_package_form_screen.dart';
 /// deactivation, so a package already chosen by a traveller is not destroyed.
 class AdminPackageListScreen extends StatefulWidget {
   final PackageRepository? repository;
+  final PlaceRepository? placeRepository;
 
-  const AdminPackageListScreen({super.key, this.repository});
+  const AdminPackageListScreen({
+    super.key,
+    this.repository,
+    this.placeRepository,
+  });
 
   @override
   State<AdminPackageListScreen> createState() => _AdminPackageListScreenState();
@@ -89,8 +95,11 @@ class _AdminPackageListScreenState extends State<AdminPackageListScreen> {
     final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            AdminPackageFormScreen(package: package, repository: _repository),
+        builder: (context) => AdminPackageFormScreen(
+          package: package,
+          repository: _repository,
+          placeRepository: widget.placeRepository,
+        ),
       ),
     );
 

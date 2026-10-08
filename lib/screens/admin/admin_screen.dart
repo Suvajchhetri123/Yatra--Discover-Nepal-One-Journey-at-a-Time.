@@ -294,8 +294,10 @@ class _AdminScreenState extends State<AdminScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            AdminPackageListScreen(repository: _packageRepository),
+        builder: (context) => AdminPackageListScreen(
+          repository: _packageRepository,
+          placeRepository: _placeRepository,
+        ),
       ),
     );
   }

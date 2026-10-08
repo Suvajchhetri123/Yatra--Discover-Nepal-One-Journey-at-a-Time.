@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../models/package_model.dart';
+import '../../models/place_model.dart';
 import '../../models/tourist_pricing.dart';
 import '../../services/firestore_package_service.dart';
 import '../../services/package_repository.dart';
+import '../../services/place_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import 'admin_content_messages.dart';
@@ -24,8 +26,14 @@ const List<String> kPackageDifficultyOptions = <String>[
 class AdminPackageFormScreen extends StatefulWidget {
   final TourPackage? package;
   final PackageRepository? repository;
+  final PlaceRepository? placeRepository;
 
-  const AdminPackageFormScreen({super.key, this.package, this.repository});
+  const AdminPackageFormScreen({
+    super.key,
+    this.package,
+    this.repository,
+    this.placeRepository,
+  });
 
   @override
   State<AdminPackageFormScreen> createState() => _AdminPackageFormScreenState();
@@ -34,6 +42,21 @@ class AdminPackageFormScreen extends StatefulWidget {
 class _AdminPackageFormScreenState extends State<AdminPackageFormScreen> {
   late final PackageRepository _repository =
       widget.repository ?? FirestorePackageService();
+
+  List<Place> _catalogPlaces = <Place>[];
+  bool _placesLoading = false;
+  String? _placesError;
+
+  late String? _selectedRegion = () {
+    final value = widget.package?.region.trim() ?? '';
+    return value.isEmpty ? null : value;
+  }();
+
+  late final Set<String> _selectedIncludedPlaces = Set<String>.from(
+    widget.package?.includedPlaces ?? const <String>[],
+  );
+
+  bool get _usesCatalogPlaces => widget.placeRepository != null;
 
   late final TextEditingController _titleController = TextEditingController(
     text: widget.package?.title ?? '',
@@ -104,6 +127,10 @@ class _AdminPackageFormScreenState extends State<AdminPackageFormScreen> {
     for (final controller in _controllers) {
       controller.addListener(_onFieldChanged);
     }
+
+    if (_usesCatalogPlaces) {
+      _loadCatalogPlaces();
+    }
   }
 
   List<TextEditingController> get _controllers => [
@@ -130,6 +157,285 @@ class _AdminPackageFormScreenState extends State<AdminPackageFormScreen> {
     }
 
     super.dispose();
+  }
+
+  Future<void> _loadCatalogPlaces() async {
+    if (!_usesCatalogPlaces) return;
+
+    setState(() {
+      _placesLoading = true;
+      _placesError = null;
+    });
+
+    try {
+      final places = await widget.placeRepository!.getAllPlaces();
+
+      if (!mounted) return;
+
+      setState(() {
+        _catalogPlaces = List<Place>.of(places);
+        _placesLoading = false;
+        _placesError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _placesLoading = false;
+        _placesError = 'Could not load destinations.';
+      });
+    }
+  }
+
+  String _normalizeCatalogValue(String value) {
+    return value.trim().toLowerCase();
+  }
+
+  List<String> get _catalogDestinations {
+    final values = <String, String>{};
+
+    for (final place in _catalogPlaces) {
+      final location = place.location.trim();
+
+      if (location.isEmpty) continue;
+
+      values.putIfAbsent(_normalizeCatalogValue(location), () => location);
+    }
+
+    // Preserve the destination of an existing package even if its places
+    // were later deactivated.
+    final current = _selectedRegion?.trim() ?? '';
+
+    if (current.isNotEmpty) {
+      values.putIfAbsent(_normalizeCatalogValue(current), () => current);
+    }
+
+    final result = values.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    return result;
+  }
+
+  void _selectCatalogRegion(String? value) {
+    if (value == null) return;
+
+    final changed =
+        _normalizeCatalogValue(_selectedRegion ?? '') !=
+        _normalizeCatalogValue(value);
+
+    setState(() {
+      _selectedRegion = value;
+      _regionController.text = value;
+      _fieldErrors.remove('region');
+
+      if (changed) {
+        _selectedIncludedPlaces.clear();
+        _includedPlacesController.clear();
+      }
+    });
+  }
+
+  List<Place> get _catalogPlacesForSelectedRegion {
+    final region = _selectedRegion;
+
+    if (region == null || region.trim().isEmpty) {
+      return const <Place>[];
+    }
+
+    final normalizedRegion = _normalizeCatalogValue(region);
+
+    final places =
+        _catalogPlaces
+            .where(
+              (place) =>
+                  _normalizeCatalogValue(place.location) == normalizedRegion,
+            )
+            .toList()
+          ..sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
+
+    return places;
+  }
+
+  void _syncIncludedPlacesController() {
+    final names = _selectedIncludedPlaces.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    _includedPlacesController.text = names.join('\n');
+  }
+
+  void _toggleIncludedPlace(String placeName, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedIncludedPlaces.add(placeName);
+      } else {
+        _selectedIncludedPlaces.remove(placeName);
+      }
+
+      _syncIncludedPlacesController();
+    });
+  }
+
+  void _removeUnavailableIncludedPlace(String placeName) {
+    setState(() {
+      _selectedIncludedPlaces.remove(placeName);
+      _syncIncludedPlacesController();
+    });
+  }
+
+  Widget _catalogIncludedPlacesPicker() {
+    if (!_usesCatalogPlaces) {
+      return _field(
+        key: 'includedPlaces',
+        controller: _includedPlacesController,
+        label: 'Included places',
+        hint: 'One place name per line',
+        maxLines: 4,
+      );
+    }
+
+    final places = _catalogPlacesForSelectedRegion;
+
+    final activeNames = places.map((place) => place.name).toSet();
+
+    final unavailableSelected =
+        _selectedIncludedPlaces
+            .where((name) => !activeNames.contains(name))
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Included places',
+          border: OutlineInputBorder(),
+          alignLabelWithHint: true,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_selectedRegion == null)
+              Text('Choose a destination first.', style: AppType.caption)
+            else if (_placesLoading && _catalogPlaces.isEmpty)
+              const LinearProgressIndicator()
+            else if (places.isEmpty)
+              Text(
+                'No active places are available for $_selectedRegion.',
+                style: AppType.caption,
+              )
+            else ...[
+              Text(
+                'Select the places included in this package.',
+                style: AppType.caption,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              for (final place in places)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(place.name),
+                  value: _selectedIncludedPlaces.contains(place.name),
+                  onChanged: (value) {
+                    _toggleIncludedPlace(place.name, value ?? false);
+                  },
+                ),
+            ],
+
+            // Preserve historical package data if an included place has since
+            // been deactivated or removed from the active catalog.
+            if (unavailableSelected.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Previously saved places no longer active:',
+                style: AppType.caption,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  for (final name in unavailableSelected)
+                    InputChip(
+                      label: Text(name),
+                      onDeleted: () => _removeUnavailableIncludedPlace(name),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _catalogRegionPicker() {
+    // Keep the old text field for isolated tests that do not inject the
+    // place repository.
+    if (!_usesCatalogPlaces) {
+      return _field(
+        key: 'region',
+        controller: _regionController,
+        label: 'Region',
+        hint: 'e.g. Kathmandu Valley',
+        textCapitalization: TextCapitalization.words,
+      );
+    }
+
+    if (_placesLoading && _catalogPlaces.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.md),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_placesError != null && _catalogPlaces.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_placesError!),
+            const SizedBox(height: AppSpacing.xs),
+            TextButton.icon(
+              onPressed: _loadCatalogPlaces,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final destinations = _catalogDestinations;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: DropdownButtonFormField<String>(
+        initialValue: destinations.contains(_selectedRegion)
+            ? _selectedRegion
+            : null,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: 'Destination',
+          hintText: destinations.isEmpty
+              ? 'No active destinations'
+              : 'Choose destination',
+          errorText: _fieldErrors['region'],
+          border: const OutlineInputBorder(),
+        ),
+        items: [
+          for (final destination in destinations)
+            DropdownMenuItem<String>(
+              value: destination,
+              child: Text(destination),
+            ),
+        ],
+        onChanged: destinations.isEmpty ? null : _selectCatalogRegion,
+      ),
+    );
   }
 
   void _onFieldChanged() {
@@ -324,13 +630,7 @@ class _AdminPackageFormScreenState extends State<AdminPackageFormScreen> {
               hint: 'e.g. Kathmandu Valley Classic',
               textCapitalization: TextCapitalization.words,
             ),
-            _field(
-              key: 'region',
-              controller: _regionController,
-              label: 'Region',
-              hint: 'e.g. Kathmandu Valley',
-              textCapitalization: TextCapitalization.words,
-            ),
+            _catalogRegionPicker(),
             _field(
               key: 'summary',
               controller: _summaryController,
@@ -396,13 +696,7 @@ class _AdminPackageFormScreenState extends State<AdminPackageFormScreen> {
               hint: 'One per line',
               maxLines: 4,
             ),
-            _field(
-              key: 'includedPlaces',
-              controller: _includedPlacesController,
-              label: 'Included places',
-              hint: 'One place name per line',
-              maxLines: 4,
-            ),
+            _catalogIncludedPlacesPicker(),
             const SizedBox(height: AppSpacing.md),
             YatraPrimaryButton(
               label: _isEditing ? 'Save changes' : 'Add package',

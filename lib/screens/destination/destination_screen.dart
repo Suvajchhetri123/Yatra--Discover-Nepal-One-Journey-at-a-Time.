@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/travel_route_model.dart';
 import '../../services/trip_cost_estimator.dart';
+import '../../services/tourist_catalog_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import '../season_analysis/season_analysis_screen.dart';
@@ -39,7 +40,9 @@ class DestinationScreen extends StatefulWidget {
 class _DestinationScreenState extends State<DestinationScreen> {
   String? selectedDestination;
 
-  final List<String> destinations = [
+  /// Legacy fallback used only when this screen is rendered without the
+  /// application catalog, such as an isolated widget test.
+  static const List<String> _fallbackDestinations = <String>[
     'Kathmandu',
     'Pokhara',
     'Chitwan',
@@ -47,6 +50,37 @@ class _DestinationScreenState extends State<DestinationScreen> {
     'Everest',
     'Annapurna',
   ];
+
+  /// Destinations come from the active admin-managed place catalog.
+  ///
+  /// A place such as "Phewa Lake" with location "Pokhara" contributes
+  /// Pokhara once. Inactive places never reach TouristCatalogController, so
+  /// deactivated content cannot create tourist destinations.
+  List<String> _destinationsFor(BuildContext context) {
+    final catalog = TouristCatalogScope.controllerOf(context);
+
+    // Keeps isolated widget tests/backward-compatible callers working.
+    if (catalog == null) {
+      return _fallbackDestinations;
+    }
+
+    final byNormalizedName = <String, String>{};
+
+    for (final place in catalog.places) {
+      final location = place.location.trim();
+
+      if (location.isEmpty) {
+        continue;
+      }
+
+      byNormalizedName.putIfAbsent(location.toLowerCase(), () => location);
+    }
+
+    final destinations = byNormalizedName.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    return destinations;
+  }
 
   // ============================================================
   // BUDGET GATE
@@ -109,6 +143,7 @@ class _DestinationScreenState extends State<DestinationScreen> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final destinations = _destinationsFor(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Choose Destination')),
