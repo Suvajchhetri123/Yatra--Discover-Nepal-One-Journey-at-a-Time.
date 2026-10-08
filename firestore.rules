@@ -181,6 +181,35 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------
+    // ROUTES
+    // routes/{routeId}
+    // Admin-managed planner route registry.
+    // ------------------------------------------------------------
+
+    match /routes/{routeId} {
+
+      // Admins see all routes. Tourists may read active routes only.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.active == true);
+
+      // Only Admin may create or update planner routes.
+      allow create, update: if isAdmin()
+        && request.resource.data
+          .keys()
+          .hasAll([
+            'destination',
+            'from',
+            'to',
+            'transportModes',
+            'bidirectional',
+            'active'
+          ]);
+
+      // Routes use soft removal so existing trip data is never destroyed.
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------
     // PACKAGES
     // packages/{packageId}
     // Admin-curated tour package catalog.

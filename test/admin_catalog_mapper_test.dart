@@ -558,10 +558,11 @@ void main() {
   group('Firestore security rules', () {
     final rules = _libSource('firestore.rules');
 
-    test('the three new collections are covered', () {
+    test('admin-managed catalog collections are covered', () {
       expect(rules, contains('match /coordinators/{coordinatorId}'));
       expect(rules, contains('match /places/{placeId}'));
       expect(rules, contains('match /packages/{packageId}'));
+      expect(rules, contains('match /routes/{routeId}'));
     });
 
     test('nothing is opened up globally', () {
@@ -582,11 +583,18 @@ void main() {
           "hasAll([ 'title', 'region', 'price', 'durationDays', 'active' ])",
         ),
       );
+      expect(
+        rules,
+        contains(
+          "hasAll([ 'destination', 'from', 'to', 'transportModes', 'bidirectional', 'active' ])",
+        ),
+      );
     });
 
     test('catalog documents are never hard-deleted', () {
-      // users, bookings and the three catalogs all keep history.
-      expect('allow delete: if false;'.allMatches(rules).length, 5);
+      // Users, bookings, coordinators, places, packages and routes all keep
+      // history instead of allowing client-side hard deletion.
+      expect('allow delete: if false;'.allMatches(rules).length, 6);
     });
 
     test('tourist profile and booking ownership rules are unchanged', () {
