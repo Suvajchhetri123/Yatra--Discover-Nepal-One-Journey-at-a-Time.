@@ -18,11 +18,13 @@ import '../../services/firestore_admin_booking_service.dart';
 import '../../services/firestore_coordinator_service.dart';
 import '../../services/firestore_package_service.dart';
 import '../../services/firestore_place_service.dart';
+import '../../services/firestore_route_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/functions_admin_user_actions.dart';
 import '../../services/package_repository.dart';
 import '../../services/preview_mode.dart';
 import '../../services/place_repository.dart';
+import '../../services/route_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 import 'admin_booking_list_screen.dart';
@@ -30,6 +32,7 @@ import 'admin_content_messages.dart';
 import 'admin_coordinator_list_screen.dart';
 import 'admin_package_list_screen.dart';
 import 'admin_place_list_screen.dart';
+import 'admin_route_list_screen.dart';
 import 'admin_preview_host.dart';
 import 'admin_settings_screen.dart';
 import 'admin_user_list_screen.dart';
@@ -60,6 +63,7 @@ class AdminScreen extends StatefulWidget {
     this.coordinatorRepository,
     this.placeRepository,
     this.packageRepository,
+    this.routeRepository,
     this.userRepository,
     this.userActions,
     this.onSignOut,
@@ -84,6 +88,9 @@ class AdminScreen extends StatefulWidget {
 
   /// Package catalog backend. Defaults to [FirestorePackageService].
   final PackageRepository? packageRepository;
+
+  /// Planner route backend. Defaults to [FirestoreRouteService].
+  final RouteRepository? routeRepository;
 
   /// User registry backend for the account-management area.
   ///
@@ -137,6 +144,9 @@ class _AdminScreenState extends State<AdminScreen> {
   /// Resolved lazily so an injected repository is never bypassed.
   late final PackageRepository _packageRepository =
       widget.packageRepository ?? FirestorePackageService();
+
+  late final RouteRepository _routeRepository =
+      widget.routeRepository ?? FirestoreRouteService();
 
   /// Resolved lazily so an injected repository is never bypassed.
   late final AdminUserRepository _userRepository =
@@ -296,6 +306,18 @@ class _AdminScreenState extends State<AdminScreen> {
       MaterialPageRoute(
         builder: (context) => AdminPackageListScreen(
           repository: _packageRepository,
+          placeRepository: _placeRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openRoutes() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdminRouteListScreen(
+          routeRepository: _routeRepository,
           placeRepository: _placeRepository,
         ),
       ),
@@ -506,6 +528,7 @@ class _AdminScreenState extends State<AdminScreen> {
         onOpenCoordinators: _openCoordinators,
         onOpenPlaces: _openPlaces,
         onOpenPackages: _openPackages,
+        onOpenRoutes: _openRoutes,
         onSeedCatalog: _confirmSeed,
         seeding: _seeding,
         onOpenUsers: _openUsers,
@@ -530,6 +553,7 @@ class _Dashboard extends StatelessWidget {
   final VoidCallback onOpenCoordinators;
   final VoidCallback onOpenPlaces;
   final VoidCallback onOpenPackages;
+  final VoidCallback onOpenRoutes;
   final VoidCallback onSeedCatalog;
   final bool seeding;
   final VoidCallback onOpenUsers;
@@ -546,6 +570,7 @@ class _Dashboard extends StatelessWidget {
     required this.onOpenCoordinators,
     required this.onOpenPlaces,
     required this.onOpenPackages,
+    required this.onOpenRoutes,
     required this.onSeedCatalog,
     required this.seeding,
     required this.onOpenUsers,
@@ -672,6 +697,12 @@ class _Dashboard extends StatelessWidget {
           label: 'Packages',
           description: 'Tour packages, prices and itineraries',
           onTap: onOpenPackages,
+        ),
+        _ContentHubCard(
+          icon: Icons.route_outlined,
+          label: 'Routes',
+          description: 'Travel legs and transportation options',
+          onTap: onOpenRoutes,
         ),
         const SizedBox(height: AppSpacing.xl),
 
