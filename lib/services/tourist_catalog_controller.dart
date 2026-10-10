@@ -2,8 +2,10 @@ import 'package:flutter/widgets.dart';
 
 import '../models/package_model.dart';
 import '../models/place_model.dart';
+import '../models/route_config.dart';
 import 'package_repository.dart';
 import 'place_repository.dart';
+import 'route_repository.dart';
 
 /// Where a catalog load currently stands.
 ///
@@ -39,17 +41,21 @@ class TouristCatalogController extends ChangeNotifier {
   TouristCatalogController({
     PlaceRepository? placeRepository,
     PackageRepository? packageRepository,
+    RouteRepository? routeRepository,
   }) : _places = placeRepository,
-       _packages = packageRepository;
+       _packages = packageRepository,
+       _routes = routeRepository;
 
   final PlaceRepository? _places;
   final PackageRepository? _packages;
+  final RouteRepository? _routes;
 
   CatalogStatus _status = CatalogStatus.idle;
   CatalogStatus _refreshStatus = CatalogStatus.idle;
 
   List<Place> _placeCatalog = const <Place>[];
   List<TourPackage> _packageCatalog = const <TourPackage>[];
+  List<RouteConfig> _routeCatalog = const <RouteConfig>[];
 
   String? _errorMessage;
 
@@ -67,6 +73,9 @@ class TouristCatalogController extends ChangeNotifier {
 
   /// Active packages, sorted by title. Empty until the first successful load.
   List<TourPackage> get packages => _packageCatalog;
+
+  /// Active planner routes available to the tourist app.
+  List<RouteConfig> get routes => _routeCatalog;
 
   /// Regions that actually have an active package, alphabetically.
   ///
@@ -96,7 +105,8 @@ class TouristCatalogController extends ChangeNotifier {
   bool get isEmpty =>
       _status == CatalogStatus.ready &&
       _placeCatalog.isEmpty &&
-      _packageCatalog.isEmpty;
+      _packageCatalog.isEmpty &&
+      _routeCatalog.isEmpty;
 
   /// Human-readable failure text for [CatalogStatus.error], else null.
   String? get errorMessage => _errorMessage;
@@ -135,14 +145,22 @@ class TouristCatalogController extends ChangeNotifier {
           ? const <TourPackage>[]
           : await _packages.getAllPackages();
 
+      final loadedRoutes = _routes == null
+          ? const <RouteConfig>[]
+          : await _routes.getAllRoutes();
+
       _placeCatalog = List<Place>.unmodifiable(loadedPlaces);
       _packageCatalog = List<TourPackage>.unmodifiable(loadedPackages);
+      _routeCatalog = List<RouteConfig>.unmodifiable(loadedRoutes);
       _status = CatalogStatus.ready;
       _refreshStatus = CatalogStatus.idle;
       _errorMessage = null;
     } catch (_) {
       // The previously loaded catalogs deliberately stay in place.
-      _status = _placeCatalog.isEmpty && _packageCatalog.isEmpty
+      _status =
+          _placeCatalog.isEmpty &&
+              _packageCatalog.isEmpty &&
+              _routeCatalog.isEmpty
           ? CatalogStatus.error
           : CatalogStatus.ready;
       _refreshStatus = CatalogStatus.idle;
@@ -241,5 +259,10 @@ class TouristCatalogScope extends InheritedNotifier<TouristCatalogController> {
   /// The active package catalog in scope, or an empty list.
   static List<TourPackage> packagesOf(BuildContext context) {
     return maybeOf(context)?.packages ?? const <TourPackage>[];
+  }
+
+  /// Active planner routes in scope, or an empty list.
+  static List<RouteConfig> routesOf(BuildContext context) {
+    return maybeOf(context)?.routes ?? const <RouteConfig>[];
   }
 }

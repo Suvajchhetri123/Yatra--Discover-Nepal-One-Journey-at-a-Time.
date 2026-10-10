@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'screens/splash/splash_screen.dart';
 import 'services/firestore_package_service.dart';
 import 'services/firestore_place_service.dart';
+import 'services/firestore_route_service.dart';
 import 'services/firestore_service.dart';
 import 'services/profile_session.dart';
 import 'services/session_manager.dart';
@@ -64,6 +65,7 @@ class _YatraAppState extends State<YatraApp> {
           ? null
           : FirestorePackageService(),
       placeRepository: Firebase.apps.isEmpty ? null : FirestorePlaceService(),
+      routeRepository: Firebase.apps.isEmpty ? null : FirestoreRouteService(),
     );
   }
 
