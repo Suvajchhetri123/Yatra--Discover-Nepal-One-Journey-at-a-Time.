@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import '../../models/place_model.dart';
 import '../../models/route_config.dart';
 import '../../services/place_repository.dart';
+import '../../services/route_location_helper.dart';
 import '../../services/route_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/yatra_components.dart';
 
 /// Add/edit form for an Admin-managed route leg.
 ///
-/// Destinations come from the active Place catalog, while From/To remain
+/// Destinations come from the active Place catalog. From/To remain
 /// editable because a route may contain transfer stops that are not tourist
-/// destinations themselves (for example Birtamod or Jomsom).
+/// destinations themselves (for example Birtamod or Jomsom), but existing
+/// route locations are suggested and likely spelling duplicates are warned
+/// about before saving.
 class AdminRouteFormScreen extends StatefulWidget {
   final RouteConfig? route;
   final RouteRepository routeRepository;
@@ -41,6 +44,9 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
     text: widget.route?.note ?? '',
   );
 
+  final FocusNode _fromFocusNode = FocusNode();
+  final FocusNode _toFocusNode = FocusNode();
+
   late String? _destination = () {
     final value = widget.route?.destination.trim() ?? '';
     return value.isEmpty ? null : value;
@@ -53,6 +59,7 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
   late bool _bidirectional = widget.route?.bidirectional ?? true;
 
   List<Place> _places = const <Place>[];
+  List<RouteConfig> _routes = const <RouteConfig>[];
   bool _loadingPlaces = true;
   bool _saving = false;
   String? _placesError;
@@ -71,6 +78,8 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
     _fromController.dispose();
     _toController.dispose();
     _noteController.dispose();
+    _fromFocusNode.dispose();
+    _toFocusNode.dispose();
     super.dispose();
   }
 
@@ -83,12 +92,19 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
     });
 
     try {
-      final places = await widget.placeRepository.getAllPlaces();
+      final placesFuture = widget.placeRepository.getAllPlaces();
+      final routesFuture = widget.routeRepository.getAllRoutes(
+        includeInactive: true,
+      );
+
+      final places = await placesFuture;
+      final routes = await routesFuture;
 
       if (!mounted) return;
 
       setState(() {
         _places = places;
+        _routes = routes;
         _loadingPlaces = false;
       });
     } catch (_) {
@@ -126,6 +142,25 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
     return result;
   }
 
+  List<String> get _knownLocations {
+    final values = <String>[..._destinations];
+
+    for (final route in _routes) {
+      // When editing, do not let the record being edited make its own typo
+      // look like an already-established canonical location.
+      if (widget.route != null && route.id == widget.route!.id) {
+        continue;
+      }
+
+      values
+        ..add(route.destination)
+        ..add(route.from)
+        ..add(route.to);
+    }
+
+    return RouteLocationHelper.canonicalLocations(values);
+  }
+
   void _toggleTransport(String mode, bool selected) {
     setState(() {
       if (selected) {
@@ -142,8 +177,14 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
     if (_saving) return;
 
     final destination = _destination?.trim() ?? '';
-    final from = _fromController.text.trim();
-    final to = _toController.text.trim();
+    var from = RouteLocationHelper.canonicalize(
+      _fromController.text,
+      _knownLocations,
+    );
+    var to = RouteLocationHelper.canonicalize(
+      _toController.text,
+      _knownLocations,
+    );
 
     if (destination.isEmpty) {
       setState(() {
@@ -158,6 +199,23 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
       });
       return;
     }
+
+    final resolvedFrom = await _resolvePossibleTypo(label: 'From', value: from);
+
+    if (resolvedFrom == null) return;
+
+    from = resolvedFrom;
+
+    final resolvedTo = await _resolvePossibleTypo(label: 'To', value: to);
+
+    if (resolvedTo == null) return;
+
+    to = resolvedTo;
+
+    if (!mounted) return;
+
+    _setControllerText(_fromController, from);
+    _setControllerText(_toController, to);
 
     if (_normalize(from) == _normalize(to)) {
       setState(() {
@@ -210,6 +268,145 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
         _formError = 'Could not save route. $error';
       });
     }
+  }
+
+  Future<String?> _resolvePossibleTypo({
+    required String label,
+    required String value,
+  }) async {
+    final suggestion = RouteLocationHelper.nearDuplicate(
+      value,
+      _knownLocations,
+    );
+
+    if (suggestion == null) {
+      return value;
+    }
+
+    final useSuggestion = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Possible location typo'),
+          content: Text(
+            '$label location "$value" is very close to the existing '
+            'location "$suggestion".\n\n'
+            'Using the same spelling keeps route legs connected.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Keep "$value"'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text('Use "$suggestion"'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || useSuggestion == null) {
+      return null;
+    }
+
+    return useSuggestion ? suggestion : value;
+  }
+
+  void _setControllerText(TextEditingController controller, String value) {
+    if (controller.text == value) return;
+
+    controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  Widget _locationField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String label,
+    required String hint,
+    required IconData icon,
+  }) {
+    return RawAutocomplete<String>(
+      textEditingController: controller,
+      focusNode: focusNode,
+      optionsViewOpenDirection: OptionsViewOpenDirection.down,
+      optionsBuilder: (textEditingValue) {
+        return RouteLocationHelper.suggestions(
+          textEditingValue.text,
+          _knownLocations,
+        );
+      },
+      displayStringForOption: (option) => option,
+      onSelected: (option) {
+        _setControllerText(controller, option);
+
+        if (_formError != null) {
+          setState(() => _formError = null);
+        }
+      },
+      fieldViewBuilder:
+          (context, fieldController, fieldFocusNode, onFieldSubmitted) {
+            return TextField(
+              controller: fieldController,
+              focusNode: fieldFocusNode,
+              textCapitalization: TextCapitalization.words,
+              onChanged: (_) {
+                if (_formError != null) {
+                  setState(() => _formError = null);
+                }
+              },
+              decoration: InputDecoration(
+                labelText: label,
+                hintText: hint,
+                prefixIcon: Icon(icon),
+                suffixIcon: const Icon(Icons.arrow_drop_down),
+                border: const OutlineInputBorder(),
+              ),
+            );
+          },
+      optionsViewBuilder: (context, onSelected, options) {
+        final optionList = options.toList();
+
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 6,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: SizedBox(
+              width: MediaQuery.sizeOf(context).width - (AppSpacing.screen * 2),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView.separated(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: optionList.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final option = optionList[index];
+
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.place_outlined),
+                      title: Text(option),
+                      onTap: () => onSelected(option),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -280,27 +477,21 @@ class _AdminRouteFormScreenState extends State<AdminRouteFormScreen> {
                 ),
               ),
 
-            TextField(
+            _locationField(
               controller: _fromController,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'From',
-                hintText: 'e.g. Kathmandu',
-                prefixIcon: Icon(Icons.trip_origin),
-                border: OutlineInputBorder(),
-              ),
+              focusNode: _fromFocusNode,
+              label: 'From',
+              hint: 'Type or choose a location',
+              icon: Icons.trip_origin,
             ),
             const SizedBox(height: AppSpacing.md),
 
-            TextField(
+            _locationField(
               controller: _toController,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'To',
-                hintText: 'e.g. Ilam',
-                prefixIcon: Icon(Icons.location_on_outlined),
-                border: OutlineInputBorder(),
-              ),
+              focusNode: _toFocusNode,
+              label: 'To',
+              hint: 'Type or choose a location',
+              icon: Icons.location_on_outlined,
             ),
 
             const SizedBox(height: AppSpacing.xl),
