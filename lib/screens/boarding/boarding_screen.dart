@@ -4,10 +4,12 @@ import 'package:geolocator/geolocator.dart';
 import '../../theme/app_theme.dart';
 import '../../models/package_model.dart';
 import '../../models/place_model.dart';
+import '../../models/route_config.dart';
 import '../../models/journey_stop_plan.dart';
 import '../../models/travel_route_model.dart';
 import '../../data/transportation_data.dart';
 import '../../services/recommendation_service.dart';
+import '../../services/route_catalog_planner.dart';
 import '../../services/tourist_catalog_controller.dart';
 import '../../services/trip_cost_estimator.dart';
 import '../../widgets/yatra_components.dart';
@@ -43,6 +45,12 @@ class BoardingScreen extends StatefulWidget {
   /// fixed list instead.
   final List<Place>? places;
 
+  /// Active admin-managed route catalog.
+  ///
+  /// Production reads this from [TouristCatalogScope]; tests may inject a
+  /// fixed list so route planning remains deterministic.
+  final List<RouteConfig>? routes;
+
   const BoardingScreen({
     super.key,
     required this.touristType,
@@ -62,6 +70,7 @@ class BoardingScreen extends StatefulWidget {
     required this.seasonMessage,
     this.package,
     this.places,
+    this.routes,
   });
 
   @override
@@ -72,6 +81,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
   /// The catalog to plan with, preferring an explicitly injected list.
   List<Place> _catalogFor(BuildContext context) {
     return widget.places ?? TouristCatalogScope.placesOf(context);
+  }
+
+  List<RouteConfig> _routeCatalogFor(BuildContext context) {
+    return widget.routes ?? TouristCatalogScope.routesOf(context);
   }
 
   Position? currentPosition;
@@ -267,6 +280,67 @@ class _BoardingScreenState extends State<BoardingScreen> {
     return value.trim().toLowerCase();
   }
 
+  List<RouteConfig> get _dynamicDestinationRoutes {
+    return RouteCatalogPlanner.routesForDestination(
+      _routeCatalogFor(context),
+      widget.destination,
+    );
+  }
+
+  bool get _usesDynamicRouteCatalog => _dynamicDestinationRoutes.isNotEmpty;
+
+  List<RouteTransport> _transportOptionsForLeg(String from, String to) {
+    final dynamicRoutes = _dynamicDestinationRoutes;
+
+    // A destination with no Firestore routes keeps all legacy route-specific
+    // options and transfer warnings unchanged.
+    if (dynamicRoutes.isEmpty) {
+      return transportOptionsForRoute(from, to);
+    }
+
+    final result = <RouteTransport>[];
+
+    for (final mode in RouteCatalogPlanner.transportModesForLeg(
+      dynamicRoutes,
+      from,
+      to,
+    )) {
+      final option = transportationOptionForMode(mode);
+      if (option != null) {
+        result.add(RouteTransport(option: option));
+      }
+    }
+
+    return result;
+  }
+
+  List<String> _connectedDestinationsForReturn(String from) {
+    final dynamicRoutes = _dynamicDestinationRoutes;
+
+    if (dynamicRoutes.isEmpty) {
+      return connectedDestinationsFrom(from);
+    }
+
+    return RouteCatalogPlanner.connectedFrom(dynamicRoutes, from);
+  }
+
+  bool get _automaticReturnAvailable {
+    if (!_usesDynamicRouteCatalog) {
+      // Preserve the legacy automatic reverse-route behavior exactly.
+      return true;
+    }
+
+    if (segments.isEmpty) {
+      return false;
+    }
+
+    // For admin routes, automatic reversal is legal only when every outgoing
+    // leg can also be travelled in the opposite direction.
+    return segments.every(
+      (segment) => _transportOptionsForLeg(segment.to, segment.from).isNotEmpty,
+    );
+  }
+
   String? _preferredTransportationForRoute(String from, String to) {
     final preferred = widget.selectedTransport?.trim();
 
@@ -274,7 +348,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
       return null;
     }
 
-    final options = transportOptionsForRoute(from, to);
+    final options = _transportOptionsForLeg(from, to);
 
     for (final routeTransport in options) {
       if (_normalize(routeTransport.option.name) == _normalize(preferred)) {
@@ -487,6 +561,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
   // ============================================================
 
   Map<String, List<String>> get activeRouteMap {
+    final dynamicRoutes = _dynamicDestinationRoutes;
+
+    // Presence of even one active admin route makes Firestore authoritative
+    // for this destination. Other destinations remain on the legacy graph.
+    if (dynamicRoutes.isNotEmpty) {
+      return RouteCatalogPlanner.buildGraph(dynamicRoutes);
+    }
+
     final destinationKey = widget.destination.trim();
 
     if (destinationRoutes.containsKey(destinationKey)) {
@@ -500,6 +582,19 @@ class _BoardingScreenState extends State<BoardingScreen> {
     }
 
     return {};
+  }
+
+  List<String> get activeLocations {
+    final dynamicRoutes = _dynamicDestinationRoutes;
+
+    if (dynamicRoutes.isNotEmpty) {
+      return RouteCatalogPlanner.locationsForRoutes(
+        dynamicRoutes,
+        destination: widget.destination,
+      );
+    }
+
+    return locations;
   }
 
   // ============================================================
@@ -545,7 +640,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
   List<String> get boardingPoints {
     final result = <String>[];
 
-    for (final location in locations) {
+    for (final location in activeLocations) {
       if (_normalize(location) == _normalize(widget.destination)) {
         continue;
       }
@@ -581,7 +676,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
         !possible.any(
           (location) => _normalize(location) == _normalize(widget.destination),
         )) {
-      final directDestination = locations.firstWhere(
+      final directDestination = activeLocations.firstWhere(
         (location) => _normalize(location) == _normalize(widget.destination),
         orElse: () => widget.destination,
       );
@@ -650,7 +745,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
     // TravelRoute can automatically derive a complete return journey by
     // reversing the outgoing segments and reusing their transportation.
     if (!customizeReturnRoute) {
-      return true;
+      return _automaticReturnAvailable;
     }
 
     // When the user chooses to customize the return journey, the explicit
@@ -692,7 +787,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     final result = <String>[];
 
-    for (final place in connectedDestinationsFrom(current)) {
+    for (final place in _connectedDestinationsForReturn(current)) {
       if (_normalize(place) == _normalize(current)) {
         continue;
       }
@@ -1459,14 +1554,14 @@ class _BoardingScreenState extends State<BoardingScreen> {
             isExpanded: true,
             itemHeight: null,
             selectedItemBuilder: (context) => _selectedTransportItems(
-              transportOptionsForRoute(from, selectedReturnNextPoint!),
+              _transportOptionsForLeg(from, selectedReturnNextPoint!),
             ),
             decoration: const InputDecoration(
               hintText: 'Choose transportation',
               prefixIcon: Icon(Icons.directions_bus_outlined),
             ),
             items: _transportItems(
-              transportOptionsForRoute(from, selectedReturnNextPoint!),
+              _transportOptionsForLeg(from, selectedReturnNextPoint!),
             ),
             onChanged: (value) {
               setState(() {
@@ -2433,7 +2528,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                           itemHeight: null,
                           selectedItemBuilder: (context) =>
                               _selectedTransportItems(
-                                transportOptionsForRoute(
+                                _transportOptionsForLeg(
                                   currentLocation!,
                                   selectedNextPoint!,
                                 ),
@@ -2443,7 +2538,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
                             prefixIcon: Icon(Icons.directions_bus_outlined),
                           ),
                           items: _transportItems(
-                            transportOptionsForRoute(
+                            _transportOptionsForLeg(
                               currentLocation!,
                               selectedNextPoint!,
                             ),

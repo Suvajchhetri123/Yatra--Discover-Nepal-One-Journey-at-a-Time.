@@ -316,6 +316,31 @@ TransportationOption? transportOptionForDestination(
 }
 
 // ============================================================
+// CANONICAL MODE LOOKUP
+// ============================================================
+
+/// Converts an admin route mode name into the same typed option used by the
+/// existing transportation and boarding UI.
+TransportationOption? transportationOptionForMode(String mode) {
+  switch (_normalize(mode)) {
+    case 'bus':
+      return _busOption;
+    case 'flight':
+      return _flightOption;
+    case 'private vehicle':
+      return _privateVehicleOption;
+    case 'jeep':
+      return _jeepOption;
+    case 'motorbike':
+      return _motorbikeOption;
+    case 'trek':
+      return trekOption;
+    default:
+      return null;
+  }
+}
+
+// ============================================================
 // LOCAL EXPLORATION DETECTION
 // ============================================================
 

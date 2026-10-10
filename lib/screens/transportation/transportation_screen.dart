@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../data/transportation_data.dart';
 import '../../models/transportation_option_model.dart';
+import '../../models/route_config.dart';
+import '../../services/route_catalog_planner.dart';
+import '../../services/tourist_catalog_controller.dart';
 import '../../widgets/yatra_components.dart';
 import '../boarding/boarding_screen.dart';
 
@@ -26,6 +29,10 @@ class TransportationScreen extends StatefulWidget {
   final String travelType;
   final int groupSize;
 
+  /// Active planner routes. Production reads these from
+  /// [TouristCatalogScope]; tests may inject a fixed catalog.
+  final List<RouteConfig>? routes;
+
   const TransportationScreen({
     super.key,
     required this.touristType,
@@ -42,6 +49,7 @@ class TransportationScreen extends StatefulWidget {
     required this.childCount,
     required this.travelType,
     required this.groupSize,
+    this.routes,
   });
 
   @override
@@ -51,14 +59,55 @@ class TransportationScreen extends StatefulWidget {
 class _TransportationScreenState extends State<TransportationScreen> {
   String? selectedTransportation;
 
-  List<TransportationOption> get options {
-    return transportOptionsFor(widget.destination);
+  List<RouteConfig> _routeCatalogFor(BuildContext context) {
+    return widget.routes ?? TouristCatalogScope.routesOf(context);
+  }
+
+  List<TransportationOption> _optionsFor(BuildContext context) {
+    final destinationRoutes = RouteCatalogPlanner.routesForDestination(
+      _routeCatalogFor(context),
+      widget.destination,
+    );
+
+    // No admin-managed routes for this destination yet:
+    // preserve the complete legacy transportation behavior.
+    if (destinationRoutes.isEmpty) {
+      return transportOptionsFor(widget.destination);
+    }
+
+    final result = <TransportationOption>[];
+
+    // Kathmandu, Pokhara and Chitwan keep their local-exploration choice
+    // even after their intercity route graph is migrated to Firestore.
+    for (final option in transportOptionsFor(widget.destination)) {
+      if (isLocalExplorationOption(widget.destination, option.name)) {
+        result.add(option);
+      }
+    }
+
+    for (final mode in RouteCatalogPlanner.transportModesForDestination(
+      destinationRoutes,
+    )) {
+      final option = transportationOptionForMode(mode);
+      if (option == null) continue;
+
+      if (!result.any(
+        (existing) =>
+            existing.name.trim().toLowerCase() ==
+            option.name.trim().toLowerCase(),
+      )) {
+        result.add(option);
+      }
+    }
+
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
+    final options = _optionsFor(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transportation'), centerTitle: true),
@@ -203,6 +252,7 @@ class _TransportationScreenState extends State<TransportationScreen> {
                                 touristType: widget.touristType,
                                 destination: widget.destination,
                                 selectedTransport: selectedTransportation,
+                                routes: widget.routes,
                                 departureDate: widget.departureDate,
                                 returnDate: widget.returnDate,
                                 season: widget.season,
