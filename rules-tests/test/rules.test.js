@@ -139,6 +139,40 @@ test.before(async () => {
       email: 'inactive@yatra.test',
       active: false,
     });
+
+    // Active route used by tourist/admin read and delete-protection tests.
+    await setDoc(doc(db, 'routes', 'route-active'), {
+      destination: 'Ilam',
+      from: 'Kathmandu',
+      to: 'Ilam',
+      transportModes: ['Bus', 'Jeep', 'Private Vehicle'],
+      bidirectional: true,
+      note: 'Test route',
+      active: true,
+    });
+
+    // Inactive route proves soft-removed routes stay hidden from tourists
+    // while remaining visible to administrators.
+    await setDoc(doc(db, 'routes', 'route-retired'), {
+      destination: 'Ilam',
+      from: 'Kathmandu',
+      to: 'Ilam',
+      transportModes: ['Bus'],
+      bidirectional: true,
+      note: 'Retired test route',
+      active: false,
+    });
+
+    // Dedicated record for the soft-deactivation write test.
+    await setDoc(doc(db, 'routes', 'route-soft'), {
+      destination: 'Pokhara',
+      from: 'Kathmandu',
+      to: 'Pokhara',
+      transportModes: ['Bus'],
+      bidirectional: true,
+      note: '',
+      active: true,
+    });
   });
 });
 
@@ -161,6 +195,7 @@ test('Firestore: a signed-out visitor can read nothing', async () => {
 
   await assertFails(getDoc(doc(db, 'users', TOURIST_UID)));
   await assertFails(getDoc(doc(db, 'places', 'mustang-muktinath')));
+  await assertFails(getDoc(doc(db, 'routes', 'route-active')));
 });
 
 test('Firestore: an admin may manage the catalog', async () => {
@@ -194,10 +229,40 @@ test('Firestore: an admin may manage the catalog', async () => {
     }),
   );
 
+  await assertSucceeds(
+    setDoc(doc(db, 'routes', 'route-admin'), {
+      destination: 'Ilam',
+      from: 'Kathmandu',
+      to: 'Ilam',
+      transportModes: ['Bus', 'Jeep'],
+      bidirectional: true,
+      note: 'Created by admin test',
+      active: true,
+    }),
+  );
+
+  await assertSucceeds(
+    setDoc(
+      doc(db, 'routes', 'route-admin'),
+      {
+        transportModes: ['Bus', 'Jeep', 'Private Vehicle'],
+        note: 'Updated by admin test',
+      },
+      { merge: true },
+    ),
+  );
+
   // A partial document is rejected even for an admin, so a broken record can
   // never reach the registry the tourist app reads.
   await assertFails(
     setDoc(doc(db, 'places', 'pokhara-partial'), { name: 'No Fee' }),
+  );
+
+  await assertFails(
+    setDoc(doc(db, 'routes', 'route-partial'), {
+      destination: 'Ilam',
+      from: 'Kathmandu',
+    }),
   );
 });
 
@@ -206,6 +271,25 @@ test('Firestore: a tourist may not write to the catalog', async () => {
 
   await assertFails(
     setDoc(doc(db, 'places', 'pokhara-side'), { name: 'Tamche' }),
+  );
+
+  await assertFails(
+    setDoc(doc(db, 'routes', 'route-tourist'), {
+      destination: 'Ilam',
+      from: 'Kathmandu',
+      to: 'Ilam',
+      transportModes: ['Bus'],
+      bidirectional: true,
+      active: true,
+    }),
+  );
+
+  await assertFails(
+    setDoc(
+      doc(db, 'routes', 'route-active'),
+      { note: 'Tourist tried to change this.' },
+      { merge: true },
+    ),
   );
 });
 
@@ -253,6 +337,7 @@ test('Firestore: no client may delete anything', async () => {
   await assertFails(deleteDoc(doc(db, 'places', 'mustang-muktinath')));
   await assertFails(deleteDoc(doc(db, 'bookings', 'booking-1')));
   await assertFails(deleteDoc(doc(db, 'users', TOURIST_UID)));
+  await assertFails(deleteDoc(doc(db, 'routes', 'route-active')));
 });
 
 test('Firestore: removal is a soft deactivation only', async () => {
@@ -260,6 +345,14 @@ test('Firestore: removal is a soft deactivation only', async () => {
 
   await assertSucceeds(
     setDoc(doc(db, 'places', 'mustang-muktinath'), { active: false }, { merge: true }),
+  );
+
+  await assertSucceeds(
+    setDoc(
+      doc(db, 'routes', 'route-soft'),
+      { active: false },
+      { merge: true },
+    ),
   );
 });
 
@@ -277,12 +370,14 @@ test('Firestore: a tourist reads the active catalog and nothing else', async () 
   await assertSucceeds(getDoc(doc(db, 'places', 'pokhara-phewa')));
   await assertSucceeds(getDoc(doc(db, 'packages', 'pkg-read')));
   await assertSucceeds(getDoc(doc(db, 'coordinators', 'c-active')));
+  await assertSucceeds(getDoc(doc(db, 'routes', 'route-active')));
 
   // Deactivated records stay unreadable to tourists, which is what keeps a
   // removed package out of discovery and out of the planner.
   await assertFails(getDoc(doc(db, 'places', 'pokhara-retired')));
   await assertFails(getDoc(doc(db, 'packages', 'pkg-retired')));
   await assertFails(getDoc(doc(db, 'coordinators', 'c-retired')));
+  await assertFails(getDoc(doc(db, 'routes', 'route-retired')));
 });
 
 test('Firestore: an admin still reads deactivated catalog records', async () => {
@@ -292,6 +387,7 @@ test('Firestore: an admin still reads deactivated catalog records', async () => 
 
   await assertSucceeds(getDoc(doc(db, 'places', 'pokhara-retired')));
   await assertSucceeds(getDoc(doc(db, 'packages', 'pkg-retired')));
+  await assertSucceeds(getDoc(doc(db, 'routes', 'route-retired')));
 });
 
 test('Firestore: a tourist reads only their own profile', async () => {
